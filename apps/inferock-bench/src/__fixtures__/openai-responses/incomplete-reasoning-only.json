@@ -1,0 +1,25 @@
+{
+  "id": "resp_recorded_incomplete_reasoning",
+  "object": "response",
+  "created_at": 1782993601,
+  "status": "incomplete",
+  "background": false,
+  "model": "gpt-5-mini-2026-06-01",
+  "service_tier": "default",
+  "system_fingerprint": "fp_responses_incomplete",
+  "incomplete_details": {
+    "reason": "max_output_tokens"
+  },
+  "output": [],
+  "usage": {
+    "input_tokens": 18,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 24,
+    "output_tokens_details": {
+      "reasoning_tokens": 24
+    },
+    "total_tokens": 42
+  }
+}

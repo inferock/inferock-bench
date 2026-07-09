@@ -1,0 +1,45 @@
+{
+  "id": "resp_recorded_success",
+  "object": "response",
+  "created_at": 1782993600,
+  "status": "completed",
+  "background": false,
+  "model": "gpt-5-mini-2026-06-01",
+  "service_tier": "default",
+  "system_fingerprint": "fp_responses_success",
+  "output_text": "Invoice inv-123 is open.",
+  "output": [
+    {
+      "id": "msg_1",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Invoice inv-123 is open.",
+          "annotations": []
+        }
+      ]
+    },
+    {
+      "id": "fc_1",
+      "type": "function_call",
+      "status": "completed",
+      "call_id": "call_1",
+      "name": "lookup_invoice",
+      "arguments": "{\"invoiceId\":\"inv-123\"}"
+    }
+  ],
+  "usage": {
+    "input_tokens": 30,
+    "input_tokens_details": {
+      "cached_tokens": 10
+    },
+    "output_tokens": 12,
+    "output_tokens_details": {
+      "reasoning_tokens": 3
+    },
+    "total_tokens": 42
+  }
+}

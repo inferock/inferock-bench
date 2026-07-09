@@ -1,0 +1,25 @@
+{
+  "corpusId": "agent-coding-corpus-exercism-js-v1",
+  "sourceSummary": "MIT-licensed Exercism JavaScript exercises with local node:test fixtures generated from canonical cases.",
+  "sources": [
+    {
+      "repository": "https://github.com/exercism/javascript",
+      "revision": "d8cabd2cddcc2b20f0beb4e1d2d31ff946a93ccd",
+      "license": "MIT"
+    },
+    {
+      "repository": "https://github.com/exercism/problem-specifications",
+      "revision": "77d50e4a40e93b90bf45fa610a2329087e4ca3d1",
+      "license": "MIT"
+    }
+  ],
+  "tasks": [
+    "hello-world",
+    "two-fer",
+    "leap",
+    "rna-transcription",
+    "resistor-color",
+    "pangram"
+  ],
+  "localTestRuntime": "node:test"
+}

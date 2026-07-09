@@ -1,0 +1,24 @@
+{
+  "id": "chatcmpl_pdims_priority",
+  "object": "chat.completion",
+  "model": "gpt-5.4-mini",
+  "service_tier": "priority",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "Priority processing completed with a billable response."
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 240,
+    "completion_tokens": 25,
+    "total_tokens": 265,
+    "prompt_tokens_details": {
+      "cached_tokens": 120
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "fixtureNotice": "Spec fixture, not measured claims. All values are illustrative placeholders.",
+  "lossSignal": {
+    "code": "PRICING_UNKNOWN",
+    "detector": "pricing",
+    "detectorVersion": "v1",
+    "tenantId": "fixture-tenant",
+    "requestId": "fixture-request-001",
+    "provider": "openai",
+    "model": "fixture-model",
+    "domain": "usage",
+    "failureClass": "pricing_unknown",
+    "status": "pricing_unknown",
+    "evidenceGrade": "triage_only",
+    "severity": "warning",
+    "dispute": false,
+    "liabilityParty": "unknown",
+    "creditCandidate": false,
+    "valueKind": "triage",
+    "recoverableBasis": null,
+    "tokensBilled": 16,
+    "tokensDelivered": 0,
+    "costUsd": 0,
+    "observedChargeUsd": null,
+    "expectedChargeUsd": null,
+    "providerRecoverableLossUsd": null,
+    "pricingVersion": null,
+    "pricingStatus": "pricing_unknown",
+    "evidence": {
+      "provider": "openai",
+      "model": "fixture-model",
+      "usageCategories": [
+        "fixture-unpriced-category"
+      ]
+    }
+  }
+}

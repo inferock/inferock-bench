@@ -1,0 +1,64 @@
+{
+  "fixtureNotice": "Spec fixture, not measured claims. All values are illustrative placeholders.",
+  "canonicalEvent": {
+    "schemaVersion": "v2",
+    "request": {
+      "tenantId": "fixture-tenant",
+      "provider": "openai",
+      "requestId": "fixture-request-001",
+      "requestedModel": "fixture-model",
+      "attemptIndex": 0,
+      "expectCompletion": true,
+      "route": "fixture-route",
+      "workloadClass": "fixture-workload"
+    },
+    "response": {
+      "statusCode": 200,
+      "finishReason": "stop",
+      "content": "Fixture response content.",
+      "servedModel": "fixture-model",
+      "providerRequestId": "fixture-provider-request"
+    },
+    "usage": {
+      "input": 12,
+      "output": 4,
+      "categories": [
+        {
+          "category": "input",
+          "tokens": 12,
+          "sourceField": "usage.prompt_tokens",
+          "provider": "openai"
+        },
+        {
+          "category": "output",
+          "tokens": 4,
+          "sourceField": "usage.completion_tokens",
+          "provider": "openai"
+        }
+      ],
+      "usageSource": "provider",
+      "pricingStatus": "pricing_unknown"
+    },
+    "timing": {
+      "startedAt": "2026-07-02T00:00:00.000Z",
+      "endedAt": "2026-07-02T00:00:01.234Z",
+      "latencyMs": 1234,
+      "chunkCount": 1,
+      "terminalStatus": "complete"
+    },
+    "attempts": [
+      {
+        "attemptNumber": 0,
+        "provider": "openai",
+        "model": "fixture-model",
+        "status": "success",
+        "timing": {
+          "startedAt": "2026-07-02T00:00:00.000Z",
+          "endedAt": "2026-07-02T00:00:01.234Z",
+          "latencyMs": 1234
+        },
+        "finalSelected": true
+      }
+    ]
+  }
+}

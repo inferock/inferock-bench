@@ -1,0 +1,6 @@
+event: message_start
+data: {"message":{"id":"msg_fixture_stream_error","type":"message"}}
+
+event: error
+data: {"error":{"type":"overloaded_error","code":"overloaded_error","message":"fixture stream error"}}
+

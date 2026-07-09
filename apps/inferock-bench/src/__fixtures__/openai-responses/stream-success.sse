@@ -1,0 +1,11 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_stream_success","object":"response","created_at":1782993603,"status":"in_progress","model":"gpt-5-mini-2026-06-01","service_tier":"default","system_fingerprint":"fp_responses_stream"}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"hel"}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"lo"}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_stream_success","object":"response","created_at":1782993603,"status":"completed","model":"gpt-5-mini-2026-06-01","service_tier":"default","system_fingerprint":"fp_responses_stream","output_text":"hello","output":[{"id":"msg_stream","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"hello","annotations":[]}]}],"usage":{"input_tokens":17,"input_tokens_details":{"cached_tokens":5},"output_tokens":4,"output_tokens_details":{"reasoning_tokens":1},"total_tokens":21}}}

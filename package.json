@@ -1,0 +1,14 @@
+{
+  "name": "inferock-bench-repo",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "start": "pnpm --filter inferock-bench start"
+  }
+}

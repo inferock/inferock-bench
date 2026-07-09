@@ -1,0 +1,76 @@
+name: Bug report
+description: Report a bug in inferock-bench, @inferock/measure, or The Inferock Standard.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include provider keys, prompts, raw responses, raw traces, customer identifiers, internal endpoints, or env files.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: inferock-bench or @inferock/measure version, commit SHA, or npm tag.
+      placeholder: "inferock-bench 0.0.0 / @inferock/measure 0.0.0 / commit SHA"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - OpenAI
+        - Anthropic
+        - Other or not provider-specific
+    validations:
+      required: true
+  - type: input
+    id: sdk
+    attributes:
+      label: SDK or framework
+      description: Name and version of the SDK/framework sending traffic through localhost.
+      placeholder: "openai npm 0.0.0, Anthropic SDK 0.0.0, LangChain, custom fetch"
+    validations:
+      required: false
+  - type: textarea
+    id: event_shape
+    attributes:
+      label: Sanitized event shape
+      description: Share the smallest sanitized canonical event shape or field summary needed to reproduce the issue. No prompts, raw responses, keys, or identifiers.
+      placeholder: "provider, endpoint, status, finish_reason/stop_reason, usage fields, timing fields, evidence grade"
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What did inferock-bench or @inferock/measure do?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened under The Inferock Standard?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Use normal traffic. Do not manufacture failures just to reproduce a public screenshot.
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed provider keys, prompts, raw responses, raw traces, and customer identifiers.
+          required: true
+        - label: Any dollar display I mention keeps provider-recognized recoverable loss separate from unrecognized loss.
+          required: true
+        - label: This report does not rank providers or claim production-gateway behavior.
+          required: true

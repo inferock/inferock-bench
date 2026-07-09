@@ -1,0 +1,21 @@
+{
+  "fixtureNotice": "Spec fixture, not measured claims. All values are illustrative placeholders.",
+  "artifact": "the receipt",
+  "standardVersion": "v0.1.0",
+  "denominators": {
+    "totalCalls": 1,
+    "totalSpendUsd": 0,
+    "pricingUnknownCalls": 1
+  },
+  "ledgers": {
+    "providerRecognizedRecoverableUsd": 0,
+    "unrecognizedLoss": {
+      "timeLossMs": 0,
+      "dollarizedTimeUsd": null,
+      "customerDeclaredRate": null,
+      "customerDeclaredRateSourceLabel": null
+    },
+    "recognitionGapUsd": 0
+  },
+  "fixtureRule": "Do not use this fixture as measured dashboard, benchmark, loss report, or receipt data."
+}

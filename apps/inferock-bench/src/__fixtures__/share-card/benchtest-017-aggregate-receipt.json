@@ -1,0 +1,846 @@
+{
+  "schemaVersion": "inferock-bench-receipt-v2",
+  "version": 2,
+  "title": "Money loss $4.62; time lost ~0s",
+  "generatedAt": "2026-07-06T23:44:14.384Z",
+  "period": {
+    "since": null,
+    "until": "2026-07-06T23:44:14.369Z"
+  },
+  "totals": {
+    "measuredCalls": 175,
+    "failures": 46,
+    "providerSpendUsd": 1.280414,
+    "money": {
+      "standardLossUsd": 4.622887,
+      "providerRecognizedUsd": 0,
+      "recognitionGapUsd": 4.622887,
+      "unrecognizedUsd": 4.622887,
+      "providerSpendUsd": 1.280414
+    },
+    "duration": {
+      "timeLossMs": 0,
+      "providerRecognizedTimeLossMs": 0,
+      "recognitionGapTimeMs": 0,
+      "dollarTranslationUsd": 0,
+      "rate": {
+        "usdPerHour": 92,
+        "currency": "USD",
+        "unit": "hour",
+        "label": "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+        "oneLineWhy": "BLS median software developer wage, loaded by BLS private-industry benefit share.",
+        "overrideKey": "time_value_usd_per_hour"
+      },
+      "thresholds": [
+        {
+          "segmentId": "interactive_streaming_non_reasoning",
+          "label": "interactive streaming / non-reasoning (default — override)",
+          "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured",
+          "thresholdSummary": "good start 1s; acceptable start 10s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+          "oneLineWhy": "Nielsen 1s/10s response-time limits plus OpenAI/Azure/Bedrock published TPS anchors.",
+          "overrideKey": "latency.interactive_streaming.non_reasoning"
+        },
+        {
+          "segmentId": "interactive_streaming_reasoning",
+          "label": "interactive streaming / reasoning (default — override)",
+          "selectionReason": "interactive streaming selected from captured stream timing; reasoning selected from reasoning/thinking evidence",
+          "thresholdSummary": "good start 10s; acceptable start 500s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+          "oneLineWhy": "Reasoning allowance from OpenAI 25,000-token experimentation reserve divided by the 50 TPS anchor.",
+          "overrideKey": "latency.interactive_streaming.reasoning"
+        }
+      ]
+    }
+  },
+  "coverage": {
+    "suiteVersion": "inferock-coverage-suite-v1",
+    "methodVersion": "inferock-bench-coverage-summary-v1",
+    "runId": "local-summary",
+    "watchedCount": 12,
+    "totalSurfaceCount": 13,
+    "signalCount": 47,
+    "notOpenableCount": 1,
+    "surfaces": [
+      {
+        "surfaceId": "broken_output",
+        "measure": "Broken output: bad JSON/schema",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: JSON/schema contract completed with no finding",
+        "taskIds": [],
+        "detectorCodes": [
+          "BROKEN_OUTPUT"
+        ],
+        "normalUsageRationale": "Schema or JSON mode was requested by normal task traffic.",
+        "watchedEvidence": {
+          "jsonModeRequested": true
+        }
+      },
+      {
+        "surfaceId": "anthropic_token_crosscheck",
+        "measure": "Anthropic output-token recount",
+        "status": "signal",
+        "signalCount": 17,
+        "evidenceGrade": "triage_only",
+        "label": "17 signals emitted",
+        "taskIds": [],
+        "detectorCodes": [
+          "ANTHROPIC_TOKEN_CROSSCHECK"
+        ],
+        "normalUsageRationale": "Anthropic output-token traffic is present for calibrated recount or gross-bound fallback cross-checking.",
+        "watchedEvidence": {
+          "anthropicTrafficObserved": true
+        },
+        "details": {
+          "methodId": "anthropic_count_tokens_recount_v1",
+          "evidenceGradeCap": "B",
+          "caveat": "Anthropic does not publish a local tokenizer for Claude 3 or later models, and no API returns an independent recount of billed output tokens. Anthropic-side token recounts in this standard are computed against Anthropic's own count_tokens endpoint (documented by Anthropic as an estimate) applied to the delivered output text, with per-model calibration constants and a stated tolerance band; offline estimates use the last tokenizer Anthropic published (Claude 1/2-era, MIT) and are labeled approximate. This is an approximation pending an official public Anthropic tokenizer and will be replaced by it on release."
+        }
+      },
+      {
+        "surfaceId": "duplicate_request_id",
+        "measure": "Duplicate request-ID events",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: operation/idempotency evidence observed with no duplicate group",
+        "taskIds": [],
+        "detectorCodes": [
+          "DUPLICATE_REQUEST_ID"
+        ],
+        "normalUsageRationale": "Normal traffic carried operation or idempotency evidence.",
+        "watchedEvidence": {
+          "operationIdObserved": true,
+          "bodyHashObserved": true,
+          "retryCorrelationIdObserved": false
+        }
+      },
+      {
+        "surfaceId": "provider_latency_slo",
+        "measure": "Provider latency (Inferock default SLA)",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: timing and usage observed with no latency/token signal",
+        "taskIds": [],
+        "detectorCodes": [
+          "LATENCY_BILLED"
+        ],
+        "normalUsageRationale": "Normal calls carried timing and usage evidence.",
+        "watchedEvidence": {
+          "timingAndUsageObserved": true
+        },
+        "details": {
+          "segment": {
+            "segmentId": "interactive_streaming_non_reasoning",
+            "interactionClass": "interactive_streaming",
+            "reasoningClass": "non_reasoning",
+            "label": "interactive streaming / non-reasoning (default — override)",
+            "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured"
+          },
+          "thresholds": {
+            "goodStartMs": 1000,
+            "acceptableStartMs": 10000,
+            "goodOutputTokensPerSecond": 50,
+            "acceptableOutputTokensPerSecond": 44,
+            "goodMsPerOutputToken": 20,
+            "acceptableMsPerOutputToken": 23
+          },
+          "rate": {
+            "usdPerHour": 92,
+            "currency": "USD",
+            "unit": "hour",
+            "label": "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+            "oneLineWhy": "BLS median software developer wage, loaded by BLS private-industry benefit share.",
+            "sourceIds": [
+              "BLS-OOH",
+              "BLS-OEWS-2080",
+              "BLS-ECEC"
+            ],
+            "signoffRequired": false,
+            "overrideKey": "time_value_usd_per_hour",
+            "excessOnly": true
+          },
+          "activeSegments": [
+            {
+              "segmentId": "interactive_streaming_non_reasoning",
+              "label": "interactive streaming / non-reasoning (default — override)",
+              "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured",
+              "thresholdSummary": "good start 1s; acceptable start 10s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+              "oneLineWhy": "Nielsen 1s/10s response-time limits plus OpenAI/Azure/Bedrock published TPS anchors.",
+              "overrideKey": "latency.interactive_streaming.non_reasoning"
+            },
+            {
+              "segmentId": "interactive_streaming_reasoning",
+              "label": "interactive streaming / reasoning (default — override)",
+              "selectionReason": "interactive streaming selected from captured stream timing; reasoning selected from reasoning/thinking evidence",
+              "thresholdSummary": "good start 10s; acceptable start 500s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+              "oneLineWhy": "Reasoning allowance from OpenAI 25,000-token experimentation reserve divided by the 50 TPS anchor.",
+              "overrideKey": "latency.interactive_streaming.reasoning"
+            }
+          ]
+        }
+      },
+      {
+        "surfaceId": "tool_call_validity",
+        "measure": "Tool-call validity",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: tool declarations and response tool evidence validated with no finding",
+        "taskIds": [],
+        "detectorCodes": [
+          "MALFORMED_TOOL_CALL",
+          "TOOL_CALL_SCHEMA_VIOLATION",
+          "TOOL_CALL_STOP_REASON_MISMATCH",
+          "TOOL_CHOICE_VIOLATION",
+          "UNDECLARED_TOOL_CALL"
+        ],
+        "normalUsageRationale": "Normal tool-call traffic carried declarations and response tool evidence.",
+        "watchedEvidence": {
+          "toolDeclarationsObserved": true,
+          "responseToolEvidenceObserved": true
+        }
+      },
+      {
+        "surfaceId": "security_governance",
+        "measure": "Security/governance overlay",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: passive security inspection completed with no provider safety/security evidence",
+        "taskIds": [],
+        "detectorCodes": [
+          "SECURITY_PROVIDER_SAFETY_FIELD",
+          "SECURITY_SECRET_EXACT_MATCH"
+        ],
+        "normalUsageRationale": "Normal traffic carried passive security-inspection evidence.",
+        "watchedEvidence": {
+          "passiveSecurityTaskObserved": true,
+          "requestSecurityCaptureComplete": false,
+          "providerSafetyObserved": false
+        }
+      },
+      {
+        "surfaceId": "openai_content_filter",
+        "measure": "Content-filter overlay",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: OpenAI traffic inspected with no content-filter evidence",
+        "taskIds": [],
+        "detectorCodes": [
+          "OPENAI_CONTENT_FILTER_OMITTED_OUTPUT"
+        ],
+        "normalUsageRationale": "Normal OpenAI completion traffic was passively inspected.",
+        "watchedEvidence": {
+          "openAiTrafficObserved": true
+        }
+      },
+      {
+        "surfaceId": "stream_termination_evidence",
+        "measure": "Stream-termination overlay",
+        "status": "signal",
+        "signalCount": 1,
+        "evidenceGrade": "triage_only",
+        "label": "1 evidence-only overlay emitted",
+        "taskIds": [],
+        "detectorCodes": [
+          "ANTHROPIC_STREAM_ERROR_EVENT",
+          "OPENAI_STREAM_MISSING_DONE_MARKER",
+          "STREAM_CLIENT_ABORTED",
+          "STREAM_TERMINAL_STATUS_GAP",
+          "STREAM_UNCONFIRMED_TERMINATION"
+        ],
+        "normalUsageRationale": "Normal streaming traffic carried terminal timing evidence.",
+        "watchedEvidence": {
+          "streamEvidenceObserved": true,
+          "terminalEvidenceObserved": true
+        },
+        "details": {
+          "computationTrace": {
+            "methodId": "stream_termination_evidence_overlay_v1",
+            "methodVersion": "2026-07-03",
+            "standardVersion": "sla-defaults-2026-07-03-user-approved",
+            "whyZero": "evidence-only overlay; no standard-dollar computation",
+            "outputs": {
+              "standardLossUsd": 0,
+              "providerRecognizedLossUsd": 0,
+              "recognitionGapUsd": 0
+            }
+          }
+        }
+      },
+      {
+        "surfaceId": "retry_amplification",
+        "measure": "Retry amplification",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: SDK retry surface observed with no retry amplification evidence",
+        "taskIds": [],
+        "detectorCodes": [
+          "RETRY_AMPLIFICATION_CHAIN",
+          "RETRY_AMPLIFICATION_IN_CALL"
+        ],
+        "normalUsageRationale": "Normal traffic carried SDK/native retry-observation evidence.",
+        "watchedEvidence": {
+          "sdkRetryObservation": true
+        }
+      },
+      {
+        "surfaceId": "served_model_mismatch",
+        "measure": "Served model mismatch",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: served-model identity evidence present with no mismatch",
+        "taskIds": [],
+        "detectorCodes": [
+          "SERVED_MODEL_MISMATCH"
+        ],
+        "normalUsageRationale": "Normal traffic naturally carries requested and served model identity.",
+        "watchedEvidence": {
+          "identityEvidence": true
+        }
+      },
+      {
+        "surfaceId": "cache_integrity",
+        "measure": "Cache integrity",
+        "status": "signal",
+        "signalCount": 29,
+        "evidenceGrade": "unrecognized_standard_loss",
+        "label": "29 signals emitted",
+        "taskIds": [],
+        "detectorCodes": [
+          "CACHE_DISCOUNT_AT_RISK",
+          "CACHE_RATE_ANOMALY"
+        ],
+        "normalUsageRationale": "Normal traffic carried cache-token usage, pricing evidence, and optional provider charge observation.",
+        "watchedEvidence": {
+          "sharedPrefixCallCount": 2,
+          "requiredSharedPrefixCallCount": 2,
+          "sharedPrefixPreconditionObserved": true,
+          "cacheTokensObserved": true,
+          "chargeObserved": false,
+          "chargeObservationConfigured": false,
+          "chargeObservationConfigState": "absent"
+        }
+      },
+      {
+        "surfaceId": "drift_regression",
+        "measure": "Drift / regression",
+        "status": "not_openable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-openable: drift canary baseline collecting (0/3)",
+        "taskIds": [],
+        "detectorCodes": [],
+        "normalUsageRationale": "Normal known-answer canary or replay traffic carried drift provenance.",
+        "watchedEvidence": {
+          "driftCanaryEvents": 100,
+          "completedCanaryCalls": 100,
+          "fullCanaryItemCountRequired": 50,
+          "baselineRunCountRequired": 3,
+          "baselineRunsCompletedBeforeCurrent": 0,
+          "baselineEstablished": false,
+          "methodId": "per_model_known_answer_canary_v1"
+        },
+        "notOpenableReason": "drift canary baseline collecting (0/3)"
+      },
+      {
+        "surfaceId": "factuality",
+        "measure": "Factuality overlay",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: factuality contract or citation-support evidence checked with no contradiction",
+        "taskIds": [],
+        "detectorCodes": [
+          "ANTHROPIC_CITATION_CONTRADICTS_CITED_TEXT",
+          "FACTUALITY_KNOWN_ANSWER_FAIL"
+        ],
+        "normalUsageRationale": "Normal traffic carried a captured known-answer contract or provider citation-support evidence.",
+        "watchedEvidence": {
+          "factualityContractObserved": true,
+          "citationSupportObserved": false
+        }
+      }
+    ]
+  },
+  "rows": [
+    {
+      "code": "CACHE_DISCOUNT_AT_RISK",
+      "failureClass": "cache_discount_at_risk",
+      "evidenceGrade": "unrecognized_standard_loss",
+      "count": 29,
+      "primaryValueKind": "money",
+      "standardLossUsd": 4.622887,
+      "providerRecognizedUsd": 0,
+      "recognitionGapUsd": 4.622887,
+      "unrecognizedUsd": 4.622887,
+      "timeLossMs": 0,
+      "providerRecognizedTimeLossMs": 0,
+      "recognitionGapTimeMs": 0,
+      "dollarTranslationUsd": 0,
+      "pricingUnknownCount": 0,
+      "howComputed": [
+        "cache discount at risk — verify your invoice: standard loss $0.15; provider-recognized $0.00 -> $0.15 recognition gap",
+        "cache discount at risk — verify your invoice: standard loss $0.16; provider-recognized $0.00 -> $0.16 recognition gap",
+        "cache discount at risk — verify your invoice: standard loss $0.17; provider-recognized $0.00 -> $0.17 recognition gap",
+        "cache discount at risk — verify your invoice: standard loss $0.18; provider-recognized $0.00 -> $0.18 recognition gap"
+      ]
+    },
+    {
+      "code": "ANTHROPIC_TOKEN_CROSSCHECK",
+      "failureClass": "anthropic_token_crosscheck",
+      "evidenceGrade": "triage_only",
+      "count": 17,
+      "primaryValueKind": "money",
+      "standardLossUsd": 0,
+      "providerRecognizedUsd": 0,
+      "recognitionGapUsd": 0,
+      "unrecognizedUsd": 0,
+      "timeLossMs": 0,
+      "providerRecognizedTimeLossMs": 0,
+      "recognitionGapTimeMs": 0,
+      "dollarTranslationUsd": 0,
+      "pricingUnknownCount": 0,
+      "howComputed": [
+        "not a standard-loss dollar input"
+      ]
+    }
+  ],
+  "measures": [
+    {
+      "rowKey": "broken_output",
+      "surfaceId": "broken_output",
+      "measure": "Broken output: bad JSON/schema",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: JSON/schema contract completed with no finding",
+      "signalCodes": [
+        "BROKEN_OUTPUT"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "BROKEN_OUTPUT"
+      ],
+      "normalUsageRationale": "Schema or JSON mode was requested by normal task traffic.",
+      "watchedEvidence": {
+        "jsonModeRequested": true
+      }
+    },
+    {
+      "rowKey": "anthropic_token_crosscheck",
+      "surfaceId": "anthropic_token_crosscheck",
+      "measure": "Anthropic output-token recount",
+      "status": "signal",
+      "verdict": "signal",
+      "count": 17,
+      "signalCount": 17,
+      "evidenceGrade": "triage_only",
+      "label": "17 signals emitted",
+      "signalCodes": [
+        "ANTHROPIC_TOKEN_CROSSCHECK"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "ANTHROPIC_TOKEN_CROSSCHECK"
+      ],
+      "normalUsageRationale": "Anthropic output-token traffic is present for calibrated recount or gross-bound fallback cross-checking.",
+      "watchedEvidence": {
+        "anthropicTrafficObserved": true
+      },
+      "details": {
+        "methodId": "anthropic_count_tokens_recount_v1",
+        "evidenceGradeCap": "B",
+        "caveat": "Anthropic does not publish a local tokenizer for Claude 3 or later models, and no API returns an independent recount of billed output tokens. Anthropic-side token recounts in this standard are computed against Anthropic's own count_tokens endpoint (documented by Anthropic as an estimate) applied to the delivered output text, with per-model calibration constants and a stated tolerance band; offline estimates use the last tokenizer Anthropic published (Claude 1/2-era, MIT) and are labeled approximate. This is an approximation pending an official public Anthropic tokenizer and will be replaced by it on release."
+      }
+    },
+    {
+      "rowKey": "duplicate_request_id",
+      "surfaceId": "duplicate_request_id",
+      "measure": "Duplicate request-ID events",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: operation/idempotency evidence observed with no duplicate group",
+      "signalCodes": [
+        "DUPLICATE_REQUEST_ID"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "DUPLICATE_REQUEST_ID"
+      ],
+      "normalUsageRationale": "Normal traffic carried operation or idempotency evidence.",
+      "watchedEvidence": {
+        "operationIdObserved": true,
+        "bodyHashObserved": true,
+        "retryCorrelationIdObserved": false
+      }
+    },
+    {
+      "rowKey": "provider_latency_slo",
+      "surfaceId": "provider_latency_slo",
+      "measure": "Provider latency (Inferock default SLA)",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: timing and usage observed with no latency/token signal",
+      "signalCodes": [
+        "LATENCY_BILLED"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "LATENCY_BILLED"
+      ],
+      "normalUsageRationale": "Normal calls carried timing and usage evidence.",
+      "watchedEvidence": {
+        "timingAndUsageObserved": true
+      },
+      "details": {
+        "segment": {
+          "segmentId": "interactive_streaming_non_reasoning",
+          "interactionClass": "interactive_streaming",
+          "reasoningClass": "non_reasoning",
+          "label": "interactive streaming / non-reasoning (default — override)",
+          "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured"
+        },
+        "thresholds": {
+          "goodStartMs": 1000,
+          "acceptableStartMs": 10000,
+          "goodOutputTokensPerSecond": 50,
+          "acceptableOutputTokensPerSecond": 44,
+          "goodMsPerOutputToken": 20,
+          "acceptableMsPerOutputToken": 23
+        },
+        "rate": {
+          "usdPerHour": 92,
+          "currency": "USD",
+          "unit": "hour",
+          "label": "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+          "oneLineWhy": "BLS median software developer wage, loaded by BLS private-industry benefit share.",
+          "sourceIds": [
+            "BLS-OOH",
+            "BLS-OEWS-2080",
+            "BLS-ECEC"
+          ],
+          "signoffRequired": false,
+          "overrideKey": "time_value_usd_per_hour",
+          "excessOnly": true
+        },
+        "activeSegments": [
+          {
+            "segmentId": "interactive_streaming_non_reasoning",
+            "label": "interactive streaming / non-reasoning (default — override)",
+            "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured",
+            "thresholdSummary": "good start 1s; acceptable start 10s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+            "oneLineWhy": "Nielsen 1s/10s response-time limits plus OpenAI/Azure/Bedrock published TPS anchors.",
+            "overrideKey": "latency.interactive_streaming.non_reasoning"
+          },
+          {
+            "segmentId": "interactive_streaming_reasoning",
+            "label": "interactive streaming / reasoning (default — override)",
+            "selectionReason": "interactive streaming selected from captured stream timing; reasoning selected from reasoning/thinking evidence",
+            "thresholdSummary": "good start 10s; acceptable start 500s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+            "oneLineWhy": "Reasoning allowance from OpenAI 25,000-token experimentation reserve divided by the 50 TPS anchor.",
+            "overrideKey": "latency.interactive_streaming.reasoning"
+          }
+        ]
+      }
+    },
+    {
+      "rowKey": "tool_call_validity",
+      "surfaceId": "tool_call_validity",
+      "measure": "Tool-call validity",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: tool declarations and response tool evidence validated with no finding",
+      "signalCodes": [
+        "MALFORMED_TOOL_CALL",
+        "TOOL_CALL_SCHEMA_VIOLATION",
+        "TOOL_CALL_STOP_REASON_MISMATCH",
+        "TOOL_CHOICE_VIOLATION",
+        "UNDECLARED_TOOL_CALL"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "MALFORMED_TOOL_CALL",
+        "TOOL_CALL_SCHEMA_VIOLATION",
+        "TOOL_CALL_STOP_REASON_MISMATCH",
+        "TOOL_CHOICE_VIOLATION",
+        "UNDECLARED_TOOL_CALL"
+      ],
+      "normalUsageRationale": "Normal tool-call traffic carried declarations and response tool evidence.",
+      "watchedEvidence": {
+        "toolDeclarationsObserved": true,
+        "responseToolEvidenceObserved": true
+      }
+    },
+    {
+      "rowKey": "security_governance",
+      "surfaceId": "security_governance",
+      "measure": "Security/governance overlay",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: passive security inspection completed with no provider safety/security evidence",
+      "signalCodes": [
+        "SECURITY_PROVIDER_SAFETY_FIELD",
+        "SECURITY_SECRET_EXACT_MATCH"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "SECURITY_PROVIDER_SAFETY_FIELD",
+        "SECURITY_SECRET_EXACT_MATCH"
+      ],
+      "normalUsageRationale": "Normal traffic carried passive security-inspection evidence.",
+      "watchedEvidence": {
+        "passiveSecurityTaskObserved": true,
+        "requestSecurityCaptureComplete": false,
+        "providerSafetyObserved": false
+      }
+    },
+    {
+      "rowKey": "openai_content_filter",
+      "surfaceId": "openai_content_filter",
+      "measure": "Content-filter overlay",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: OpenAI traffic inspected with no content-filter evidence",
+      "signalCodes": [
+        "OPENAI_CONTENT_FILTER_OMITTED_OUTPUT"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "OPENAI_CONTENT_FILTER_OMITTED_OUTPUT"
+      ],
+      "normalUsageRationale": "Normal OpenAI completion traffic was passively inspected.",
+      "watchedEvidence": {
+        "openAiTrafficObserved": true
+      }
+    },
+    {
+      "rowKey": "stream_termination_evidence",
+      "surfaceId": "stream_termination_evidence",
+      "measure": "Stream-termination overlay",
+      "status": "signal",
+      "verdict": "signal",
+      "count": 1,
+      "signalCount": 1,
+      "evidenceGrade": "triage_only",
+      "label": "1 evidence-only overlay emitted",
+      "signalCodes": [
+        "ANTHROPIC_STREAM_ERROR_EVENT",
+        "OPENAI_STREAM_MISSING_DONE_MARKER",
+        "STREAM_CLIENT_ABORTED",
+        "STREAM_TERMINAL_STATUS_GAP",
+        "STREAM_UNCONFIRMED_TERMINATION"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "ANTHROPIC_STREAM_ERROR_EVENT",
+        "OPENAI_STREAM_MISSING_DONE_MARKER",
+        "STREAM_CLIENT_ABORTED",
+        "STREAM_TERMINAL_STATUS_GAP",
+        "STREAM_UNCONFIRMED_TERMINATION"
+      ],
+      "normalUsageRationale": "Normal streaming traffic carried terminal timing evidence.",
+      "watchedEvidence": {
+        "streamEvidenceObserved": true,
+        "terminalEvidenceObserved": true
+      },
+      "details": {
+        "computationTrace": {
+          "methodId": "stream_termination_evidence_overlay_v1",
+          "methodVersion": "2026-07-03",
+          "standardVersion": "sla-defaults-2026-07-03-user-approved",
+          "whyZero": "evidence-only overlay; no standard-dollar computation",
+          "outputs": {
+            "standardLossUsd": 0,
+            "providerRecognizedLossUsd": 0,
+            "recognitionGapUsd": 0
+          }
+        }
+      }
+    },
+    {
+      "rowKey": "retry_amplification",
+      "surfaceId": "retry_amplification",
+      "measure": "Retry amplification",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: SDK retry surface observed with no retry amplification evidence",
+      "signalCodes": [
+        "RETRY_AMPLIFICATION_CHAIN",
+        "RETRY_AMPLIFICATION_IN_CALL"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "RETRY_AMPLIFICATION_CHAIN",
+        "RETRY_AMPLIFICATION_IN_CALL"
+      ],
+      "normalUsageRationale": "Normal traffic carried SDK/native retry-observation evidence.",
+      "watchedEvidence": {
+        "sdkRetryObservation": true
+      }
+    },
+    {
+      "rowKey": "served_model_mismatch",
+      "surfaceId": "served_model_mismatch",
+      "measure": "Served model mismatch",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: served-model identity evidence present with no mismatch",
+      "signalCodes": [
+        "SERVED_MODEL_MISMATCH"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "SERVED_MODEL_MISMATCH"
+      ],
+      "normalUsageRationale": "Normal traffic naturally carries requested and served model identity.",
+      "watchedEvidence": {
+        "identityEvidence": true
+      }
+    },
+    {
+      "rowKey": "cache_integrity",
+      "surfaceId": "cache_integrity",
+      "measure": "Cache integrity",
+      "status": "signal",
+      "verdict": "signal",
+      "count": 29,
+      "signalCount": 29,
+      "evidenceGrade": "unrecognized_standard_loss",
+      "label": "29 signals emitted",
+      "signalCodes": [
+        "CACHE_DISCOUNT_AT_RISK",
+        "CACHE_RATE_ANOMALY"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "CACHE_DISCOUNT_AT_RISK",
+        "CACHE_RATE_ANOMALY"
+      ],
+      "normalUsageRationale": "Normal traffic carried cache-token usage, pricing evidence, and optional provider charge observation.",
+      "watchedEvidence": {
+        "sharedPrefixCallCount": 2,
+        "requiredSharedPrefixCallCount": 2,
+        "sharedPrefixPreconditionObserved": true,
+        "cacheTokensObserved": true,
+        "chargeObserved": false,
+        "chargeObservationConfigured": false,
+        "chargeObservationConfigState": "absent"
+      }
+    },
+    {
+      "rowKey": "drift_regression",
+      "surfaceId": "drift_regression",
+      "measure": "Drift / regression",
+      "status": "not_openable",
+      "verdict": "not_exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "not-openable: drift canary baseline collecting (0/3)",
+      "signalCodes": [],
+      "taskIds": [],
+      "detectorCodes": [],
+      "normalUsageRationale": "Normal known-answer canary or replay traffic carried drift provenance.",
+      "watchedEvidence": {
+        "driftCanaryEvents": 100,
+        "completedCanaryCalls": 100,
+        "fullCanaryItemCountRequired": 50,
+        "baselineRunCountRequired": 3,
+        "baselineRunsCompletedBeforeCurrent": 0,
+        "baselineEstablished": false,
+        "methodId": "per_model_known_answer_canary_v1"
+      },
+      "notOpenableReason": "drift canary baseline collecting (0/3)"
+    },
+    {
+      "rowKey": "factuality",
+      "surfaceId": "factuality",
+      "measure": "Factuality overlay",
+      "status": "watched_clean",
+      "verdict": "exercised",
+      "count": 0,
+      "signalCount": 0,
+      "evidenceGrade": "not_applicable",
+      "label": "watched-clean: factuality contract or citation-support evidence checked with no contradiction",
+      "signalCodes": [
+        "ANTHROPIC_CITATION_CONTRADICTS_CITED_TEXT",
+        "FACTUALITY_KNOWN_ANSWER_FAIL"
+      ],
+      "taskIds": [],
+      "detectorCodes": [
+        "ANTHROPIC_CITATION_CONTRADICTS_CITED_TEXT",
+        "FACTUALITY_KNOWN_ANSWER_FAIL"
+      ],
+      "normalUsageRationale": "Normal traffic carried a captured known-answer contract or provider citation-support evidence.",
+      "watchedEvidence": {
+        "factualityContractObserved": true,
+        "citationSupportObserved": false
+      }
+    }
+  ],
+  "assumptions": {
+    "standardVersion": "sla-defaults-2026-07-03-user-approved",
+    "timeValueRate": {
+      "usdPerHour": 92,
+      "currency": "USD",
+      "unit": "hour",
+      "label": "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+      "oneLineWhy": "BLS median software developer wage, loaded by BLS private-industry benefit share.",
+      "overrideKey": "time_value_usd_per_hour"
+    },
+    "activeLatencySegments": [
+      {
+        "segmentId": "interactive_streaming_non_reasoning",
+        "label": "interactive streaming / non-reasoning (default — override)",
+        "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured",
+        "thresholdSummary": "good start 1s; acceptable start 10s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+        "oneLineWhy": "Nielsen 1s/10s response-time limits plus OpenAI/Azure/Bedrock published TPS anchors.",
+        "overrideKey": "latency.interactive_streaming.non_reasoning"
+      },
+      {
+        "segmentId": "interactive_streaming_reasoning",
+        "label": "interactive streaming / reasoning (default — override)",
+        "selectionReason": "interactive streaming selected from captured stream timing; reasoning selected from reasoning/thinking evidence",
+        "thresholdSummary": "good start 10s; acceptable start 500s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+        "oneLineWhy": "Reasoning allowance from OpenAI 25,000-token experimentation reserve divided by the 50 TPS anchor.",
+        "overrideKey": "latency.interactive_streaming.reasoning"
+      }
+    ],
+    "impactFooterLines": [
+      "Impact assumptions: money loss and time loss are separate; latency and downtime time translations are not added to money loss."
+    ]
+  },
+  "watermark": {
+    "name": "Inferock Bench",
+    "url": "https://inferock.opiusai.com"
+  }
+}

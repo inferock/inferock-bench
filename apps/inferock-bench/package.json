@@ -1,0 +1,79 @@
+{
+  "name": "inferock-bench",
+  "version": "0.1.8",
+  "description": "Local LLM cost-tracking proxy for OpenAI, Anthropic, Gemini, and pinned OpenRouter calls with token usage, failure, and billing-integrity receipts.",
+  "private": false,
+  "license": "FSL-1.1-Apache-2.0",
+  "type": "module",
+  "bin": {
+    "inferock-bench": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md",
+    "package.json"
+  ],
+  "keywords": [
+    "llm",
+    "ai-billing",
+    "cost-tracking",
+    "token-usage",
+    "billing-integrity",
+    "failed-calls",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt",
+    "gemini",
+    "openrouter",
+    "proxy",
+    "token-count",
+    "receipts",
+    "observability",
+    "reliability",
+    "llmops",
+    "benchmark"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inferock/inferock-bench.git",
+    "directory": "apps/inferock-bench"
+  },
+  "homepage": "https://github.com/inferock/inferock-bench#readme",
+  "bugs": {
+    "url": "https://github.com/inferock/inferock-bench/issues"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && node scripts/copy-coverage-assets.mjs",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "coverage:derive-baseline": "tsx src/coverage-suite/derive-token-baseline.ts",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "lint": "eslint src/ playwright.config.ts e2e/ --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage e2e/test-results e2e/results"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "@inferock/measure": "0.1.8",
+    "@hono/node-server": "^1.14.0",
+    "ajv": "^8.17.1",
+    "hono": "^4.7.0",
+    "openai": "^6.45.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

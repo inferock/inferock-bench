@@ -1,0 +1,402 @@
+{
+  "schemaVersion": "inferock-coverage-suite-manifest-v1",
+  "suiteVersion": "inferock-coverage-suite-v1",
+  "methodVersion": "coverage-method-v1-2026-07-05",
+  "defaultGenerator": "built-in",
+  "modelPresetPolicy": "pricing-registry-cheapest-compatible",
+  "estimateDefaults": {
+    "defaultSpendCapMultiplier": 1.5
+  },
+  "agentMode": {
+    "organicTaskBudget": {
+      "corpusTaskCount": 6,
+      "lowCallsPerTask": 1,
+      "expectedCallsPerTask": 2,
+      "maxCallsPerTask": 4,
+      "maxWallTimeMsPerTask": 120000,
+      "estimatedUsagePerCall": {
+        "input": 4000,
+        "output": 1000,
+        "cacheRead": 0,
+        "cacheCreation": 0
+      }
+    }
+  },
+  "tasks": [
+    {
+      "taskId": "json_schema_extract",
+      "providerRoutes": ["openai:chat.completions", "openai:responses", "anthropic:messages", "gemini:gemini.generateContent"],
+      "promptTemplate": "Extract the service name, environment, owner, and enabled feature flags from the supplied application configuration snippet. Return only the declared structured object.",
+      "requestBody": {
+        "temperature": 0,
+        "max_tokens": 256,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "suite_config_facts",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "serviceName": { "type": "string" },
+                "environment": { "type": "string" },
+                "owner": { "type": "string" },
+                "featureFlags": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "required": ["serviceName", "environment", "owner", "featureFlags"],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "outputSchemaVersion": "coverage-suite-v1.config-facts",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "serviceName": { "type": "string" },
+          "environment": { "type": "string" },
+          "owner": { "type": "string" },
+          "featureFlags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["serviceName", "environment", "owner", "featureFlags"],
+        "additionalProperties": false
+      },
+      "normalUsageRationale": "Applications and agents routinely ask models for machine-readable extraction from small code or config snippets.",
+      "opensSurfaces": ["json_schema", "output_schema_contract", "latency_token_accounting"]
+    },
+    {
+      "taskId": "tool_schema_plan",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent"],
+      "promptTemplate": "Review the short deployment note and call record_plan with the component, risk level, and two recommended follow-up checks.",
+      "requestBody": {
+        "temperature": 0.2,
+        "max_tokens": 384,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "record_plan",
+              "description": "Record a concise operational review plan.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "component": { "type": "string" },
+                  "riskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+                  "checks": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                },
+                "required": ["component", "riskLevel", "checks"],
+                "additionalProperties": false
+              }
+            }
+          }
+        ]
+      },
+      "normalUsageRationale": "Coding and operations agents use tool/function calls to return structured plans and findings without side effects.",
+      "opensSurfaces": ["tool_call_validity", "latency_token_accounting"]
+    },
+    {
+      "taskId": "long_stream_review",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Write a careful review of the supplied module summary. Cover responsibilities, likely edge cases, observability gaps, and a short implementation plan.",
+      "requestBody": {
+        "temperature": 0.3,
+        "max_tokens": 900,
+        "stream": true
+      },
+      "normalUsageRationale": "Interactive coding tools stream longer reviews, plans, and explanations during ordinary development workflows.",
+      "opensSurfaces": ["stream_termination", "latency_token_accounting"]
+    },
+    {
+      "taskId": "shared_prefix_cache",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Use the shared project context prefix and answer the current implementation question in a concise engineering style.",
+      "requestBody": {
+        "temperature": 0.2,
+        "max_tokens": 384,
+        "metadata": {
+          "sharedPrefixGroup": "coverage-suite-v1-project-context"
+        }
+      },
+      "normalUsageRationale": "IDE agents repeatedly send stable project context with different ordinary questions, which can open cache usage and charge reconciliation evidence.",
+      "opensSurfaces": ["cache_integrity", "latency_token_accounting"]
+    },
+    {
+      "taskId": "identical_rerun_drift",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Given the supplied deterministic changelog, list exactly the three deployment checks in priority order.",
+      "requestBody": {
+        "temperature": 0,
+        "max_tokens": 256,
+        "metadata": {
+          "repeatCount": 5
+        }
+      },
+      "driftContract": {
+        "contractId": "coverage-suite-v1.single-window-deployment-checks",
+        "matcher": "semantic",
+        "repeatGroupId": "coverage-suite-v1-drift-repeat"
+      },
+      "normalUsageRationale": "Users often rerun the same stable instruction during a session to confirm consistent model behavior.",
+      "opensSurfaces": ["drift_regression", "latency_token_accounting"]
+    },
+    {
+      "taskId": "known_answer_contract",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Answer from the supplied authoritative release record: which release train owns invoice reconciliation?",
+      "requestBody": {
+        "temperature": 0,
+        "max_tokens": 256
+      },
+      "factualityContract": {
+        "contractId": "coverage-suite-v1.invoice-reconciliation-owner",
+        "mode": "known_answer",
+        "expectedAnswer": "Billing Reliability",
+        "matchType": "entity",
+        "authoritative": true,
+        "aliases": ["billing reliability", "Billing Reliability team"],
+        "sensitive": false
+      },
+      "normalUsageRationale": "RAG, support, and test agents answer ordinary questions against supplied authoritative context.",
+      "opensSurfaces": ["factuality_known_answer", "latency_token_accounting"]
+    },
+    {
+      "taskId": "sdk_retry_idempotent",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Summarize the supplied retry-safe operation note and include the operation name, expected outcome, and one verification step.",
+      "requestBody": {
+        "temperature": 0.2,
+        "max_tokens": 320,
+        "metadata": {
+          "operationIdSource": "runner-generated"
+        }
+      },
+      "operationIdRequired": true,
+      "normalUsageRationale": "Production clients attach logical operation IDs and rely on provider SDK defaults while making ordinary requests.",
+      "opensSurfaces": ["duplicate_request_id", "retry_amplification", "latency_token_accounting"]
+    },
+    {
+      "taskId": "concurrency_wave",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Independently summarize one assigned repository maintenance note and return two concrete next actions.",
+      "requestBody": {
+        "temperature": 0.2,
+        "max_tokens": 320,
+        "metadata": {
+          "waveSize": 4
+        }
+      },
+      "operationIdRequired": true,
+      "concurrencyGroup": "coverage-suite-v1-bounded-wave",
+      "normalUsageRationale": "Developers and CI systems often run a bounded wave of independent normal model tasks concurrently.",
+      "opensSurfaces": ["retry_amplification", "latency_token_accounting"]
+    },
+    {
+      "taskId": "anthropic_message_baseline",
+      "providerRoutes": ["anthropic:messages"],
+      "promptTemplate": "Summarize the supplied maintenance ticket in one paragraph and list the owner and due date.",
+      "requestBody": {
+        "temperature": 0.2,
+        "max_tokens": 320
+      },
+      "normalUsageRationale": "An ordinary Anthropic Messages request opens provider-specific token recount or gross-bound fallback evidence when Anthropic is selected.",
+      "opensSurfaces": ["anthropic_token_crosscheck", "latency_token_accounting"]
+    },
+    {
+      "taskId": "openai_responses_structured",
+      "providerRoutes": ["openai:responses"],
+      "promptTemplate": "Create a structured implementation checkpoint from the supplied issue note with title, status, and next action.",
+      "requestBody": {
+        "temperature": 0,
+        "max_tokens": 256,
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "suite_checkpoint",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "title": { "type": "string" },
+                "status": { "type": "string" },
+                "nextAction": { "type": "string" }
+              },
+              "required": ["title", "status", "nextAction"],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "outputSchemaVersion": "coverage-suite-v1.checkpoint",
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "status": { "type": "string" },
+          "nextAction": { "type": "string" }
+        },
+        "required": ["title", "status", "nextAction"],
+        "additionalProperties": false
+      },
+      "normalUsageRationale": "Applications use OpenAI Responses for structured generation in normal workflow automation.",
+      "opensSurfaces": ["openai_responses_adapter", "json_schema", "output_schema_contract", "latency_token_accounting"]
+    },
+    {
+      "taskId": "automatic_latency_token",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Summarize the supplied engineering note in three sentences with the main decision and follow-up owner.",
+      "requestBody": {
+        "temperature": 0.2,
+        "max_tokens": 320
+      },
+      "normalUsageRationale": "Every successful or failed provider call through the proxy carries timing, usage, and pricing status evidence.",
+      "opensSurfaces": ["latency_token_accounting"]
+    },
+    {
+      "taskId": "organic_safety_overlays",
+      "providerRoutes": ["openai:chat.completions", "anthropic:messages", "gemini:gemini.generateContent", "openrouter:openai_compatible_chat"],
+      "promptTemplate": "Summarize the supplied neutral engineering change log in two concise bullet points.",
+      "requestBody": {
+        "temperature": 0.2,
+        "max_tokens": 256
+      },
+      "normalUsageRationale": "Normal traffic can be passively inspected for governance and provider moderation evidence without manufacturing a signal.",
+      "opensSurfaces": ["security_governance", "openai_content_filter", "latency_token_accounting"]
+    }
+  ],
+  "surfaces": [
+    {
+      "surfaceId": "json_schema",
+      "measure": "Broken output: JSON/schema",
+      "label": "JSON/schema structured output",
+      "detectorCodes": ["BROKEN_OUTPUT"],
+      "taskIds": ["json_schema_extract", "openai_responses_structured"],
+      "normalUsageRationale": "Structured output extraction is normal application behavior."
+    },
+    {
+      "surfaceId": "output_schema_contract",
+      "measure": "Output schema contract",
+      "label": "Registered output schema contract",
+      "detectorCodes": ["BROKEN_OUTPUT"],
+      "taskIds": ["json_schema_extract", "openai_responses_structured"],
+      "normalUsageRationale": "Registered schemas are ordinary contracts for machine-readable model output."
+    },
+    {
+      "surfaceId": "tool_call_validity",
+      "measure": "Tool-call validity",
+      "label": "Tool schema call validity",
+      "detectorCodes": ["TOOL_CALL_INVALID"],
+      "taskIds": ["tool_schema_plan"],
+      "normalUsageRationale": "Tool/function calls are a normal interface for coding and operations agents."
+    },
+    {
+      "surfaceId": "stream_termination",
+      "measure": "Stream termination",
+      "label": "Streaming terminal evidence",
+      "detectorCodes": ["STREAM_TERMINATION"],
+      "taskIds": ["long_stream_review"],
+      "normalUsageRationale": "Interactive agents normally stream long reviews and explanations."
+    },
+    {
+      "surfaceId": "cache_integrity",
+      "measure": "Cache integrity",
+      "label": "Cache usage, discount at risk, and charge reconciliation",
+      "detectorCodes": ["CACHE_RATE_ANOMALY", "CACHE_DISCOUNT_AT_RISK"],
+      "taskIds": ["shared_prefix_cache"],
+      "normalUsageRationale": "Repeated project context can produce cache usage in ordinary IDE-agent traffic."
+    },
+    {
+      "surfaceId": "drift_regression",
+      "measure": "Drift / regression",
+      "label": "Single-window repeated prompt drift",
+      "detectorCodes": ["DRIFT_REGRESSION"],
+      "taskIds": ["identical_rerun_drift"],
+      "normalUsageRationale": "Users rerun stable prompts to confirm behavior during a session."
+    },
+    {
+      "surfaceId": "factuality_known_answer",
+      "measure": "Factuality known-answer",
+      "label": "Known-answer contract",
+      "detectorCodes": ["FACTUALITY_CONTRADICTION"],
+      "taskIds": ["known_answer_contract"],
+      "normalUsageRationale": "RAG and support workflows answer against supplied authoritative records."
+    },
+    {
+      "surfaceId": "duplicate_request_id",
+      "measure": "Duplicate request ID",
+      "label": "Request ID uniqueness",
+      "detectorCodes": ["DUPLICATE_REQUEST_ID"],
+      "taskIds": ["sdk_retry_idempotent"],
+      "normalUsageRationale": "Real clients attach unique logical operation identifiers."
+    },
+    {
+      "surfaceId": "retry_amplification",
+      "measure": "Retry amplification",
+      "label": "SDK-native retry evidence",
+      "detectorCodes": ["RETRY_AMPLIFICATION"],
+      "taskIds": ["sdk_retry_idempotent", "concurrency_wave"],
+      "normalUsageRationale": "Provider SDK retry paths and bounded concurrency occur in normal production and CI flows."
+    },
+    {
+      "surfaceId": "anthropic_token_crosscheck",
+      "measure": "Anthropic output-token recount",
+      "label": "Anthropic token cross-check",
+      "detectorCodes": ["ANTHROPIC_TOKEN_CROSSCHECK"],
+      "taskIds": ["anthropic_message_baseline"],
+      "normalUsageRationale": "Ordinary Anthropic Messages traffic opens Anthropic-specific token cross-checking."
+    },
+    {
+      "surfaceId": "openai_responses_adapter",
+      "measure": "OpenAI Responses adapter",
+      "label": "OpenAI Responses structured route",
+      "detectorCodes": ["BROKEN_OUTPUT", "OPENAI_TOKEN_RECOUNT"],
+      "taskIds": ["openai_responses_structured"],
+      "normalUsageRationale": "OpenAI Responses structured calls are normal application traffic."
+    },
+    {
+      "surfaceId": "latency_token_accounting",
+      "measure": "Latency, token, usage, and pricing status",
+      "label": "Automatic latency and token accounting",
+      "detectorCodes": ["LATENCY_BILLED", "PRICING_STATUS"],
+      "taskIds": [
+        "json_schema_extract",
+        "tool_schema_plan",
+        "long_stream_review",
+        "shared_prefix_cache",
+        "identical_rerun_drift",
+        "known_answer_contract",
+        "sdk_retry_idempotent",
+        "concurrency_wave",
+        "anthropic_message_baseline",
+        "openai_responses_structured",
+        "automatic_latency_token",
+        "organic_safety_overlays"
+      ],
+      "normalUsageRationale": "Every real provider call carries timing, usage, and pricing status evidence."
+    },
+    {
+      "surfaceId": "security_governance",
+      "measure": "Security/governance overlay",
+      "label": "Organic security and governance overlay",
+      "detectorCodes": ["SECURITY_SECRET_OUTPUT"],
+      "taskIds": ["organic_safety_overlays"],
+      "normalUsageRationale": "Normal traffic is passively inspected for governance evidence."
+    },
+    {
+      "surfaceId": "openai_content_filter",
+      "measure": "Content-filter overlay",
+      "label": "Organic provider moderation overlay",
+      "detectorCodes": ["CONTENT_FILTER_OMITTED_OUTPUT"],
+      "taskIds": ["organic_safety_overlays"],
+      "normalUsageRationale": "Normal OpenAI traffic can carry provider moderation evidence organically."
+    }
+  ]
+}

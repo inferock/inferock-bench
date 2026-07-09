@@ -1,0 +1,38 @@
+{
+  "id": "resp_recorded_refusal",
+  "object": "response",
+  "created_at": 1782993602,
+  "status": "incomplete",
+  "background": false,
+  "model": "gpt-5-mini-2026-06-01",
+  "service_tier": "default",
+  "system_fingerprint": "fp_responses_refusal",
+  "incomplete_details": {
+    "reason": "content_filter"
+  },
+  "output": [
+    {
+      "id": "msg_refusal",
+      "type": "message",
+      "status": "incomplete",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "refusal",
+          "refusal": "I cannot help with that request."
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 21,
+    "input_tokens_details": {
+      "cached_tokens": 4
+    },
+    "output_tokens": 6,
+    "output_tokens_details": {
+      "reasoning_tokens": 2
+    },
+    "total_tokens": 27
+  }
+}

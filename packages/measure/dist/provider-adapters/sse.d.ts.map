@@ -1,0 +1,1 @@
+{"version":3,"file":"sse.d.ts","sourceRoot":"","sources":["../../src/provider-adapters/sse.ts"],"names":[],"mappings":"AAAA,MAAM,WAAW,UAAU;IACzB,QAAQ,CAAC,KAAK,CAAC,EAAE,MAAM,CAAC;IACxB,QAAQ,CAAC,IAAI,EAAE,MAAM,CAAC;CACvB;AAED,qBAAa,cAAc;;IAGzB,IAAI,CAAC,KAAK,EAAE,MAAM,GAAG,UAAU,EAAE;IAkBjC,GAAG,IAAI,UAAU,EAAE;CAMpB"}

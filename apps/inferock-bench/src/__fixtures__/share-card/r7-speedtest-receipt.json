@@ -1,0 +1,1222 @@
+{
+  "schemaVersion": "inferock-bench-speedtest-receipt-v3",
+  "run": {
+    "runId": "speedtest_dc911674-8023-482d-9210-dbdff0eb57c6",
+    "status": "completed",
+    "generator": "built-in",
+    "suiteVersion": "inferock-coverage-suite-v1",
+    "startedAt": "2026-07-08T03:01:16.023Z",
+    "endedAt": "2026-07-08T03:04:30.336Z",
+    "selectedModels": [
+      {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v4-pro"
+      }
+    ],
+    "providerId": "openrouter"
+  },
+  "consent": {
+    "consentedAt": "2026-07-08T03:01:16.023Z",
+    "estimate": {
+      "estimateHash": "sha256:f91b132817bf260604f0b0026c24b8afdd233ec3a9bd18cfa1534ff0f1794cee",
+      "baselineVersion": "sha256:bfeccbb28a17b7be4cdaaeb3697f0ac4f4a2f74cc485c965a223ed076ed98885",
+      "baselineContentDigest": "sha256:bf5717c3149199e2ec32efc8a0db645b1d53a07ffccabc6c6aebbd2f2380161a",
+      "estimatedTokensByCategory": {
+        "completion": 3818,
+        "input": 22701,
+        "output": 19415,
+        "prompt": 3878,
+        "provider:anthropic:input_tokens": 4175,
+        "provider:anthropic:output_tokens": 6515,
+        "provider:gemini:totalTokenCount": 7851,
+        "provider:openai:completion_tokens": 3818,
+        "provider:openai:prompt_tokens": 3878,
+        "provider:openai:total_tokens": 7696
+      },
+      "estimatedUsd": 0.013919,
+      "estimatedUsdBand": {
+        "low": 0.013919,
+        "expected": 0.013919,
+        "high": 0.013919
+      },
+      "pricing": [
+        {
+          "provider": "openrouter",
+          "model": "deepseek/deepseek-v4-pro",
+          "pricingVersion": "pricing-registry-v0",
+          "source": "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4-pro/endpoints",
+          "pricingStatus": "priced"
+        }
+      ],
+      "driftCanaryManifestHash": "sha256:62e008249abeca30c0a319e0da19b3e194394cdbf074f5cdd99c778c0b1f72cb"
+    },
+    "spendCapUsd": 1
+  },
+  "totals": {
+    "measuredCalls": 65,
+    "providerSpendUsd": 0.009169,
+    "money": {
+      "standardLossUsd": 0.005784,
+      "providerRecognizedUsd": 0.005784,
+      "recognitionGapUsd": 0,
+      "unrecognizedUsd": 0,
+      "providerSpendUsd": 0.009169
+    },
+    "duration": {
+      "timeLossMs": 0,
+      "providerRecognizedTimeLossMs": 0,
+      "recognitionGapTimeMs": 0,
+      "dollarTranslationUsd": 0,
+      "rate": {
+        "usdPerHour": 92,
+        "currency": "USD",
+        "unit": "hour",
+        "label": "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+        "oneLineWhy": "BLS median software developer wage, loaded by BLS private-industry benefit share.",
+        "overrideKey": "time_value_usd_per_hour"
+      },
+      "thresholds": [
+        {
+          "segmentId": "interactive_streaming_non_reasoning",
+          "label": "interactive streaming / non-reasoning (default — override)",
+          "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured",
+          "thresholdSummary": "good start 1s; acceptable start 10s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+          "oneLineWhy": "Nielsen 1s/10s response-time limits plus OpenAI/Azure/Bedrock published TPS anchors.",
+          "overrideKey": "latency.interactive_streaming.non_reasoning"
+        }
+      ]
+    },
+    "standardLossUsd": 0.005784,
+    "providerRecognizedUsd": 0.005784,
+    "recognitionGapUsd": 0,
+    "unrecognizedUsd": 0,
+    "failures": 52
+  },
+  "coverage": {
+    "suiteVersion": "inferock-coverage-suite-v1",
+    "methodVersion": "inferock-bench-coverage-summary-v1",
+    "runId": "speedtest_dc911674-8023-482d-9210-dbdff0eb57c6",
+    "watchedCount": 6,
+    "totalSurfaceCount": 11,
+    "signalCount": 0,
+    "notOpenableCount": 5,
+    "surfaces": [
+      {
+        "surfaceId": "broken_output",
+        "measure": "Broken output: bad JSON/schema",
+        "status": "not_openable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-openable: no JSON/schema output contract",
+        "taskIds": [],
+        "detectorCodes": [
+          "BROKEN_OUTPUT"
+        ],
+        "normalUsageRationale": "Schema or JSON mode was requested by normal task traffic.",
+        "watchedEvidence": {
+          "jsonModeRequested": false
+        },
+        "notOpenableReason": "no JSON/schema output contract"
+      },
+      {
+        "surfaceId": "anthropic_token_crosscheck",
+        "measure": "Anthropic output-token recount",
+        "status": "not_applicable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-applicable: not applicable to non-Anthropic provider traffic",
+        "taskIds": [],
+        "detectorCodes": [
+          "ANTHROPIC_TOKEN_CROSSCHECK"
+        ],
+        "normalUsageRationale": "Anthropic output-token traffic is present for calibrated recount or gross-bound fallback cross-checking.",
+        "watchedEvidence": {
+          "anthropicTrafficObserved": false
+        },
+        "notOpenableReason": "not applicable to non-Anthropic provider traffic",
+        "details": {
+          "methodId": "anthropic_count_tokens_recount_v1",
+          "evidenceGradeCap": "B",
+          "caveat": "Anthropic does not publish a local tokenizer for Claude 3 or later models, and no API returns an independent recount of billed output tokens. Anthropic-side token recounts in this standard are computed against Anthropic's own count_tokens endpoint (documented by Anthropic as an estimate) applied to the delivered output text, with per-model calibration constants and a stated tolerance band; offline estimates use the last tokenizer Anthropic published (Claude 1/2-era, MIT) and are labeled approximate. This is an approximation pending an official public Anthropic tokenizer and will be replaced by it on release."
+        }
+      },
+      {
+        "surfaceId": "duplicate_request_id",
+        "measure": "Duplicate request-ID events",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: operation/idempotency evidence observed with no duplicate group",
+        "taskIds": [],
+        "detectorCodes": [
+          "DUPLICATE_REQUEST_ID"
+        ],
+        "normalUsageRationale": "Normal traffic carried operation or idempotency evidence.",
+        "watchedEvidence": {
+          "operationIdObserved": true,
+          "bodyHashObserved": true,
+          "retryCorrelationIdObserved": false
+        }
+      },
+      {
+        "surfaceId": "provider_latency_slo",
+        "measure": "Provider latency (Inferock default SLA)",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: timing and usage observed with no latency/token signal",
+        "taskIds": [],
+        "detectorCodes": [
+          "LATENCY_BILLED"
+        ],
+        "normalUsageRationale": "Normal calls carried timing and usage evidence.",
+        "watchedEvidence": {
+          "timingAndUsageObserved": true
+        },
+        "details": {
+          "segment": {
+            "segmentId": "interactive_streaming_non_reasoning",
+            "interactionClass": "interactive_streaming",
+            "reasoningClass": "non_reasoning",
+            "label": "interactive streaming / non-reasoning (default — override)",
+            "selectionReason": "interactive streaming inferred from default live bench traffic; non-reasoning selected because no reasoning/thinking evidence was captured"
+          },
+          "thresholds": {
+            "goodStartMs": 1000,
+            "acceptableStartMs": 10000,
+            "goodOutputTokensPerSecond": 50,
+            "acceptableOutputTokensPerSecond": 44,
+            "goodMsPerOutputToken": 20,
+            "acceptableMsPerOutputToken": 23
+          },
+          "rate": {
+            "usdPerHour": 92,
+            "currency": "USD",
+            "unit": "hour",
+            "label": "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+            "oneLineWhy": "BLS median software developer wage, loaded by BLS private-industry benefit share.",
+            "sourceIds": [
+              "BLS-OOH",
+              "BLS-OEWS-2080",
+              "BLS-ECEC"
+            ],
+            "sourceNote": "This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-recognized. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.",
+            "signoffRequired": false,
+            "overrideKey": "time_value_usd_per_hour",
+            "excessOnly": true
+          },
+          "activeSegments": [
+            {
+              "segmentId": "interactive_streaming_non_reasoning",
+              "label": "interactive streaming / non-reasoning (default — override)",
+              "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured",
+              "thresholdSummary": "good start 1s; acceptable start 10s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+              "oneLineWhy": "Nielsen 1s/10s response-time limits plus OpenAI/Azure/Bedrock published TPS anchors.",
+              "overrideKey": "latency.interactive_streaming.non_reasoning"
+            }
+          ]
+        }
+      },
+      {
+        "surfaceId": "tool_call_validity",
+        "measure": "Tool-call validity",
+        "status": "not_openable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-openable: no tool declarations and response tool evidence",
+        "taskIds": [],
+        "detectorCodes": [
+          "MALFORMED_TOOL_CALL",
+          "TOOL_CALL_SCHEMA_VIOLATION",
+          "TOOL_CALL_STOP_REASON_MISMATCH",
+          "TOOL_CHOICE_VIOLATION",
+          "UNDECLARED_TOOL_CALL"
+        ],
+        "normalUsageRationale": "Normal tool-call traffic carried declarations and response tool evidence.",
+        "watchedEvidence": {
+          "toolDeclarationsObserved": false,
+          "responseToolEvidenceObserved": false
+        },
+        "notOpenableReason": "no tool declarations and response tool evidence"
+      },
+      {
+        "surfaceId": "security_governance",
+        "measure": "Security/governance overlay",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: passive security inspection completed with no provider safety/security evidence",
+        "taskIds": [],
+        "detectorCodes": [
+          "SECURITY_PROVIDER_SAFETY_FIELD",
+          "SECURITY_SECRET_EXACT_MATCH"
+        ],
+        "normalUsageRationale": "Normal traffic carried passive security-inspection evidence.",
+        "watchedEvidence": {
+          "passiveSecurityTaskObserved": true,
+          "requestSecurityCaptureComplete": false,
+          "providerSafetyObserved": false
+        }
+      },
+      {
+        "surfaceId": "openai_content_filter",
+        "measure": "Content-filter overlay",
+        "status": "not_applicable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-applicable: not applicable to non-OpenAI provider traffic",
+        "taskIds": [],
+        "detectorCodes": [
+          "OPENAI_CONTENT_FILTER_OMITTED_OUTPUT"
+        ],
+        "normalUsageRationale": "Normal OpenAI completion traffic was passively inspected.",
+        "watchedEvidence": {
+          "openAiTrafficObserved": false
+        },
+        "notOpenableReason": "not applicable to non-OpenAI provider traffic"
+      },
+      {
+        "surfaceId": "stream_termination_evidence",
+        "measure": "Stream-termination overlay",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: stream timing carried terminal evidence with no stream anomaly",
+        "taskIds": [],
+        "detectorCodes": [
+          "ANTHROPIC_STREAM_ERROR_EVENT",
+          "GEMINI_STREAM_ERROR_EVENT",
+          "OPENAI_STREAM_MISSING_DONE_MARKER",
+          "STREAM_CLIENT_ABORTED",
+          "STREAM_TERMINAL_STATUS_GAP",
+          "STREAM_UNCONFIRMED_TERMINATION"
+        ],
+        "normalUsageRationale": "Normal streaming traffic carried terminal timing evidence.",
+        "watchedEvidence": {
+          "streamEvidenceObserved": true,
+          "terminalEvidenceObserved": true
+        }
+      },
+      {
+        "surfaceId": "retry_amplification",
+        "measure": "Retry amplification",
+        "status": "not_openable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-openable: no SDK/native retry evidence can be observed",
+        "taskIds": [],
+        "detectorCodes": [
+          "RETRY_AMPLIFICATION_CHAIN",
+          "RETRY_AMPLIFICATION_IN_CALL"
+        ],
+        "normalUsageRationale": "Normal traffic carried SDK/native retry-observation evidence.",
+        "watchedEvidence": {
+          "sdkRetryObservation": false
+        },
+        "notOpenableReason": "no SDK/native retry evidence can be observed"
+      },
+      {
+        "surfaceId": "served_model_mismatch",
+        "measure": "Served model mismatch",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: served-model identity evidence present with no mismatch",
+        "taskIds": [],
+        "detectorCodes": [
+          "SERVED_MODEL_MISMATCH"
+        ],
+        "normalUsageRationale": "Normal traffic naturally carries requested and served model identity.",
+        "watchedEvidence": {
+          "identityEvidence": true
+        }
+      },
+      {
+        "surfaceId": "cache_integrity",
+        "measure": "Cache integrity",
+        "status": "not_openable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-openable: shared-prefix cache precondition not observed",
+        "taskIds": [],
+        "detectorCodes": [
+          "CACHE_DISCOUNT_AT_RISK",
+          "CACHE_RATE_ANOMALY"
+        ],
+        "normalUsageRationale": "Normal traffic carried cache-token usage, pricing evidence, and optional provider charge observation.",
+        "watchedEvidence": {
+          "sharedPrefixCallCount": 1,
+          "requiredSharedPrefixCallCount": 2,
+          "sharedPrefixPreconditionObserved": false,
+          "cacheTokensObserved": true,
+          "chargeObserved": false,
+          "chargeObservationConfigured": false,
+          "chargeObservationConfigState": "absent"
+        },
+        "notOpenableReason": "shared-prefix cache precondition not observed"
+      },
+      {
+        "surfaceId": "drift_regression",
+        "measure": "Drift / regression",
+        "status": "not_openable",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "not-openable: drift canary baseline collecting (0/3)",
+        "taskIds": [],
+        "detectorCodes": [],
+        "normalUsageRationale": "Normal known-answer canary or replay traffic carried drift provenance.",
+        "watchedEvidence": {
+          "driftCanaryEvents": 50,
+          "completedCanaryCalls": 50,
+          "fullCanaryItemCountRequired": 50,
+          "baselineRunCountRequired": 3,
+          "baselineRunsCompletedBeforeCurrent": 0,
+          "baselineEstablished": false,
+          "methodId": "per_model_known_answer_canary_v1",
+          "driftCanaryStatus": "completed",
+          "driftCanaryManifestHash": "sha256:62e008249abeca30c0a319e0da19b3e194394cdbf074f5cdd99c778c0b1f72cb",
+          "driftCanaryPlannedCallCount": 50,
+          "driftCanaryCallsLaunched": 50,
+          "baselineCollection": [
+            {
+              "provider": "openrouter",
+              "model": "deepseek/deepseek-v4-pro",
+              "protocolVersion": "sha256:85c478c4c6b870c94edfa1d5316f54717be612028dda6f550f8d23107ba2e0f3",
+              "effectiveProtocol": {
+                "protocolVersion": "sha256:85c478c4c6b870c94edfa1d5316f54717be612028dda6f550f8d23107ba2e0f3",
+                "promptSetVersion": "drift-canary-prompt-set-v1",
+                "temperatureMode": "fixed_0",
+                "maxTokenParameter": "max_tokens",
+                "maxTokenBound": 64,
+                "requestRoute": "chat.completions"
+              },
+              "completedPriorRuns": 0,
+              "requiredRuns": 3
+            }
+          ]
+        },
+        "notOpenableReason": "drift canary baseline collecting (0/3)",
+        "details": {
+          "methodId": "per_model_known_answer_canary_v1",
+          "methodVersion": "drift-canary-method-v1-2026-07-04",
+          "phase": "baseline_collecting"
+        }
+      },
+      {
+        "surfaceId": "factuality",
+        "measure": "Factuality overlay",
+        "status": "watched_clean",
+        "signalCount": 0,
+        "evidenceGrade": "not_applicable",
+        "label": "watched-clean: factuality contract or citation-support evidence checked with no contradiction",
+        "taskIds": [],
+        "detectorCodes": [
+          "ANTHROPIC_CITATION_CONTRADICTS_CITED_TEXT",
+          "FACTUALITY_KNOWN_ANSWER_FAIL"
+        ],
+        "normalUsageRationale": "Normal traffic carried a captured known-answer contract or provider citation-support evidence.",
+        "watchedEvidence": {
+          "factualityContractObserved": true,
+          "citationSupportObserved": false
+        }
+      }
+    ],
+    "notApplicableCount": 2
+  },
+  "rows": [
+    {
+      "code": "BILLED_EMPTY",
+      "failureClass": "empty_output",
+      "evidenceGrade": "refundable_candidate",
+      "count": 52,
+      "primaryValueKind": "money",
+      "standardLossUsd": 0.005784,
+      "providerRecognizedUsd": 0.005784,
+      "recognitionGapUsd": 0,
+      "unrecognizedUsd": 0,
+      "timeLossMs": 0,
+      "providerRecognizedTimeLossMs": 0,
+      "recognitionGapTimeMs": 0,
+      "dollarTranslationUsd": 0,
+      "pricingUnknownCount": 0,
+      "howComputed": [
+        "standard loss $0.00; provider-recognized $0.00 -> $0.00 recognition gap"
+      ]
+    }
+  ],
+  "driftCanary": {
+    "status": "completed",
+    "runId": "speedtest_dc911674-8023-482d-9210-dbdff0eb57c6",
+    "manifestHash": "sha256:62e008249abeca30c0a319e0da19b3e194394cdbf074f5cdd99c778c0b1f72cb",
+    "callsLaunched": 50,
+    "plannedCallCount": 50,
+    "models": [
+      {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v4-pro",
+        "status": "baseline_collecting",
+        "manifestHash": "sha256:62e008249abeca30c0a319e0da19b3e194394cdbf074f5cdd99c778c0b1f72cb",
+        "protocolVersion": "sha256:85c478c4c6b870c94edfa1d5316f54717be612028dda6f550f8d23107ba2e0f3",
+        "effectiveProtocol": {
+          "protocolVersion": "sha256:85c478c4c6b870c94edfa1d5316f54717be612028dda6f550f8d23107ba2e0f3",
+          "promptSetVersion": "drift-canary-prompt-set-v1",
+          "temperatureMode": "fixed_0",
+          "maxTokenParameter": "max_tokens",
+          "maxTokenBound": 64,
+          "requestRoute": "chat.completions"
+        },
+        "currentRun": {
+          "runId": "speedtest_dc911674-8023-482d-9210-dbdff0eb57c6",
+          "protocolVersion": "sha256:85c478c4c6b870c94edfa1d5316f54717be612028dda6f550f8d23107ba2e0f3",
+          "passed": 1,
+          "total": 50,
+          "accuracy": 0.02,
+          "startedAt": "2026-07-08T03:02:44.582Z",
+          "endedAt": "2026-07-08T03:04:30.277Z"
+        },
+        "baselineCollection": {
+          "completedPriorRuns": 0,
+          "requiredRuns": 3
+        },
+        "itemResults": [
+          {
+            "itemId": "gsm8k_platinum_01",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "18",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "1fea4861-e274-4bca-83c0-c650e7807a08",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000096,
+            "startedAt": "2026-07-08T03:02:44.582Z",
+            "endedAt": "2026-07-08T03:02:46.168Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_02",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "3",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "e817b62f-6a33-4b21-a52b-e8e3b42cfc9a",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000079,
+            "startedAt": "2026-07-08T03:02:46.203Z",
+            "endedAt": "2026-07-08T03:02:48.232Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_03",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "70000",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "1f8b40fb-c38c-4482-ad3d-c456cb38aae9",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000089,
+            "startedAt": "2026-07-08T03:02:48.286Z",
+            "endedAt": "2026-07-08T03:02:49.938Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_04",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "540",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "e1adca12-43e2-4d7b-be96-0d86bc6f7b84",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000083,
+            "startedAt": "2026-07-08T03:02:50.003Z",
+            "endedAt": "2026-07-08T03:02:51.818Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_05",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "64",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "e2176424-896e-45fb-b46d-477632715009",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000092,
+            "startedAt": "2026-07-08T03:02:51.852Z",
+            "endedAt": "2026-07-08T03:02:53.704Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_06",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "260",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "04139c6a-5856-48bf-9a5c-b948fca7ab22",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000086,
+            "startedAt": "2026-07-08T03:02:53.735Z",
+            "endedAt": "2026-07-08T03:02:55.451Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_07",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "160",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "58a23941-b673-4c91-9899-db61bdbd079e",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000096,
+            "startedAt": "2026-07-08T03:02:55.481Z",
+            "endedAt": "2026-07-08T03:02:57.269Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_08",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "45",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "ff22ee65-f76e-4a3c-a01c-024af042dd3d",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000112,
+            "startedAt": "2026-07-08T03:02:57.330Z",
+            "endedAt": "2026-07-08T03:02:59.013Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_09",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "460",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "833740d5-00ff-4737-aa99-e5225e0409ea",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000093,
+            "startedAt": "2026-07-08T03:02:59.067Z",
+            "endedAt": "2026-07-08T03:03:01.182Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_10",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "366",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "5a11e13a-abc6-4c50-8203-4611e0128816",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000093,
+            "startedAt": "2026-07-08T03:03:01.224Z",
+            "endedAt": "2026-07-08T03:03:03.195Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_11",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "694",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "eee2b6ca-8a49-4d26-982a-9564bfc6d9c1",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000095,
+            "startedAt": "2026-07-08T03:03:03.229Z",
+            "endedAt": "2026-07-08T03:03:05.360Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_12",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "18",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "4b78cf7f-c280-4c0b-83c2-833812cb5924",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000093,
+            "startedAt": "2026-07-08T03:03:05.395Z",
+            "endedAt": "2026-07-08T03:03:07.237Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_13",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "60",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "0c1200c6-7a53-454f-93d3-83ef78ff4061",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000089,
+            "startedAt": "2026-07-08T03:03:07.273Z",
+            "endedAt": "2026-07-08T03:03:09.204Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_14",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "125",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "7310b706-ad21-424c-9d8f-2061137d30dc",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000107,
+            "startedAt": "2026-07-08T03:03:09.243Z",
+            "endedAt": "2026-07-08T03:03:10.849Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_15",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "57500",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "71bb7389-6361-46d2-9c76-d77785789ac2",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000091,
+            "startedAt": "2026-07-08T03:03:10.890Z",
+            "endedAt": "2026-07-08T03:03:12.651Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_16",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "7",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "66d31d0e-abeb-4d9e-86c1-6d7ac66d8eb9",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.00008,
+            "startedAt": "2026-07-08T03:03:12.708Z",
+            "endedAt": "2026-07-08T03:03:14.794Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_17",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "6",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "ec72f4b1-cf4a-449c-8c17-a0d709d23123",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000096,
+            "startedAt": "2026-07-08T03:03:14.830Z",
+            "endedAt": "2026-07-08T03:03:16.596Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_18",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "15",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "d38f88d2-fd09-4e69-a27e-22485c575e22",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000094,
+            "startedAt": "2026-07-08T03:03:16.639Z",
+            "endedAt": "2026-07-08T03:03:18.717Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_19",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "14",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "dae47d37-8ddb-4b6d-af7b-7bc16c7115e0",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000087,
+            "startedAt": "2026-07-08T03:03:18.765Z",
+            "endedAt": "2026-07-08T03:03:20.659Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_20",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "7",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "ab7fe9aa-a3a4-4dc4-968e-a865cf72b5c0",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000092,
+            "startedAt": "2026-07-08T03:03:20.698Z",
+            "endedAt": "2026-07-08T03:03:22.385Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_21",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "8",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "5da65fcb-d634-41f7-8ac3-0cf5a3d98559",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000084,
+            "startedAt": "2026-07-08T03:03:22.424Z",
+            "endedAt": "2026-07-08T03:03:24.302Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_22",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "26",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "5df8e15d-4fbb-4bd1-96c4-7c45c0ca4992",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000084,
+            "startedAt": "2026-07-08T03:03:24.349Z",
+            "endedAt": "2026-07-08T03:03:26.441Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_23",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "2",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "9f83ed41-3fd6-461e-9bc3-bfe6672b48fb",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000096,
+            "startedAt": "2026-07-08T03:03:26.482Z",
+            "endedAt": "2026-07-08T03:03:28.228Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_24",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "243",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "b121be37-f278-4d66-a16f-d2320a3e75e0",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000096,
+            "startedAt": "2026-07-08T03:03:28.269Z",
+            "endedAt": "2026-07-08T03:03:32.583Z"
+          },
+          {
+            "itemId": "gsm8k_platinum_25",
+            "dataset": "gsm8k_platinum",
+            "expectedAnswer": "16",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "8dc72cd7-b853-4119-b801-70a626576870",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000093,
+            "startedAt": "2026-07-08T03:03:32.637Z",
+            "endedAt": "2026-07-08T03:03:35.379Z"
+          },
+          {
+            "itemId": "mmlu_01_abstract_algebra",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "B",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "122ec33f-0f42-47fb-a5a3-c02ca2a43ac9",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000089,
+            "startedAt": "2026-07-08T03:03:35.421Z",
+            "endedAt": "2026-07-08T03:03:37.944Z"
+          },
+          {
+            "itemId": "mmlu_02_anatomy",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "318a8374-2c3f-4edb-b08a-28e8b430c2e9",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000103,
+            "startedAt": "2026-07-08T03:03:37.990Z",
+            "endedAt": "2026-07-08T03:03:40.622Z"
+          },
+          {
+            "itemId": "mmlu_03_astronomy",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "2f43d921-4cdf-4071-9d53-7a76eb693304",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000093,
+            "startedAt": "2026-07-08T03:03:40.676Z",
+            "endedAt": "2026-07-08T03:03:43.289Z"
+          },
+          {
+            "itemId": "mmlu_04_business_ethics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "C",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "5e708214-01ff-4fb5-a2fb-9bd51309cd79",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000112,
+            "startedAt": "2026-07-08T03:03:43.378Z",
+            "endedAt": "2026-07-08T03:03:45.383Z"
+          },
+          {
+            "itemId": "mmlu_05_clinical_knowledge",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "3ee62404-56da-4b84-b31b-c57d4bfff5c4",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000092,
+            "startedAt": "2026-07-08T03:03:45.444Z",
+            "endedAt": "2026-07-08T03:03:47.316Z"
+          },
+          {
+            "itemId": "mmlu_06_college_biology",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "C",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "90b92349-63ed-4fc1-bd4f-3e56857efdcf",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000107,
+            "startedAt": "2026-07-08T03:03:47.382Z",
+            "endedAt": "2026-07-08T03:03:49.579Z"
+          },
+          {
+            "itemId": "mmlu_07_college_chemistry",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "D",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "5e204ed1-c7d5-4579-91fa-1c519a3f414b",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000094,
+            "startedAt": "2026-07-08T03:03:49.635Z",
+            "endedAt": "2026-07-08T03:03:51.627Z"
+          },
+          {
+            "itemId": "mmlu_08_college_computer_science",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "80297fef-abf5-47c6-9e90-ca9d2c9c2e11",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000103,
+            "startedAt": "2026-07-08T03:03:51.673Z",
+            "endedAt": "2026-07-08T03:03:54.402Z"
+          },
+          {
+            "itemId": "mmlu_09_college_mathematics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "B",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "8def3b7b-4b24-4b24-8a45-35e7f99eab7d",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000112,
+            "startedAt": "2026-07-08T03:03:54.462Z",
+            "endedAt": "2026-07-08T03:03:56.037Z"
+          },
+          {
+            "itemId": "mmlu_10_college_medicine",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "B",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "ecda9472-0eb8-4352-a6bc-813c1b1da64c",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000142,
+            "startedAt": "2026-07-08T03:03:56.089Z",
+            "endedAt": "2026-07-08T03:03:58.384Z"
+          },
+          {
+            "itemId": "mmlu_11_college_physics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "B",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "822ac986-61b6-4dec-9aa3-a536773f3a69",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000119,
+            "startedAt": "2026-07-08T03:03:58.436Z",
+            "endedAt": "2026-07-08T03:04:00.737Z"
+          },
+          {
+            "itemId": "mmlu_12_computer_security",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "C",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "a7edf593-dc0f-4823-abaf-b6e1a3122883",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000089,
+            "startedAt": "2026-07-08T03:04:00.821Z",
+            "endedAt": "2026-07-08T03:04:02.852Z"
+          },
+          {
+            "itemId": "mmlu_13_conceptual_physics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "f96d986c-5c51-4a4b-924c-9265ce3dc8f6",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000089,
+            "startedAt": "2026-07-08T03:04:02.913Z",
+            "endedAt": "2026-07-08T03:04:05.114Z"
+          },
+          {
+            "itemId": "mmlu_14_econometrics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "29d60c5a-e043-4fff-80aa-eae2e03d64b0",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000116,
+            "startedAt": "2026-07-08T03:04:05.182Z",
+            "endedAt": "2026-07-08T03:04:06.818Z"
+          },
+          {
+            "itemId": "mmlu_15_electrical_engineering",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "D",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "096446cf-3129-4fc4-9268-b23b7f0b8c69",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000093,
+            "startedAt": "2026-07-08T03:04:06.877Z",
+            "endedAt": "2026-07-08T03:04:08.818Z"
+          },
+          {
+            "itemId": "mmlu_16_elementary_mathematics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "C",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "794f3cbb-728c-40e8-a90e-df24fb3509d0",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000088,
+            "startedAt": "2026-07-08T03:04:08.870Z",
+            "endedAt": "2026-07-08T03:04:10.725Z"
+          },
+          {
+            "itemId": "mmlu_17_formal_logic",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "D",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "e3446f90-2407-44fe-acb3-e8938a19902d",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000155,
+            "startedAt": "2026-07-08T03:04:10.802Z",
+            "endedAt": "2026-07-08T03:04:12.536Z"
+          },
+          {
+            "itemId": "mmlu_18_global_facts",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "C",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "d714d10f-0402-4ba9-9907-d5d883ee3a09",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000087,
+            "startedAt": "2026-07-08T03:04:12.604Z",
+            "endedAt": "2026-07-08T03:04:14.525Z"
+          },
+          {
+            "itemId": "mmlu_19_high_school_biology",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "da32c753-4a70-400b-9f36-251df6a4ffaf",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.0001,
+            "startedAt": "2026-07-08T03:04:14.584Z",
+            "endedAt": "2026-07-08T03:04:16.540Z"
+          },
+          {
+            "itemId": "mmlu_20_high_school_chemistry",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "A",
+            "extractedAnswer": "A",
+            "passed": true,
+            "responseText": "A",
+            "requestId": "7e8380a7-1e88-4612-a7fc-afcc856d93d6",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000101,
+            "startedAt": "2026-07-08T03:04:16.611Z",
+            "endedAt": "2026-07-08T03:04:19.370Z"
+          },
+          {
+            "itemId": "mmlu_21_high_school_computer_science",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "C",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "7844929f-d94a-490f-9abb-5cbec964a4e4",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000086,
+            "startedAt": "2026-07-08T03:04:19.441Z",
+            "endedAt": "2026-07-08T03:04:21.158Z"
+          },
+          {
+            "itemId": "mmlu_22_high_school_european_history",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "C",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "bbcf8959-0e62-4e01-9701-6b21e6f5a7d1",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000173,
+            "startedAt": "2026-07-08T03:04:21.212Z",
+            "endedAt": "2026-07-08T03:04:23.628Z"
+          },
+          {
+            "itemId": "mmlu_23_high_school_geography",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "B",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "64b7288c-c140-4563-8c93-c7d5023541d7",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000086,
+            "startedAt": "2026-07-08T03:04:23.685Z",
+            "endedAt": "2026-07-08T03:04:25.973Z"
+          },
+          {
+            "itemId": "mmlu_24_high_school_government_and_politics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "D",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "9df663c6-2c89-4278-bb64-7499fe63c752",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000119,
+            "startedAt": "2026-07-08T03:04:26.029Z",
+            "endedAt": "2026-07-08T03:04:28.166Z"
+          },
+          {
+            "itemId": "mmlu_25_high_school_macroeconomics",
+            "dataset": "mmlu_hendrycks_test",
+            "expectedAnswer": "B",
+            "extractedAnswer": null,
+            "passed": false,
+            "responseText": "",
+            "requestId": "92e0d046-f8a5-43e5-a3b9-db9aedec7571",
+            "servedModel": "deepseek/deepseek-v4-pro",
+            "systemFingerprint": "fp_9954b31ca7_prod0820_fp8_kvcache_20260402",
+            "costUsd": 0.000101,
+            "startedAt": "2026-07-08T03:04:28.243Z",
+            "endedAt": "2026-07-08T03:04:30.277Z"
+          }
+        ]
+      }
+    ]
+  },
+  "providerScope": {
+    "provider": "openrouter",
+    "selectedProviders": [
+      "openrouter"
+    ],
+    "parallelProviderCount": 1,
+    "localContentionPossible": false
+  },
+  "assumptions": {
+    "standardVersion": "sla-defaults-2026-07-03-user-approved",
+    "timeValueRate": {
+      "usdPerHour": 92,
+      "currency": "USD",
+      "unit": "hour",
+      "label": "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+      "oneLineWhy": "BLS median software developer wage, loaded by BLS private-industry benefit share.",
+      "overrideKey": "time_value_usd_per_hour"
+    },
+    "activeLatencySegments": [
+      {
+        "segmentId": "interactive_streaming_non_reasoning",
+        "label": "interactive streaming / non-reasoning (default — override)",
+        "selectionReason": "interactive streaming selected from captured stream timing; non-reasoning selected because no reasoning/thinking evidence was captured",
+        "thresholdSummary": "good start 1s; acceptable start 10s; good output 50 tokens/sec; acceptable output 44 tokens/sec; good total adds 20ms/output token; acceptable total adds 23ms/output token",
+        "oneLineWhy": "Nielsen 1s/10s response-time limits plus OpenAI/Azure/Bedrock published TPS anchors.",
+        "overrideKey": "latency.interactive_streaming.non_reasoning"
+      }
+    ],
+    "impactFooterLines": [
+      "Impact assumptions: money loss and time loss are separate; latency and downtime time translations are not added to money loss."
+    ]
+  },
+  "watermark": {
+    "name": "Inferock Bench",
+    "url": "https://inferock.opiusai.com"
+  }
+}

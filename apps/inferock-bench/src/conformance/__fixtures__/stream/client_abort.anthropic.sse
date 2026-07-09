@@ -1,0 +1,6 @@
+event: message_start
+data: {"message":{"id":"msg_fixture_client_abort","type":"message"}}
+
+event: content_block_delta
+data: {"delta":{"type":"text_delta","text":"partial"}}
+

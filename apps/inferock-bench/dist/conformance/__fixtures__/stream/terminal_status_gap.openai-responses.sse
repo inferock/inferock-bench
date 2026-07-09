@@ -1,0 +1,6 @@
+event: response.created
+data: {"id":"resp_fixture_terminal_gap","status":"in_progress"}
+
+event: response.output_text.delta
+data: {"delta":"partial"}
+

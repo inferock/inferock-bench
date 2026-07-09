@@ -1,0 +1,1656 @@
+{
+  "schemaVersion": "inferock-coverage-token-baseline-v1",
+  "suiteVersion": "inferock-coverage-suite-v1",
+  "suiteManifestHash": "sha256:ef7b1bab24291cec6e31fd67dcc15385fd678e085e3e3f9cd5bb7e7b34653eda",
+  "generatedAt": "2026-07-07T23:24:26.116Z",
+  "generatedBy": "covrun",
+  "provenance": {
+    "sourcePath": "inferock-bench test --record-baseline",
+    "sourceCommit": "3ab4ba18a27761b22e8eac378e0e90399ade5038",
+    "benchPackageVersion": "0.1.7",
+    "providerModelsMeasured": [
+      "openai:gpt-4o-mini-2024-07-18",
+      "anthropic:claude-haiku-4-5",
+      "gemini:gemini-2.5-flash-lite"
+    ],
+    "sampleCountByTask": {
+      "json_schema_extract": 3,
+      "tool_schema_plan": 3,
+      "long_stream_review": 3,
+      "shared_prefix_cache": 3,
+      "identical_rerun_drift": 15,
+      "known_answer_contract": 3,
+      "sdk_retry_idempotent": 3,
+      "concurrency_wave": 12,
+      "anthropic_message_baseline": 1,
+      "openai_responses_structured": 1,
+      "automatic_latency_token": 2,
+      "organic_safety_overlays": 2
+    },
+    "notes": "Recorded 2026-07-07 from npm-published inferock-bench@0.1.7 on fresh disposable EC2 i-0bc3a63f7687f1a4e using the global npm binary /usr/bin/inferock-bench (realpath /usr/lib/nodejs22/lib/node_modules/inferock-bench/dist/index.js); source checkout was used only for git sourceCommit provenance; no local package patches and no source-checkout runtime. Provider calls and token samples are real built-in suite traffic."
+  },
+  "quantile": "max",
+  "tasks": [
+    {
+      "taskId": "json_schema_extract",
+      "plannedCalls": 3,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 159,
+        "output": 53,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 96,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 43,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 139,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "input",
+            "tokens": 106,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 53,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 106,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 53,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "prompt",
+            "tokens": 159,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 25,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 159,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 25,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 184,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "tool_schema_plan",
+      "plannedCalls": 3,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 714,
+        "output": 115,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 714,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 115,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 714,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 115,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "input",
+            "tokens": 165,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 37,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 202,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "prompt",
+            "tokens": 146,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 36,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 146,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 36,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 182,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "long_stream_review",
+      "plannedCalls": 3,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 114,
+        "output": 863,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 100,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 863,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 963,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "input",
+            "tokens": 114,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 768,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 114,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 768,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "prompt",
+            "tokens": 105,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 692,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 105,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 692,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 797,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "shared_prefix_cache",
+      "plannedCalls": 3,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 131,
+        "output": 146,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 116,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 26,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 142,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "prompt",
+            "tokens": 118,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 63,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 118,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 63,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 181,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          },
+          {
+            "category": "input",
+            "tokens": 131,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 146,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 131,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 146,
+            "sourceField": "output_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "identical_rerun_drift",
+      "plannedCalls": 15,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 93,
+        "output": 37,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 81,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 16,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 97,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "prompt",
+            "tokens": 87,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 16,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 87,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 16,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 103,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          },
+          {
+            "category": "input",
+            "tokens": 93,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 37,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 93,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 37,
+            "sourceField": "output_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "known_answer_contract",
+      "plannedCalls": 3,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 91,
+        "output": 26,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 76,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 8,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 84,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "input",
+            "tokens": 91,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 26,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 91,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 26,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "prompt",
+            "tokens": 80,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 13,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 80,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 13,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 93,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "sdk_retry_idempotent",
+      "plannedCalls": 3,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 102,
+        "output": 38,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 92,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 27,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 119,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "input",
+            "tokens": 102,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 38,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 102,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 38,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "prompt",
+            "tokens": 96,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 26,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 96,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 26,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 122,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "concurrency_wave",
+      "plannedCalls": 12,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 92,
+        "output": 227,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 82,
+            "sourceField": "promptTokenCount - cachedContentTokenCount"
+          },
+          {
+            "category": "output",
+            "tokens": 124,
+            "sourceField": "candidatesTokenCount"
+          },
+          {
+            "category": "provider:gemini:totalTokenCount",
+            "tokens": 206,
+            "sourceField": "totalTokenCount"
+          },
+          {
+            "category": "prompt",
+            "tokens": 87,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 88,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 87,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 88,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 175,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          },
+          {
+            "category": "input",
+            "tokens": 92,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 227,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 92,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 227,
+            "sourceField": "output_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "anthropic_message_baseline",
+      "plannedCalls": 1,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 101,
+        "output": 58,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 101,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 58,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 101,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 58,
+            "sourceField": "output_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "openai_responses_structured",
+      "plannedCalls": 1,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 125,
+        "output": 23,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "input",
+            "tokens": 125,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 23,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "input_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "output_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai_responses:input_tokens",
+            "tokens": 125,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:openai_responses:input_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "input_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai_responses:output_tokens",
+            "tokens": 23,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "provider:openai_responses:output_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "output_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai_responses:total_tokens",
+            "tokens": 148,
+            "sourceField": "total_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "automatic_latency_token",
+      "plannedCalls": 2,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 90,
+        "output": 76,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "prompt",
+            "tokens": 84,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 44,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 84,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 44,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 128,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          },
+          {
+            "category": "input",
+            "tokens": 90,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 76,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 90,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 76,
+            "sourceField": "output_tokens"
+          }
+        ]
+      }
+    },
+    {
+      "taskId": "organic_safety_overlays",
+      "plannedCalls": 2,
+      "provenance": "covrun_measured",
+      "usage": {
+        "input": 91,
+        "output": 75,
+        "cacheRead": 0,
+        "cacheCreation": 0,
+        "categories": [
+          {
+            "category": "prompt",
+            "tokens": 82,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "completion",
+            "tokens": 26,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "reasoning",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "audio",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens",
+            "tokens": 82,
+            "sourceField": "prompt_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens",
+            "tokens": 26,
+            "sourceField": "completion_tokens"
+          },
+          {
+            "category": "provider:openai:total_tokens",
+            "tokens": 108,
+            "sourceField": "total_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.cached_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.cached_tokens"
+          },
+          {
+            "category": "provider:openai:prompt_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "prompt_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.reasoning_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.reasoning_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.audio_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.audio_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.accepted_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.accepted_prediction_tokens"
+          },
+          {
+            "category": "provider:openai:completion_tokens_details.rejected_prediction_tokens",
+            "tokens": 0,
+            "sourceField": "completion_tokens_details.rejected_prediction_tokens"
+          },
+          {
+            "category": "input",
+            "tokens": 91,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "output",
+            "tokens": 75,
+            "sourceField": "output_tokens"
+          },
+          {
+            "category": "cached",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "anthropic_cache_creation",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:input_tokens",
+            "tokens": 91,
+            "sourceField": "input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_read_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_read_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_5m_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_5m_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:cache_creation.ephemeral_1h_input_tokens",
+            "tokens": 0,
+            "sourceField": "cache_creation.ephemeral_1h_input_tokens"
+          },
+          {
+            "category": "provider:anthropic:output_tokens",
+            "tokens": 75,
+            "sourceField": "output_tokens"
+          }
+        ]
+      }
+    }
+  ]
+}

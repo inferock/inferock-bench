@@ -1,0 +1,1 @@
+{"version":3,"file":"receipt-schema.js","sourceRoot":"","sources":["../src/receipt-schema.ts"],"names":[],"mappings":"AAAA,MAAM,CAAC,MAAM,4BAA4B,GAAG,2BAA2B,CAAC;AACxE,MAAM,CAAC,MAAM,qBAAqB,GAAG,CAAC,CAAC;AACvC,MAAM,CAAC,MAAM,mCAAmC,GAAG,2BAA2B,CAAC;AAE/E,qJAAqJ;AACrJ,MAAM,CAAC,MAAM,gCAAgC,GAAG,qCAAqC,CAAC;AACtF,MAAM,CAAC,MAAM,uCAAuC,GAAG,qCAAqC,CAAC"}

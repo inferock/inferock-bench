@@ -1,0 +1,23 @@
+{
+  "id": "chatcmpl_wave2_reasoning",
+  "object": "chat.completion",
+  "model": "gpt-5.4-mini",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "stop",
+      "message": {
+        "role": "assistant",
+        "content": "The summary is ready for review."
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 180,
+    "completion_tokens": 42,
+    "total_tokens": 222,
+    "completion_tokens_details": {
+      "reasoning_tokens": 20
+    }
+  }
+}

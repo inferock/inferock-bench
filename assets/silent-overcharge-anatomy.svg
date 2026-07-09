@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Anatomy of a silent overcharge</title>
+  <desc id="desc">Illustrative mechanism — not measured data: a request produces an answer that stops at token 812, the meter bills 812 tokens, and the invoice shows no per-call line item.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#384252"/>
+    </marker>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#101828" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="760" rx="28" fill="#f7f3ec"/>
+  <rect x="34" y="34" width="1132" height="692" rx="24" fill="#fffdf8" stroke="#d6cab9" stroke-width="2"/>
+
+  <text x="72" y="92" fill="#161a22" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="46" font-weight="800">Anatomy of a silent overcharge</text>
+  <rect x="72" y="114" width="548" height="38" rx="19" fill="#fff1cc" stroke="#c98512" stroke-width="2"/>
+  <text x="94" y="139" fill="#7a4d00" font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="700">illustrative mechanism — not measured data</text>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <g filter="url(#softShadow)">
+      <rect x="72" y="214" width="226" height="154" rx="18" fill="#e9fbf5" stroke="#3aa981" stroke-width="3"/>
+      <text x="98" y="254" fill="#0f5e49" font-size="22" font-weight="800">1. Request</text>
+      <text x="98" y="294" fill="#243040" font-size="21" font-weight="600">Your app asks</text>
+      <text x="98" y="324" fill="#243040" font-size="21" font-weight="600">for an answer.</text>
+    </g>
+
+    <path d="M 312 291 H 424" stroke="#384252" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+
+    <g filter="url(#softShadow)">
+      <rect x="446" y="190" width="312" height="202" rx="18" fill="#fff7ed" stroke="#f08a42" stroke-width="3"/>
+      <text x="476" y="231" fill="#9b4819" font-size="22" font-weight="800">2. Answer starts</text>
+      <rect x="476" y="260" width="236" height="18" rx="9" fill="#fed7aa"/>
+      <rect x="476" y="292" width="188" height="18" rx="9" fill="#fed7aa"/>
+      <rect x="476" y="324" width="132" height="18" rx="9" fill="#ef4444"/>
+      <text x="476" y="360" fill="#8a1f1f" font-size="20" font-weight="800">dies mid-sentence</text>
+      <text x="476" y="382" fill="#8a1f1f" font-size="20" font-weight="800">at token 812</text>
+    </g>
+
+    <path d="M 774 291 H 886" stroke="#384252" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+
+    <g filter="url(#softShadow)">
+      <rect x="908" y="214" width="220" height="154" rx="18" fill="#eef2ff" stroke="#6172d6" stroke-width="3"/>
+      <text x="934" y="254" fill="#3443a2" font-size="22" font-weight="800">3. Meter</text>
+      <text x="934" y="297" fill="#243040" font-size="34" font-weight="900">812</text>
+      <text x="1012" y="297" fill="#243040" font-size="21" font-weight="700">tokens</text>
+      <text x="934" y="329" fill="#243040" font-size="21" font-weight="600">counted.</text>
+    </g>
+
+    <path d="M 1018 382 V 454" stroke="#384252" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+
+    <g filter="url(#softShadow)">
+      <rect x="792" y="476" width="336" height="166" rx="18" fill="#f1f5f9" stroke="#64748b" stroke-width="3"/>
+      <text x="824" y="519" fill="#334155" font-size="22" font-weight="800">4. Invoice</text>
+      <rect x="824" y="548" width="248" height="15" rx="7.5" fill="#cbd5e1"/>
+      <rect x="824" y="579" width="204" height="15" rx="7.5" fill="#cbd5e1"/>
+      <rect x="824" y="610" width="178" height="15" rx="7.5" fill="#cbd5e1"/>
+      <text x="966" y="616" fill="#be123c" font-size="22" font-weight="900">no line item</text>
+    </g>
+
+    <path d="M 792 559 H 354" stroke="#384252" stroke-width="5" marker-end="url(#arrow)" fill="none"/>
+
+    <g filter="url(#softShadow)">
+      <rect x="72" y="476" width="260" height="166" rx="18" fill="#fff1f2" stroke="#e05268" stroke-width="3"/>
+      <text x="104" y="519" fill="#9f1239" font-size="22" font-weight="800">5. Blind spot</text>
+      <text x="104" y="561" fill="#243040" font-size="21" font-weight="700">No bill row says:</text>
+      <text x="104" y="594" fill="#243040" font-size="21" font-weight="700">"this answer</text>
+      <text x="104" y="625" fill="#243040" font-size="21" font-weight="700">stopped here."</text>
+    </g>
+  </g>
+</svg>

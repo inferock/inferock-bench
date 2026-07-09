@@ -1,0 +1,6 @@
+data: {"id":"chatcmpl_fixture_missing_done","choices":[{"delta":{"role":"assistant"}}]}
+
+data: {"id":"chatcmpl_fixture_missing_done","choices":[{"delta":{"content":"partial"}}]}
+
+data: {"id":"chatcmpl_fixture_missing_done","choices":[{"delta":{"content":" answer"}}]}
+

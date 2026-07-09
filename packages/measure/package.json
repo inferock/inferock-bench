@@ -1,0 +1,184 @@
+{
+  "name": "@inferock/measure",
+  "version": "0.1.8",
+  "description": "TypeScript primitives for LLM token usage, billing integrity, cost, reliability, and failure receipt measurement.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./anthropic-token-crosscheck": {
+      "import": "./dist/anthropic-token-crosscheck.js",
+      "types": "./dist/anthropic-token-crosscheck.d.ts"
+    },
+    "./availability": {
+      "import": "./dist/availability.js",
+      "types": "./dist/availability.d.ts"
+    },
+    "./billing-integrity": {
+      "import": "./dist/billing-integrity.js",
+      "types": "./dist/billing-integrity.d.ts"
+    },
+    "./broken-output": {
+      "import": "./dist/broken-output.js",
+      "types": "./dist/broken-output.d.ts"
+    },
+    "./canonical-event": {
+      "import": "./dist/canonical-event.js",
+      "types": "./dist/canonical-event.d.ts"
+    },
+    "./factuality": {
+      "import": "./dist/factuality.js",
+      "types": "./dist/factuality.d.ts"
+    },
+    "./provider-adapters/openai-responses": {
+      "import": "./dist/provider-adapters/openai-responses.js",
+      "types": "./dist/provider-adapters/openai-responses.d.ts"
+    },
+    "./provider-adapters/types": {
+      "import": "./dist/provider-adapters/types.js",
+      "types": "./dist/provider-adapters/types.d.ts"
+    },
+    "./security-secrets": {
+      "import": "./dist/security-secrets.js",
+      "types": "./dist/security-secrets.d.ts"
+    },
+    "./latency": {
+      "import": "./dist/latency.js",
+      "types": "./dist/latency.d.ts"
+    },
+    "./model-identity": {
+      "import": "./dist/model-identity.js",
+      "types": "./dist/model-identity.d.ts"
+    },
+    "./output-schemas": {
+      "import": "./dist/output-schemas.js",
+      "types": "./dist/output-schemas.d.ts"
+    },
+    "./pricing": {
+      "import": "./dist/pricing.js",
+      "types": "./dist/pricing.d.ts"
+    },
+    "./pricing-signal": {
+      "import": "./dist/pricing-signal.js",
+      "types": "./dist/pricing-signal.d.ts"
+    },
+    "./refusals": {
+      "import": "./dist/refusals.js",
+      "types": "./dist/refusals.d.ts"
+    },
+    "./retry-amplification": {
+      "import": "./dist/retry-amplification.js",
+      "types": "./dist/retry-amplification.d.ts"
+    },
+    "./scorecard": {
+      "import": "./dist/scorecard.js",
+      "types": "./dist/scorecard.d.ts"
+    },
+    "./security": {
+      "import": "./dist/security.js",
+      "types": "./dist/security.d.ts"
+    },
+    "./signal": {
+      "import": "./dist/signal.js",
+      "types": "./dist/signal.d.ts"
+    },
+    "./sla-defaults": {
+      "import": "./dist/sla-defaults.js",
+      "types": "./dist/sla-defaults.d.ts"
+    },
+    "./standard-loss": {
+      "import": "./dist/standard-loss.js",
+      "types": "./dist/standard-loss.d.ts"
+    },
+    "./stateless": {
+      "import": "./dist/stateless.js",
+      "types": "./dist/stateless.d.ts"
+    },
+    "./time-loss": {
+      "import": "./dist/time-loss.js",
+      "types": "./dist/time-loss.d.ts"
+    },
+    "./stream-termination": {
+      "import": "./dist/stream-termination.js",
+      "types": "./dist/stream-termination.d.ts"
+    },
+    "./tool-call-validity": {
+      "import": "./dist/tool-call-validity.js",
+      "types": "./dist/tool-call-validity.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
+    },
+    "./usage-categories": {
+      "import": "./dist/usage-categories.js",
+      "types": "./dist/usage-categories.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md",
+    "package.json",
+    "README.md",
+    "src/vendor/claude-tokenizer/LICENSE-Xenova-claude-tokenizer.md",
+    "src/vendor/claude-tokenizer/README.md"
+  ],
+  "keywords": [
+    "llm",
+    "ai-billing",
+    "billing-integrity",
+    "token-usage",
+    "cost-tracking",
+    "overcharge",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt",
+    "gemini",
+    "openrouter",
+    "token-count",
+    "receipts",
+    "observability",
+    "reliability",
+    "llmops",
+    "benchmark",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/inferock/inferock-bench.git",
+    "directory": "packages/measure"
+  },
+  "homepage": "https://github.com/inferock/inferock-bench/tree/main/packages/measure#readme",
+  "bugs": {
+    "url": "https://github.com/inferock/inferock-bench/issues"
+  },
+  "scripts": {
+    "build": "pnpm run clean && tsc",
+    "test": "vitest run",
+    "test:integration": "vitest run --passWithNoTests",
+    "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "js-tiktoken": "^1.0.21",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "private": false
+}

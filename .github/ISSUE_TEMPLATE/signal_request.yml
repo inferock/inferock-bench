@@ -1,0 +1,74 @@
+name: Signal request
+description: Propose a new measurement signal for The Inferock Standard.
+title: "[Signal]: "
+labels:
+  - signal-request
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New signals need provider documentation links, a proposed evidence grade, and Stone compliance. Do not include secrets, prompts, raw responses, raw traces, or customer identifiers.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Signal summary
+      description: What failure or loss class should be measured?
+      placeholder: "One concrete provider-observable behavior and the customer impact it measures."
+    validations:
+      required: true
+  - type: textarea
+    id: provider_docs
+    attributes:
+      label: Provider documentation links
+      description: Link the provider docs, status pages, pricing pages, billing rules, or SLA terms that support the signal.
+      placeholder: "https://..."
+    validations:
+      required: true
+  - type: dropdown
+    id: evidence_grade
+    attributes:
+      label: Proposed evidence grade
+      options:
+        - refundable_candidate
+        - triage_only
+        - pricing_unknown
+        - $0 evidence-only
+        - unrecognized loss
+    validations:
+      required: true
+  - type: textarea
+    id: stone_compliance
+    attributes:
+      label: Stone compliance
+      description: Explain how the signal uses real normal traffic, avoids manufactured failures, and preserves the provider-recognized/unrecognized split.
+      placeholder: "Stone 1: ... Stone 2: ... Stone 3: ..."
+    validations:
+      required: true
+  - type: textarea
+    id: event_fields
+    attributes:
+      label: Required event fields
+      description: List the canonical event fields needed to compute the signal.
+      placeholder: "status, request id, usage token category, service_tier, timing.latencyMs, provider-native refusal field"
+    validations:
+      required: true
+  - type: textarea
+    id: exclusions
+    attributes:
+      label: False-positive guards and exclusions
+      description: What cases must suppress or downgrade the signal?
+    validations:
+      required: true
+  - type: checkboxes
+    id: guardrails
+    attributes:
+      label: Guardrails
+      options:
+        - label: The proposal includes provider-document links.
+          required: true
+        - label: The proposal includes a specific evidence grade.
+          required: true
+        - label: The proposal does not require seeded data, forced failures, adversarial prompts, or fake demo assets.
+          required: true
+        - label: The proposal avoids provider rankings and production-gateway claims.
+          required: true

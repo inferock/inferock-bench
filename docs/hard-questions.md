@@ -19,7 +19,7 @@ Because those are different receipt fields. Provider spend is what the run obser
 
 You should not accept it by authority. The defense is the published [rulebook](../spec/standard.md#purpose), [versioned changelog](../spec/CHANGELOG.md), inspectable detector code, evidence grades, and run-scoped receipts that separate provider-recognized recovery from Inferock-standard loss. Providers still define what they currently credit; Inferock defines the customer-loss ledger it applies to local evidence.
 
-## Q3. Is `v0.1.0 Draft` real enough to compute dollars?
+## Q3. Is `v0.1.0 Draft` (the standard's version, separate from the package version) real enough to compute dollars?
 
 Draft means pre-ratification and open to evidence-backed issue reports. It does not mean a receipt can silently change rules. Public claims should cite the exact [standard version](../spec/standard.md#versioning) and changelog entry that produced them, and later rule changes should not rewrite old receipts.
 
@@ -34,6 +34,10 @@ The call-cost floor applies only when a priced call fails the standard's deliver
 ## Q6. Are you accusing providers of overbilling?
 
 Not from an unrecognized standard-loss row. The receipt keeps provider spend, provider-recognized recovery, Inferock-standard loss, and recognition gap separate. "Overcharge" should be reserved for provider-recognized or invoice-reconciled deltas; otherwise the correct words are "standard-loss" and "recognition gap." The ledger rule is in [Separate Money And Time Ledgers](../spec/standard.md#separate-money-and-time-ledgers).
+
+## Q6a. Can I use a receipt to dispute an API bill or ask for a refund?
+
+Use it as evidence, not as a verdict. A compact receipt can show the calls the bench observed, the measured token usage, cost, failure, retry, timing, and evidence grade, plus what the Inferock Standard counts as standard-loss. Provider-recognized recovery remains separate because the provider or invoice reconciliation still decides what it will credit.
 
 ## Q7. Why cite Vaudit if its refund rate is not independently verified?
 

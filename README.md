@@ -26,6 +26,8 @@
 
 Use it when you need to audit an AI/LLM bill, measure Claude or GPT token usage locally, or answer "was I billed for a failed API call?" It is a local LLM cost-tracking proxy for four measured provider planes: OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints spanning meta-llama, deepseek, mistral, moonshot/kimi, z-ai/glm, and qwen on observed hosts. Everything else is extensible-by-design, not measured today. It does not declare every mismatch an OpenAI overcharge or Anthropic billing error; it preserves token, cost, retry, and failure evidence so billing-integrity questions can be checked.
 
+Common cases it can help you inspect: a failed or timed-out request that still has usage, token counts that do not match the visible output, retries that may have amplified cost, and latency or model-version changes that need a trail. It cannot cap provider spend across calls it never sees, and it cannot explain traffic that bypassed the local proxy.
+
 ## The receipt, in three numbers
 
 | Receipt word | Plain-English meaning |

@@ -129,6 +129,8 @@ Method citations: Anthropic Messages count_tokens, https://platform.claude.com/d
 
 This is meant to be local evidence, not a load test. The default is still the complete battery, not a lite subset. A normal measured run should be in the cents to low single dollars range, but the exact token and dollar estimate is always shown before consent. Provider charges, if any, are on your provider account.
 
+The test spend cap applies to the benchmark run it controls. It is not a provider-account hard limit, a per-key budget manager, or protection for traffic that bypasses the local proxy.
+
 The spend cap is part of the accepted estimate. The runner checks the cap before launching new calls and after calls complete. If you abort during a run or hit the cap, already-started provider calls may still be billed by the provider.
 
 ## Baseline provenance

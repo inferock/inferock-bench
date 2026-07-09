@@ -1,0 +1,18 @@
+Inferock Bench Repository License
+
+This repository contains three separately licensed components. Each component
+directory carries its full license text; the identifiers below are SPDX.
+
+- apps/inferock-bench — the benchmark CLI and local measurement proxy:
+  FSL-1.1-Apache-2.0 (Functional Source License, converting to Apache-2.0).
+  See apps/inferock-bench/LICENSE.
+
+- packages/measure — the @inferock/measure library:
+  Apache-2.0. See packages/measure/LICENSE.
+
+- spec — the Inferock Standard documents:
+  CC-BY-4.0. See spec/LICENSE.
+
+Third-party dependency notices are listed in NOTICE. Vendored third-party
+licenses (for example the Xenova claude-tokenizer) are kept alongside the
+vendored code.

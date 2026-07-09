@@ -1,6 +1,6 @@
 {
   "name": "inferock-bench",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Local LLM cost-tracking proxy for OpenAI, Anthropic, Gemini, and pinned OpenRouter calls with token usage, failure, and billing-integrity receipts.",
   "private": false,
   "license": "FSL-1.1-Apache-2.0",
@@ -21,6 +21,8 @@
     "token-usage",
     "billing-integrity",
     "failed-calls",
+    "timeout",
+    "latency",
     "openai",
     "anthropic",
     "claude",
@@ -59,7 +61,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
-    "@inferock/measure": "0.1.8",
+    "@inferock/measure": "0.1.9",
     "@hono/node-server": "^1.14.0",
     "ajv": "^8.17.1",
     "hono": "^4.7.0",

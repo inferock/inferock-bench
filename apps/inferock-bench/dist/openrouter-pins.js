@@ -28,7 +28,7 @@ export function openRouterPinnedRequestBody(body) {
     const model = stringValue(body.model);
     const pinned = openRouterPinnedEndpointForModel(model);
     if (!pinned) {
-        throw new OpenRouterPinningError(`OpenRouter model ${model ?? "unknown_model"} is not in the pinned 0.1.8 endpoint set.`);
+        throw new OpenRouterPinningError(`OpenRouter model ${model ?? "unknown_model"} is not in this release's pinned endpoint set.`);
     }
     return {
         ...body,

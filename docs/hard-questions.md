@@ -61,11 +61,11 @@ The right behavior is versioned evolution, not silent edits. Standard changes re
 
 ## Q11. What evidence backs the Anthropic token recount?
 
-No. Anthropic does not publish a current local tokenizer for Claude 3+ or an independent billed-output recount API. The current method is provider-assisted grade B: it uses Anthropic `messages/count_tokens` on delivered assistant output with runtime calibration, tolerance bands, and provider-recognized `$0` unless separate provider or invoice evidence accepts it. See the Anthropic token caveat in [signals.md](../spec/signals.md#anthropic-token-crosscheck).
+No. Anthropic does not publish a current local tokenizer for Claude 3+ or an independent billed-output recount API. The current method is provider-assisted grade B: it uses Anthropic `messages/count_tokens` on delivered assistant output with runtime calibration, tolerance bands, and provider-recognized `$0` unless separate provider or invoice evidence accepts it. See the Anthropic token caveat in [signals.md](../spec/signals.md#anthropic_token_crosscheck).
 
 ## Q12. How are cache discounts and duplicate request IDs reported?
 
-Cache-discount-at-risk is exposure evidence when usage and pricing imply a discount could be at risk; it is reported separately as `cache discount at risk — verify your invoice: $X` and is not summed into headline standard-loss or recognition gap. Duplicate request ID proves repeated gateway identifiers, not provider double-charging, and therefore stays unrecognized until provider billing evidence exists. See [signals.md](../spec/signals.md#cache-discount-at-risk) and [signals.md](../spec/signals.md#duplicate-request-id).
+Cache-discount-at-risk is exposure evidence when usage and pricing imply a discount could be at risk; it is reported separately as `cache discount at risk — verify your invoice: $X` and is not summed into headline standard-loss or recognition gap. Duplicate request ID proves repeated gateway identifiers, not provider double-charging, and therefore stays unrecognized until provider billing evidence exists. See [signals.md](../spec/signals.md#cache_discount_at_risk) and [signals.md](../spec/signals.md#duplicate_request_id).
 
 ## Q13. What does the public mirror represent?
 

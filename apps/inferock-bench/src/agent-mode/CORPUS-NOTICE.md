@@ -15,14 +15,14 @@ MIT-licensed Exercism practice exercises and canonical problem specifications.
 The local tests are generated for `node:test`; the Exercism harness machinery
 is not vendored.
 
-Sources checked:
+## Sources checked
 
 | Source | Revision | License |
 | --- | --- | --- |
 | `https://github.com/exercism/javascript` | `d8cabd2cddcc2b20f0beb4e1d2d31ff946a93ccd` | MIT |
 | `https://github.com/exercism/problem-specifications` | `77d50e4a40e93b90bf45fa610a2329087e4ca3d1` | MIT |
 
-Included exercises:
+## Included exercises
 
 - `hello-world`
 - `two-fer`

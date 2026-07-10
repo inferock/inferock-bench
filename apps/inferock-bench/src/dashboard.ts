@@ -737,7 +737,7 @@ export function renderDashboardHtml(): string {
     .receipt-stage { gap: var(--space-section); }
     .receipt-hero {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: var(--space-4);
       align-items: end;
     }
@@ -1234,6 +1234,10 @@ export function renderDashboardHtml(): string {
             <div class="label">Time lost</div>
             <strong class="money-headline" id="receiptTimeLossHeadline" data-testid="time-headline">~0s</strong>
           </div>
+          <div>
+            <div class="label">Invoice-check exposure</div>
+            <strong class="money-headline" id="receiptInvoiceCheckExposureHeadline" data-testid="invoice-check-exposure-headline">$0.00</strong>
+          </div>
         </div>
       </section>
 
@@ -1247,13 +1251,14 @@ export function renderDashboardHtml(): string {
           <div class="ledger-row"><dt>Already recognized by provider</dt><dd id="receiptRecognized" data-testid="receipt-provider-recognized">$0.00</dd></div>
           <div class="ledger-row"><dt>Money not recognized yet</dt><dd id="receiptGap" data-testid="receipt-gap">$0.00</dd></div>
           <div class="ledger-row"><dt>Duration loss</dt><dd id="receiptDurationLoss" data-testid="receipt-time-loss">~0s</dd></div>
+          <div class="ledger-row"><dt>Invoice-check exposure</dt><dd id="receiptInvoiceCheckExposure" data-testid="receipt-invoice-check-exposure">$0.00</dd></div>
+          <div class="ledger-row"><dt>Surfaces watched</dt><dd id="receiptSurfaces" data-testid="receipt-surfaces">0 / 0</dd></div>
           <div class="ledger-row"><dt>Provider recognized time</dt><dd id="receiptRecognizedTime" data-testid="receipt-provider-recognized-time">~0s</dd></div>
           <div class="ledger-row"><dt>Time not recognized yet</dt><dd id="receiptTimeGap" data-testid="receipt-time-gap">~0s</dd></div>
           <div class="ledger-row"><dt>Approx at your rate</dt><dd id="receiptDurationTranslation" data-testid="receipt-duration-translation">approx $0.00 at your rate (edit)</dd></div>
           <div class="ledger-row"><dt>Provider spend observed</dt><dd id="receiptProviderSpend" data-testid="receipt-provider-spend">$0.00</dd></div>
           <div class="ledger-row"><dt>Calls measured</dt><dd id="receiptCalls" data-testid="receipt-calls">0</dd></div>
           <div class="ledger-row"><dt>Failures</dt><dd id="receiptFailures" data-testid="receipt-failures">0</dd></div>
-          <div class="ledger-row"><dt>Surfaces watched</dt><dd id="receiptSurfaces" data-testid="receipt-surfaces">0 / 0</dd></div>
         </dl>
       </section>
 
@@ -1443,6 +1448,13 @@ export function renderDashboardHtml(): string {
       const numeric = Number(value || 0);
       if (numeric > 0 && numeric < 0.01) return "$" + numeric.toFixed(6);
       return formatUsd(numeric);
+    }
+
+    function invoiceCheckExposureAmount(exposures) {
+      return (exposures || [])
+        .map((exposure) => Number(exposure && exposure.amount || 0))
+        .filter((amount) => Number.isFinite(amount) && amount > 0)
+        .reduce((total, amount) => total + amount, 0);
     }
 
     function moneyLossObservedSpendLine(standardLossUsd, providerSpendUsd) {
@@ -2166,6 +2178,8 @@ export function renderDashboardHtml(): string {
       };
       $("receiptSpentHeadline").textContent = formatUsd(summary.providerSpendUsd);
       $("receiptMoneyLossHeadline").textContent = formatUsd(moneyTotals.standardLossUsd);
+      const invoiceCheckExposure = invoiceCheckExposureAmount(summary.exposures || []);
+      $("receiptInvoiceCheckExposureHeadline").textContent = formatExposureUsd(invoiceCheckExposure);
       const spendShareLine = summary.moneyLossObservedSpendLine || moneyLossObservedSpendLine(moneyTotals.standardLossUsd, summary.providerSpendUsd);
       $("receiptMoneyLossSpendShare").textContent = spendShareLine || "";
       $("receiptMoneyLossSpendShare").hidden = !spendShareLine;
@@ -2174,6 +2188,7 @@ export function renderDashboardHtml(): string {
       $("receiptRecognized").textContent = formatUsd(moneyTotals.providerRecognizedUsd);
       $("receiptGap").textContent = formatUsd(moneyTotals.recognitionGapUsd || moneyTotals.unrecognizedUsd);
       $("receiptDurationLoss").textContent = formatApproxTimeLost(durationTotals.timeLossMs);
+      $("receiptInvoiceCheckExposure").textContent = formatExposureUsd(invoiceCheckExposure);
       $("receiptRecognizedTime").textContent = formatApproxTimeLost(durationTotals.providerRecognizedTimeLossMs);
       $("receiptTimeGap").textContent = formatApproxTimeLost(durationTotals.recognitionGapTimeMs);
       $("receiptDurationTranslation").textContent = "approx " + formatUsd(durationTotals.dollarTranslationUsd) + " at your rate (edit)";
@@ -2447,11 +2462,11 @@ export function renderDashboardHtml(): string {
           const amount = formatExposureUsd(exposure.amount);
           const count = integer.format(exposure.count || 0) + " invoice exposure" + ((exposure.count || 0) === 1 ? "" : "s");
           const title = exposure.class === "cache_discount_at_risk"
-            ? "Cache discount exposure"
-            : String(exposure.class || "Invoice exposure").replaceAll("_", " ");
+            ? "Cache discount invoice-check exposure"
+            : String(exposure.class || "Invoice-check exposure").replaceAll("_", " ");
           const guidance = exposure.guidance || "verify your invoice";
           return '<article class="action-card exposure-action-card" data-testid="exposure-card">' +
-            '<div class="card-head"><h3>' + escapeHtml(title) + '</h3><span class="gap-amount">' + escapeHtml(amount + ' exposure') + '</span></div>' +
+            '<div class="card-head"><h3>' + escapeHtml(title) + '</h3><span class="gap-amount">' + escapeHtml(amount + ' invoice-check exposure') + '</span></div>' +
             '<p class="small">' + escapeHtml(count + ' - ' + guidance + '.') + '</p>' +
             '<p class="small muted">This is invoice-check exposure, not standard-loss or recognition-gap dollars.</p>' +
           '</article>';

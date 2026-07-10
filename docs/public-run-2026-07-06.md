@@ -1,6 +1,6 @@
 # Public run card: 2026-07-06
 
-*Published under the pre-exposure-split presentation; from standard vNEXT, cache-discount-at-risk is reported as a separate exposure line, not inside standard-loss.*
+*Published under the pre-exposure-split presentation; from standard vNEXT, cache-discount-at-risk is reported as invoice-check exposure with a separate detail line, not inside standard-loss.*
 
 This public run is a sanitized aggregate receipt, not raw prompts or raw responses.
 

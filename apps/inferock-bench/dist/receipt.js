@@ -178,6 +178,7 @@ function receiptHeadline(bundle) {
         `spent ${formatUsd(bundle.totals.providerSpendUsd)}`,
         `money loss ${receiptMoneyLossDisplay(bundle)}`,
         `time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
+        `invoice-check exposure ${formatReceiptUsd(invoiceCheckExposureAmount(bundle.exposures))}`,
     ].join(" · ");
 }
 function receiptMoneyLossDisplay(bundle) {
@@ -201,6 +202,9 @@ function receiptMoneyLossObservedSpendLine(bundle) {
 }
 function receiptExposures(bundle) {
     return (bundle.exposures ?? []).filter((exposure) => exposure.amount > 0);
+}
+function invoiceCheckExposureAmount(exposures) {
+    return sum((exposures ?? []).filter((exposure) => exposure.amount > 0).map((exposure) => exposure.amount));
 }
 function renderExposureLine(exposure) {
     const count = `${exposure.count} invoice exposure${exposure.count === 1 ? "" : "s"}`;

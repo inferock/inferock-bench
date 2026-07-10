@@ -37,7 +37,7 @@ describe("summary and receipt", () => {
 
     const receipt = createReceiptBundle(summary);
     const rendered = renderReceipt(receipt, true);
-    expect(rendered.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s");
+    expect(rendered.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
     expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
     expect(rendered).toContain("failures observed are calls with problems");
@@ -161,7 +161,7 @@ describe("summary and receipt", () => {
       }],
     }, true);
 
-    expect(rendered.split("\n")[0]).toBe("spent $1.00 · money loss $0.25 · time loss ~0s");
+    expect(rendered.split("\n")[0]).toBe("spent $1.00 · money loss $0.25 · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.25");
     expect(rendered).not.toContain("money loss = 25.0% of observed spend");
   });
@@ -482,7 +482,7 @@ describe("summary and receipt", () => {
     expect(receipt.totals).not.toHaveProperty("totalLossUsd");
     const rendered = renderReceipt(receipt, true);
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss ${formatUsd(summary.moneyTotals.standardLossUsd)} · time loss ~1.3 min`,
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss ${formatUsd(summary.moneyTotals.standardLossUsd)} · time loss ~1.3 min · invoice-check exposure $0.00`,
     );
     expect(rendered).toContain("approx $");
     expect(rendered).not.toMatch(/total\s*=\s*money\s*\+\s*time/i);
@@ -1648,7 +1648,7 @@ describe("summary and receipt", () => {
     expect(receipt.rows.some((entry) => entry.code === "CACHE_DISCOUNT_AT_RISK")).toBe(false);
     const rendered = renderReceipt(receipt, true);
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s`,
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s · invoice-check exposure $0.001500`,
     );
     expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
     expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
@@ -1823,7 +1823,7 @@ describe("summary and receipt", () => {
     expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
     expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s`,
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s · invoice-check exposure $0.001500`,
     );
   });
 

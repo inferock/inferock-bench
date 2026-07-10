@@ -10,7 +10,7 @@ Note: The plain-English intro layer below is non-normative. The versioned rules 
 
 Draft means the standard is pre-ratification and open to evidence-backed issue reports; it does not mean rules can silently change inside a receipt. Public claims must cite the exact standard version and changelog entry that produced them.
 
-Read this as the rulebook behind a receipt, not as a provider refund policy. The quickest path is to understand the receipt headline - `spent $X · money loss $Y · time loss Z` - then follow the evidence posture and ledger rules that keep refund claims and invoice-check exposure separate from measured loss.
+Read this as the rulebook behind a receipt, not as a provider refund policy. The quickest path is to understand the receipt headline - `spent $X · money loss $Y · time loss Z · invoice-check exposure $E` - then follow the evidence posture and ledger rules that keep refund claims and invoice-check exposure separate from measured loss.
 
 | If you need to know | Start with |
 | --- | --- |
@@ -25,10 +25,10 @@ This non-normative layer is the quick map for readers who need the meaning befor
 
 > **TL;DR**
 >
-> - The standard assigns each AI provider failure to bill-bounded money loss, time loss, exposure, or review-only evidence under Inferock rules.
+> - The standard assigns each AI provider failure to bill-bounded money loss, time loss, invoice-check exposure, or review-only evidence under Inferock rules.
 > - Every failed, priced, non-delivering call tied to observed spend or charge evidence gets at least the priced cost of that call under Inferock rules.
-> - Receipts lead with three plain facts: provider spend, bill-bounded money loss, and time loss.
-> - Provider-recognized recovery, recognition gap, and exposure lines stay separate below the headline.
+> - Receipts lead with four plain facts: provider spend, bill-bounded money loss, time loss, and invoice-check exposure.
+> - Provider-recognized recovery, recognition gap, and invoice-check exposure detail lines stay separate below the headline.
 > - Evidence grades decide whether a row is ready to dispute or watch-only.
 
 How to read this document: Most readers should start with [Failure Taxonomy](#failure-taxonomy) and [Evidence Postures](#evidence-postures); those sections explain what can fail and how strong the evidence is. Integrators should pair [Definitions](#definitions) with [`spec/event-schema.md`](event-schema.md) for the canonical event shape. Disputants should read [Liability Attribution](#liability-attribution) and [Separate Money And Time Ledgers](#separate-money-and-time-ledgers) before turning a receipt into a provider claim.
@@ -94,7 +94,7 @@ The v0.1.0 public taxonomy includes these launch-safe classes:
 | --- | --- |
 | Output integrity | Declared JSON or schema failures, provider terminal truncation, and billed-empty output where safety, refusal, tool-call, and hidden-output guards do not explain the empty visible response. |
 | Refusal and content-filter billing | Provider-native refusal or content-filter evidence on expected completions, including the Anthropic pre-output refusal billing invariant when observed charge evidence proves billing. |
-| Billing integrity | OpenAI visible-output token recount overcharge candidates, pricing-unknown evidence preservation, cache charge reconciliation, cache-discount exposure, and duplicate request-identifier bill-bounded loss surfacing. |
+| Billing integrity | OpenAI visible-output token recount overcharge candidates, pricing-unknown evidence preservation, cache charge reconciliation, cache-discount invoice-check exposure, and duplicate request-identifier bill-bounded loss surfacing. |
 | Availability and downtime | Clustered provider-owned 5xx, timeout, overloaded, and capacity evidence where the detector can distinguish provider ownership from ambiguous transport or customer-owned throttling. Time is primary; provider credits are capped by the applicable SLA and spend terms. |
 | Latency and time loss | Disclosed latency service-level objective breaches, real elapsed milliseconds, and excess wait evidence. Time is primary; dollar recovery requires an explicit credit basis and dollar translation requires an editable customer rate. |
 | Security/governance | Exact leaked-secret real-loss signals on priced calls, plus evidence-only provider safety/moderation context when no loss event fires. |

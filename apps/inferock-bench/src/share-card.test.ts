@@ -19,7 +19,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("spent $0.000016 · money loss $0.00 · time loss ~0s");
+    expect(cardText(rendered)).toContain("spent $0.000016 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered).toContain("provider-recognized: $0.00");
     expect(rendered).toContain("recognition gap: $0.00");
     expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
@@ -33,7 +33,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("spent $0.000555 · money loss $0.000363 · time loss ~0s");
+    expect(cardText(rendered)).toContain("spent $0.000555 · money loss $0.000363 · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered).toContain("money loss = 65.4% of observed spend");
     expect(rendered).toContain("small sample:");
     expect(rendered).toContain("$0.000555");
@@ -47,7 +47,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("spent $1.28 · money loss $4.62 · time loss ~0s");
+    expect(cardText(rendered)).toContain("spent $1.28 · money loss $4.62 · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered).toContain("recognition gap: $4.62");
     expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
     expect(rendered).not.toContain("money loss =");
@@ -63,7 +63,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("spent $1.28 · money loss $0.000531 · time loss not in receipt");
+    expect(cardText(rendered)).toContain("spent $1.28 · money loss $0.000531 · time loss not in receipt · invoice-check exposure $0.00");
     expect(rendered).not.toContain("money loss = 0.0% of observed spend");
   });
 
@@ -73,7 +73,7 @@ describe("share card", () => {
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
     expect(receipt.totals.money?.standardLossUsd).toBeGreaterThan(0);
-    expect(rendered).toContain("spent $0.03 · money loss $0.000531 · time loss ~13s");
+    expect(cardText(rendered)).toContain("spent $0.03 · money loss $0.000531 · time loss ~13s · invoice-check exposure $0.00");
     expect(rendered).toContain("time lost: ~13s");
     expect(rendered).toContain("provider-recognized time: ~0s");
     expect(rendered).toContain("time gap: ~13s");
@@ -100,7 +100,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 96 });
 
-    expect(rendered).toContain("spent $0.00 · money loss pricing unknown · time loss ~0s");
+    expect(cardText(rendered)).toContain("spent $0.00 · money loss pricing unknown · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered).toContain("standard loss: pricing unknown - add model price");
     expect(rendered.replace(/\s+/gu, " ")).toContain("pricing unknown — add model price");
     expect(rendered).not.toContain("money loss =");
@@ -135,7 +135,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 96 });
 
-    expect(rendered).toContain("spent $0.000016 · money loss $0.000016 · time loss ~0s");
+    expect(cardText(rendered)).toContain("spent $0.000016 · money loss $0.000016 · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered).toContain("(+1 unpriced failures)");
     expect(rendered).not.toContain("money loss =");
   });
@@ -208,7 +208,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(legacyReceipt), { width: 68 });
 
-    expect(rendered).toContain("spent not in receipt · money loss not in receipt · time loss not");
+    expect(cardText(rendered)).toContain("spent not in receipt · money loss not in receipt · time loss not in receipt · invoice-check exposure $0.00");
     expect(rendered).toContain("provider-recognized: provider-recognized not in receipt");
     expect(rendered).toContain("recognition gap: gap not in receipt");
     expect(rendered).toContain("top cause: failure rows not in receipt");
@@ -237,7 +237,7 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("spent $0.001516 · money loss $0.00 · time loss ~0s");
+    expect(cardText(rendered)).toContain("spent $0.001516 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.001500");
     expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice");
     expect(rendered).toContain("exposure, $0.001500");
     expectEveryLineAtMost(rendered, 68);
@@ -293,6 +293,15 @@ function expectEveryLineAtMost(rendered: string, width: number): void {
   for (const line of rendered.split("\n")) {
     expect([...line].length).toBeLessThanOrEqual(width);
   }
+}
+
+function cardText(rendered: string): string {
+  return rendered
+    .split("\n")
+    .filter((line) => !line.startsWith("+"))
+    .map((line) => line.replace(/^\| /u, "").replace(/ \|$/u, "").trimEnd())
+    .join(" ")
+    .replace(/\s+/gu, " ");
 }
 
 function stored(

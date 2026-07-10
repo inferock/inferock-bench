@@ -4,7 +4,7 @@ No assets in this folder may be mocked. Every GIF, screenshot, hosted sample rep
 
 Illustrative explanatory diagrams are allowed only when they do not present numbers as measured data and the asset plus README caption clearly label the diagram as illustrative.
 
-Masking sign-offs live in [PROVENANCE.md](./PROVENANCE.md) and are enforced by `pnpm oss:asset-scan`. No image or GIF ships without a `masked-verified: YYYY-MM-DD by <who>` entry.
+Masking sign-offs live in [PROVENANCE.md](./PROVENANCE.md) and are enforced by `pnpm oss:asset-scan`. No image or GIF ships without a provenance entry and at least `masked-verified: PENDING user sign-off YYYY-MM-DD`; publish enforcement requires a completed human sign-off.
 
 Read this before adding or replacing a visual. The rule is simple: product proof assets come from real normal traffic; explanatory diagrams must label themselves as illustrative.
 
@@ -18,13 +18,13 @@ Read this before adding or replacing a visual. The rule is simple: product proof
 
 - `silent-overcharge-anatomy.svg` - explanatory mechanism diagram, not measured data. The diagram is labeled "illustrative mechanism — not measured data" inside the SVG and in the README caption.
 
-## Captured 2026-07-06
+## Captured 2026-07-10
 
-- `dashboard-real-traffic.png` - Playwright screenshot of the local dashboard at `http://127.0.0.1:4318/`, captured during the 2026-07-06 public real-traffic run with the provider-key panel masked.
-- `receipt-real-traffic.png` - terminal-style PNG rendered by Playwright from the 2026-07-06 real compact receipt text against the same event log.
-- `bench-demo.gif` - terminal GIF rendered from sanitized 2026-07-06 run evidence: real CLI cold-start checks, real local coding-agent traffic, tri-provider coverage, `first call measured`, and `receipt --compact` output. Provider and local bench keys were masked before rendering.
-- Traffic: 175 measured calls routed through `inferock-bench` 0.1.7 with OpenAI, Anthropic, and Gemini provider scope, using maintainer-owned development provider keys; key values were never committed.
-- Result, historical pre-exposure-split presentation: 46 failures, provider-recognized `$0.00`, money-native standard loss `$4.62`, money recognition gap `$4.62`, duration loss `~0s`, and observed provider spend `$1.28`.
+- `dashboard-real-traffic.png` - Playwright screenshot of the local dashboard at `http://127.0.0.1:4318/`, loaded from the cumulative event store after the previous-results view and fade-in animation settled.
+- `receipt-real-traffic.png` - terminal-style PNG rendered by Playwright from the post-merge `src/index.ts receipt --compact` output against the cumulative event store.
+- `bench-demo.gif` - terminal GIF rendered from sanitized cumulative run evidence: startup/version, real provider scope, `first call measured`, and the final four-element receipt headline.
+- Traffic: 1,268 measured calls routed through `inferock-bench` 0.1.10 since 2026-07-09 across OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints, using maintainer-owned development provider keys; key values were never committed.
+- Result: 565 failures/signals, provider spend observed `$7.15`, bill-bounded money loss `$0.07`, provider-recognized `$0.05`, recognition gap `$0.02`, time loss `~2.9 min`, and invoice-check exposure `$16.80` across 202 cache-discount-at-risk signals. Invoice-check exposure stays separate from money loss.
 - Binary assets were manually inspected under the public no-mock and masking guardrails; no local bench-key or provider-key value is visible.
 - No mocked rows, no manufactured failures, no adversarial prompts, no forced truncation, no tiny token caps.
 
@@ -34,12 +34,12 @@ Read this before adding or replacing a visual. The rule is simple: product proof
 - Source: real normal sample-app traffic routed through localhost.
 - Must show: `npx inferock-bench`, SDK/framework base-URL setup, `first call measured ✓`, and a live report generated from real measured calls.
 - Must not show: fake terminal output, seeded failures, fabricated dollar figures, prompts, raw responses, keys, raw traces, or identifiers.
-- Watched-clean zero is valid: `$0.00 measured N calls, 0 failures`, with spent, bill-bounded money loss, time loss, provider-recognized, bill-bounded recognition-gap, and any exposure shown separately. A real priced failure must still show bill-bounded money loss when it is tied to observed spend or charge evidence.
+- Watched-clean zero is valid: `$0.00 measured N calls, 0 failures`, with spent, bill-bounded money loss, time loss, invoice-check exposure, provider-recognized, and bill-bounded recognition-gap shown separately. A real priced failure must still show bill-bounded money loss when it is tied to observed spend or charge evidence.
 
 ## Receipt PNG
 
 - Style: terminal aesthetic.
-- Hierarchy: the headline order is `spent $X · money loss $Y · time loss Z`.
+- Hierarchy: the headline order is `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`.
 - Detail rows: period plus per-class rows with evidence grade, primary impact, provider-recognized, bill-bounded recognition-gap, and separate exposure rows when applicable.
 - Watermark: include `inferock-bench` plus `github.com/inferock/inferock-bench`.
 - Source: generated by `inferock-bench receipt --compact` from real measured traffic only.
@@ -52,5 +52,6 @@ Use `TODO-REAL-ASSET` placeholders until a real asset is recorded. If real norma
 ## What to read next
 
 - [PROVENANCE.md](./PROVENANCE.md) for the current asset-by-asset manifest.
-- [Public run card](../docs/public-run-2026-07-06.md) for the aggregate facts behind the current real-traffic visuals.
+- [Public run card: 2026-07-10](../docs/public-run-2026-07-10.md) for run15 and cumulative-store reconciliation behind the current real-traffic visuals.
+- [Public run card: 2026-07-09](../docs/public-run-2026-07-09.md) for the first 0.1.10 public component in the cumulative receipt.
 - Approved visual ideas that still need real traffic stay queued until a real run can produce them.

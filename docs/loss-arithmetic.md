@@ -38,7 +38,7 @@ Cache discount at risk is exposure, not headline money loss:
 
 `exposure = cache_read_tokens × (full_input_rate - cache_read_rate)`
 
-It renders as `cache discount at risk — verify your invoice: $X` and is never summed into money loss or recognition gap without charge evidence.
+It renders in the headline as `invoice-check exposure $E` and below the headline as `cache discount at risk — verify your invoice: N invoice exposures, $E`. It is never summed into money loss, recognition gap, or the percent-of-spend line without charge evidence.
 
 Latency and downtime live in the time ledger. Latency uses:
 

@@ -49,6 +49,8 @@ describe("dashboard", () => {
     expect(htmlText).toContain("Loss measured by the standard");
     expect(htmlText).toContain("Surfaces watched");
     expect(htmlText).toContain("data-testid=\"money-loss-spend-share\"");
+    expect(htmlText).toContain("data-testid=\"invoice-check-exposure-headline\"");
+    expect(htmlText).toContain("data-testid=\"receipt-invoice-check-exposure\"");
     expect(htmlText).toContain("What should I do about it?");
     expect(htmlText).toContain("data-testid=\"exposure-card\"");
     expect(htmlText).toContain("invoice-check exposure, not standard-loss or recognition-gap dollars");
@@ -105,7 +107,7 @@ describe("dashboard", () => {
       calls: [],
     });
     const receipt = await (await app.request("/api/receipt")).json() as { compactText: string };
-    expect(receipt.compactText.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s");
+    expect(receipt.compactText.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
     expect(receipt.compactText.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
   });
 

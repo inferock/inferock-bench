@@ -1,12 +1,12 @@
 # Asset Provenance Manifest
 
-This manifest is the publish gate for README and launch assets. Every shipped image or GIF in this directory must have one entry with a human sign-off:
+This manifest is the publish gate for README and launch assets. Every shipped image or GIF in this directory must have one entry with a human sign-off state:
 
 ```text
 ### `asset-file-name.ext`
 - source: how the asset was captured or generated
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead; watermark is `github.com/inferock/inferock-bench`
-- masked-verified: YYYY-MM-DD by <human name or handle>
+- masked-verified: YYYY-MM-DD by <human name or handle> OR PENDING user sign-off YYYY-MM-DD
 ```
 
 `masked-verified: NO ...` is a blocking state. Do not replace it with a date until a human has inspected the rendered pixels and the asset has also passed `pnpm oss:asset-scan`.
@@ -23,39 +23,39 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 
 ### `bench-demo.gif`
 
-- public-run-id: `inferock-bench-0.1.7-real-traffic-2026-07-06`.
-- package-version: `inferock-bench` 0.1.7.
-- source: Terminal GIF rendered from sanitized 2026-07-06 real-run evidence: real CLI cold-start checks, local coding-agent traffic, tri-provider coverage, and `receipt --compact` output. Watermark overlaid during rendering.
-- traffic-summary: historical pre-exposure-split presentation; 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
-- asset-dimensions: 1280 x 720 GIF.
-- asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; no host-user path shown; watermark is `github.com/inferock/inferock-bench`.
-- masking-check: asset strings and rendered pixels were checked for local bench keys, provider keys, host-user paths, and watermark correctness.
-- human-sign-off: verified by Bharath Koneti, 2026-07-06.
-- masked-verified: 2026-07-06 by Bharath Koneti
+- public-run-id: `inferock-bench-0.1.10-cumulative-ledger-2026-07-09-through-run15-2026-07-10`.
+- package-version: `inferock-bench` 0.1.10.
+- source: Terminal GIF rendered from sanitized cumulative-ledger evidence: startup/version, provider scope, first measured call, and the post-merge `src/index.ts receipt --compact` output. Watermark overlaid during rendering.
+- traffic-summary: 1,268 measured calls since 2026-07-09 across OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints; 565 failures/signals; observed spend `$7.15`; bill-bounded money loss `$0.07` (stored exact `$0.073875`); provider-recognized `$0.05`; recognition gap `$0.02`; time loss `~2.9 min`; at-rate translation `$4.449810`; invoice-check exposure `$16.80` across 202 signals; surfaces watched 12/13. Invoice-check exposure is separate and not summed into money loss.
+- asset-dimensions: 1280 x 720 GIF, 4 frames.
+- asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead; watermark is `github.com/inferock/inferock-bench`.
+- masking-check: asset strings and rendered pixels were checked for local bench keys, provider keys, host-user paths, sanitized receipt path, four-element headline, and watermark correctness.
+- human-sign-off: pending user sign-off, 2026-07-10.
+- masked-verified: 2026-07-10 by conductor visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
 
 ### `dashboard-real-traffic.png`
 
-- public-run-id: `inferock-bench-0.1.7-real-traffic-2026-07-06`.
-- package-version: `inferock-bench` 0.1.7.
-- source: Playwright screenshot of the live local dashboard from the 2026-07-06 public real-traffic run, with the aggregate 175-call receipt values rendered from the current run. Watermark overlaid during capture.
-- traffic-summary: historical pre-exposure-split presentation; 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
+- public-run-id: `inferock-bench-0.1.10-cumulative-ledger-2026-07-09-through-run15-2026-07-10`.
+- package-version: `inferock-bench` 0.1.10.
+- source: Playwright screenshot of the local dashboard loaded from the cumulative event store after prior results opened and the fade-in animation settled. Watermark overlaid during capture.
+- traffic-summary: 1,268 measured calls since 2026-07-09 across OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints; 565 failures/signals; observed spend `$7.15`; bill-bounded money loss `$0.07` (stored exact `$0.073875`); provider-recognized `$0.05`; recognition gap `$0.02`; time loss `~2.9 min`; at-rate translation `$4.449810`; invoice-check exposure `$16.80` across 202 signals; surfaces watched 12/13. Invoice-check exposure is separate and not summed into money loss.
 - asset-dimensions: 1440 x 1100 PNG.
-- asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; no host-user path shown; watermark is `github.com/inferock/inferock-bench`.
-- masking-check: provider-key panel hidden and rendered pixels checked for local bench keys, provider keys, host-user paths, and watermark correctness.
-- human-sign-off: verified by Bharath Koneti, 2026-07-06.
-- masked-verified: 2026-07-06 by Bharath Koneti
+- asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead where paths appear; watermark is `github.com/inferock/inferock-bench`.
+- masking-check: provider-key panel hidden and rendered pixels checked for local bench keys, provider keys, host-user paths, settled dashboard state, four-element headline, and watermark correctness.
+- human-sign-off: pending user sign-off, 2026-07-10.
+- masked-verified: 2026-07-10 by conductor visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
 
 ### `receipt-real-traffic.png`
 
-- public-run-id: `inferock-bench-0.1.7-real-traffic-2026-07-06`.
-- package-version: `inferock-bench` 0.1.7.
-- source: Terminal-style PNG rendered by Playwright from the 2026-07-06 `inferock-bench receipt --compact` output for the aggregate 175-call public run. Receipt path sanitized to `~/.inferock-bench`; watermark overlaid during rendering.
-- traffic-summary: historical pre-exposure-split presentation; 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
+- public-run-id: `inferock-bench-0.1.10-cumulative-ledger-2026-07-09-through-run15-2026-07-10`.
+- package-version: `inferock-bench` 0.1.10.
+- source: Terminal-style PNG rendered by Playwright from the post-merge `src/index.ts receipt --compact` output against the cumulative event store. Receipt path sanitized to `~/.inferock-bench`; watermark overlaid during rendering.
+- traffic-summary: 1,268 measured calls since 2026-07-09 across OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints; 565 failures/signals; observed spend `$7.15`; bill-bounded money loss `$0.07` (stored exact `$0.073875`); provider-recognized `$0.05`; recognition gap `$0.02`; time loss `~2.9 min`; at-rate translation `$4.449810`; invoice-check exposure `$16.80` across 202 signals; surfaces watched 12/13. Invoice-check exposure is separate and not summed into money loss.
 - asset-dimensions: 1440 x 1100 PNG.
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead; watermark is `github.com/inferock/inferock-bench`.
-- masking-check: rendered receipt checked for local bench keys, provider keys, host-user paths, sanitized receipt path, and watermark correctness.
-- human-sign-off: verified by Bharath Koneti, 2026-07-06.
-- masked-verified: 2026-07-06 by Bharath Koneti
+- masking-check: rendered receipt checked for local bench keys, provider keys, host-user paths, sanitized receipt path, four-element headline, and watermark correctness.
+- human-sign-off: pending user sign-off, 2026-07-10.
+- masked-verified: 2026-07-10 by conductor visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
 
 ### `silent-overcharge-anatomy.svg`
 

@@ -28,6 +28,7 @@ export function createShareCardModel(receipt) {
     const dollarTranslation = numberValue(duration?.dollarTranslationUsd);
     const rows = (normalized.rows ?? []).map((row) => row);
     const cacheDiscountExposure = cacheDiscountExposureTotal(normalized.exposures);
+    const invoiceCheckExposure = invoiceCheckExposureTotal(normalized.exposures);
     const pricingUnknownCount = rows.reduce((total, row) => total + (numberValue(row.pricingUnknownCount) ?? 0), 0);
     const measuredCalls = numberValue(totals?.measuredCalls);
     const failures = numberValue(totals?.failures);
@@ -37,6 +38,7 @@ export function createShareCardModel(receipt) {
             standardLoss,
             providerSpend,
             timeLossMs,
+            invoiceCheckExposure,
             pricingUnknownCount,
         }),
         receiptLabel: receiptLabel(normalized),
@@ -149,6 +151,7 @@ function headlineFor(input) {
         `spent ${input.providerSpend === null ? "not in receipt" : formatShareUsd(input.providerSpend)}`,
         `money loss ${moneyLossHeadlineValue(input.standardLoss, input.pricingUnknownCount)}`,
         `time loss ${input.timeLossMs === null ? "not in receipt" : formatApproxTimeLost(input.timeLossMs)}`,
+        `invoice-check exposure ${formatShareUsd(input.invoiceCheckExposure)}`,
     ].join(" · ");
 }
 function moneyLossHeadlineValue(standardLoss, pricingUnknownCount) {
@@ -237,6 +240,12 @@ function cacheDiscountExposureTotal(exposures) {
     const amount = matching.reduce((sum, exposure) => sum + exposure.amount, 0);
     const count = matching.reduce((sum, exposure) => sum + exposure.count, 0);
     return amount > 0 && count > 0 ? { amount, count } : null;
+}
+function invoiceCheckExposureTotal(exposures) {
+    return (exposures ?? [])
+        .map((exposure) => numberValue(exposure.amount) ?? 0)
+        .filter((amount) => amount > 0)
+        .reduce((sum, amount) => sum + amount, 0);
 }
 function standardLossLine(standardLoss, pricingUnknownCount) {
     if (pricingUnknownCount > 0 && (standardLoss ?? 0) === 0)

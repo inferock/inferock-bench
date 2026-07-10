@@ -411,7 +411,7 @@ describe("cli", () => {
     });
 
     const output = lines.join("\n");
-    expect(output).toContain("spent $0.00 · money loss $0.00 · time loss ~0s");
+    expect(cardText(output)).toContain("spent $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
     expect(output).toContain("github.com/inferock/inferock-bench");
     expect(output).toContain("Share card: receipts/share-card-");
     expect(output).not.toContain(home);
@@ -1381,6 +1381,15 @@ function responseContentForBody(body: Record<string, unknown>): string {
     return "{\"serviceName\":\"gateway\",\"environment\":\"dev\",\"owner\":\"platform\",\"featureFlags\":[\"receipts\"]}";
   }
   return "done";
+}
+
+function cardText(rendered: string): string {
+  return rendered
+    .split("\n")
+    .filter((line) => !line.startsWith("+"))
+    .map((line) => line.replace(/^\| /u, "").replace(/ \|$/u, "").trimEnd())
+    .join(" ")
+    .replace(/\s+/gu, " ");
 }
 
 function bootstrapBaselineForSuite(suite: Awaited<ReturnType<typeof loadCoverageSuiteManifest>>) {

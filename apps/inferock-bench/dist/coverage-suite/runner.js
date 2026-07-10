@@ -605,7 +605,7 @@ function providerLedgerLines(bundle) {
     return (bundle.providerLedgers ?? []).map((ledger) => `provider ${ledger.provider} ledger: money loss ${formatUsd(ledger.standardLossUsd)} | provider-recognized ${formatUsd(ledger.providerRecognizedUsd)} | money gap ${formatUsd(ledger.recognitionGapUsd)} | time lost ${formatApproxTimeLost(ledger.durationTimeLossMs)} | approx ${formatUsd(ledger.durationDollarTranslationUsd)} at your rate`);
 }
 function speedTestHeadline(bundle) {
-    return `spent ${formatUsd(bundle.totals.providerSpendUsd)} · money loss ${formatUsd(bundle.totals.money.standardLossUsd)} · time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`;
+    return `spent ${formatUsd(bundle.totals.providerSpendUsd)} · money loss ${formatUsd(bundle.totals.money.standardLossUsd)} · time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)} · invoice-check exposure ${formatSpeedTestUsd(speedTestInvoiceCheckExposureAmount(bundle))}`;
 }
 function speedTestExposureLines(bundle) {
     return (bundle.exposures ?? [])
@@ -616,6 +616,11 @@ function speedTestExposureLines(bundle) {
             ? `cache discount at risk — ${exposure.guidance}: ${count}, ${formatSpeedTestUsd(exposure.amount)}`
             : `${exposure.class} — ${exposure.guidance}: ${count}, ${formatSpeedTestUsd(exposure.amount)}`;
     });
+}
+function speedTestInvoiceCheckExposureAmount(bundle) {
+    return (bundle.exposures ?? [])
+        .filter((exposure) => exposure.amount > 0)
+        .reduce((sum, exposure) => sum + exposure.amount, 0);
 }
 function sanitizeCurrentSpeedTestReceiptBundle(bundle) {
     if (!hasPositiveExposure(bundle.exposures))

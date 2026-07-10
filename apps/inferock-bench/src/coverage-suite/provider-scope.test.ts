@@ -260,6 +260,9 @@ describe("provider-scoped speed-test receipts", () => {
     expect(ledger?.recognitionGapUsd).toBe(recognitionGapUsd);
     expect(combined.exposures).toEqual(summary.exposures);
     expect(renderSpeedTestReceipt(combined)).toContain(
+      "spent $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.001500",
+    );
+    expect(renderSpeedTestReceipt(combined)).toContain(
       "cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500",
     );
   });

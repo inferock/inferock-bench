@@ -22,7 +22,7 @@
   <a href="#docs">Docs</a>
 </p>
 
-![Inferock Bench dashboard from a real measured run, captured while traffic was flowing, showing spent, bill-bounded money loss, time loss, invoice-check exposure, provider-recognized, recognition-gap, and SLA threshold visibility with provider keys masked.](./assets/dashboard-real-traffic.png)
+![Inferock Bench dashboard from a real measured cumulative run, captured after traffic loaded, showing the four-element headline spent, money loss, time loss, and invoice-check exposure, plus provider-recognized, recognition-gap, SLA threshold, and surfaces-watched visibility with provider keys masked.](./assets/dashboard-real-traffic.png)
 
 Use it when you need to audit an AI/LLM bill, measure Claude or GPT token usage locally, or answer "was I billed for a failed API call?" It is a local LLM cost-tracking proxy for four measured provider planes: OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints spanning meta-llama, deepseek, mistral, moonshot/kimi, z-ai/glm, and qwen on observed hosts. Everything else is extensible-by-design, not measured today. It does not declare every mismatch an OpenAI overcharge or Anthropic billing error; it preserves token, cost, retry, and failure evidence so billing-integrity questions can be checked.
 
@@ -35,20 +35,20 @@ Common cases it can help you inspect: a failed or timed-out request that still h
 | `spent` | provider spend observed by the run for priced calls it saw. |
 | `money loss` | bill-bounded dollar loss The Inferock Standard can tie to observed spend or charge evidence. |
 | `time loss` | real wait or downtime measured as time, never added to dollars. |
-| `exposure` | an invoice-check amount, such as cache discount at risk; it is labeled "verify your invoice" and never summed into money loss. |
+| `invoice-check exposure` | an invoice-check amount, such as cache discount at risk; it is labeled "verify your invoice" and never summed into money loss. |
 
-**Real measured traffic, not fixture rows.** A 2026-07-09 run through `inferock-bench` 0.1.10 captured 107 measured calls, 33 failures/signals, `$1.71` provider spend observed, `$0.00` bill-bounded money loss (stored exact: `$0.000371`), `~0s` time loss, and `$2.51` invoice-check exposure across 19 cache-discount-at-risk signals.
+**Real measured traffic, not fixture rows.** Measured since 2026-07-09, the cumulative public ledger through run15 captured 1,268 measured calls, 565 failures/signals, `$7.15` provider spend observed, `$0.07` bill-bounded money loss (stored exact: `$0.073875`), `~2.9 min` time loss, and `$16.80` invoice-check exposure across 202 cache-discount-at-risk signals. The current-code cumulative receipt watches 12 of 13 surfaces and keeps invoice-check exposure separate from money loss.
 
-Run facts: [sanitized public run card for 2026-07-09](./docs/public-run-2026-07-09.md).
+Run facts: [sanitized public run card for 2026-07-09](./docs/public-run-2026-07-09.md) and [run15 public run card for 2026-07-10](./docs/public-run-2026-07-10.md).
 
 The 2026-07-06 0.1.7 card remains published as a historical artifact; the current public receipt presentation ships with 0.1.10.
 
 > [!IMPORTANT]
-> The receipt is spend-anchored. The headline is `spent $X · money loss $Y · time loss Z`; bill-bounded money loss and recognition gap never include invoice-check exposure. `CACHE_DISCOUNT_AT_RISK` is still visible, but as a separate exposure line that says "verify your invoice" rather than as money loss or a refund claim.
+> The receipt is spend-anchored. The headline is `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`; bill-bounded money loss and recognition gap never include invoice-check exposure. `CACHE_DISCOUNT_AT_RISK` is still visible below the headline as a separate detail line that says "verify your invoice" rather than as money loss or a refund claim.
 
 | Watch it run | Share the receipt |
 | --- | --- |
-| ![Terminal GIF showing inferock-bench startup, a real provider task, first call measured, and a compact receipt.](./assets/bench-demo.gif) | ![inferock-bench compact receipt from the refreshed public run showing the spent, money loss, time loss headline and a separate invoice-check exposure line.](./assets/receipt-real-traffic.png) |
+| ![Terminal GIF showing inferock-bench startup, a real provider task, first call measured, and a compact receipt ending on the four-element headline: spent, money loss, time loss, and invoice-check exposure.](./assets/bench-demo.gif) | ![inferock-bench compact receipt from the cumulative public ledger showing the four-element headline spent, money loss, time loss, invoice-check exposure, plus provider-recognized, recognition-gap, and surfaces-watched lines.](./assets/receipt-real-traffic.png) |
 
 ## Quickstart
 
@@ -212,9 +212,9 @@ You see the estimated tokens, estimated dollars, model, suite, baseline, pricing
 
 In the dashboard, open Advanced options, set Test driver to Agent test, then run the test to use a real coding agent. Agent test currently supports OpenAI and Anthropic runs; use the built-in generator for Gemini and OpenRouter coverage. If the pinned local agent is not installed, the dashboard names the exact npm tarballs, versions, SRI checksums, sizes, source URLs, and local install path before downloading. The agent receives only localhost and an ephemeral local `ibl_` key, never your provider key. CLI equivalent: `npx inferock-bench test --generator agent`.
 
-The receipt is run-scoped. It reports `spent $X · money loss $Y · time loss Z`, provider-recognized recovery, bill-bounded recognition gap, separate invoice-check exposure, and `surfaces watched N of M surfaces your selected providers can open (M varies by provider)`, with every surface labeled `watched-clean`, `signal`, or `not-openable`. A zero only counts when the surface was watched; unopened surfaces are named as coverage debt, not silently claimed clean. For a priced call that fails the standard and is tied to observed spend or charge evidence, money loss is bill-bounded; provider-recognized can still be `$0`, and the gap is the difference inside that bill-bounded money ledger.
+The receipt is run-scoped. It reports `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`, provider-recognized recovery, bill-bounded recognition gap, the separate invoice-check exposure detail line when applicable, and `surfaces watched N of M surfaces your selected providers can open (M varies by provider)`, with every surface labeled `watched-clean`, `signal`, or `not-openable`. A zero only counts when the surface was watched; unopened surfaces are named as coverage debt, not silently claimed clean. For a priced call that fails the standard and is tied to observed spend or charge evidence, money loss is bill-bounded; provider-recognized can still be `$0`, and the gap is the difference inside that bill-bounded money ledger.
 
-The receipt opens with a one-line plain-English guide to spent dollars, bill-bounded money loss, time loss, and any invoice-check exposure. A receipt "failure" is a measurement finding, not necessarily your app crashing. A `signal` is one finding the benchmark saw, such as a token cross-check. `CACHE_DISCOUNT_AT_RISK` is shown separately as exposure with "verify your invoice" guidance; it is not summed into money loss or recognition gap. `Provider-recognized` is the part that appears likely to fit the provider's current credit rules; bill-bounded gaps stay visible instead of being hidden.
+The receipt opens with a one-line plain-English guide to spent dollars, bill-bounded money loss, time loss, and invoice-check exposure. A receipt "failure" is a measurement finding, not necessarily your app crashing. A `signal` is one finding the benchmark saw, such as a token cross-check. `CACHE_DISCOUNT_AT_RISK` is shown as invoice-check exposure with "verify your invoice" guidance; it is not summed into money loss or recognition gap. `Provider-recognized` is the part that appears likely to fit the provider's current credit rules; bill-bounded gaps stay visible instead of being hidden.
 
 If no provider key is configured, pricing is unknown, or the token baseline is ever absent or bootstrap-only, the CLI and dashboard fail closed and make zero provider calls. The baseline-degraded state is reported as ``baseline not measured yet: run `npx inferock-bench test --record-baseline` with explicit consent to produce a real per-task token baseline.`` The method details are in [Coverage test methodology](./docs/coverage-test-methodology.md).
 
@@ -287,11 +287,11 @@ This repo is a local diagnostic benchmark, not [hosted Inferock](https://inferoc
 
 Vaudit reported in June 2026 that it reviewed about $34M of AI invoices, found about $1.7M in overbilling, and saw providers credit roughly 80% of disputes; that refund-rate detail is not independently verified ([Business Wire](https://www.businesswire.com/news/home/20260630108235/en/Vaudit-Launches-TokenAudit-to-Recover-Millions-in-Enterprise-Token-Spend-Billing-Errors-From-Anthropic-OpenAI-and-AI-Providers), [TechStartups/The Information re-report](https://techstartups.com/2026/06/25/anthropic-and-openai-customers-overcharged-by-1-7m-in-billing-errors-startup-audit-finds/)). The asymmetry is the point: the same models can carry credit-backed cloud SLAs while first-party API customers get thinner or no published SLA terms; details belong in the [spec annex](./spec/disclosure-annex.md). Providers deny broad overbilling: Anthropic says it "does not charge customers for incomplete requests or error messages, does not route customer requests to older models, and does not see signs that overbilling is a widespread issue"; OpenAI says "no evidence that those issues are happening among its customers". These provider statements are included as denials and scope boundaries, not as admissions; `inferock-bench` treats them as claims to test against local per-call evidence.
 
-That is why we are staking out [The Inferock Standard](./spec/standard.md). We do not want the provider to be the only party allowed to define loss. A broken answer can cost bill-bounded money, time, or both even when the provider does not recognize it yet. The receipt leads with observed spend, bill-bounded money loss, and time loss; invoice-check exposure is labeled separately and never summed into money loss. So we separate the dollars a provider is likely to credit from the time, bill-bounded money loss, and exposure you still need to inspect. Mixing them would make a louder headline and a weaker receipt.
+That is why we are staking out [The Inferock Standard](./spec/standard.md). We do not want the provider to be the only party allowed to define loss. A broken answer can cost bill-bounded money, time, or both even when the provider does not recognize it yet. The receipt leads with observed spend, bill-bounded money loss, time loss, and invoice-check exposure; invoice-check exposure is never summed into money loss. So we separate the dollars a provider is likely to credit from the time, bill-bounded money loss, and invoice-check exposure you still need to inspect. Mixing them would make a louder headline and a weaker receipt.
 
 This is an evolving benchmark standard, versioned on purpose: every rule change lands in the [standard changelog](./spec/CHANGELOG.md), and feedback backed by real receipts shapes the next version. If a category is wrong, show us and it gets fixed in public.
 
-The real captures above are historical pre-split artifacts from normal traffic: 175 measured calls across three configured providers, `$1.28` provider spend observed, and `$4.62` cache-discount-at-risk rows that are now classified as exposure rather than headline money loss. Provider-specific surfaces that did not apply stayed labeled rather than claimed clean. If your normal traffic is clean, `inferock-bench` should say so. If it is not, the receipt tells you what happened and how strong the claim is. Every run also reports which measure surfaces the traffic actually exercised: `N of M surfaces your selected providers can open (M varies by provider)`. A zero only counts for a watched surface, and anything unexercised is labeled, never silently claimed clean.
+The real captures above are from the cumulative measured ledger, not fixture rows: 1,268 measured calls across OpenAI, Anthropic, Gemini, and pinned OpenRouter coverage, `$7.15` provider spend observed, `$0.07` bill-bounded money loss, `~2.9 min` time loss, and `$16.80` cache-discount-at-risk exposure that stays out of headline money loss. Provider-specific surfaces that did not apply stayed labeled rather than claimed clean. If your normal traffic is clean, `inferock-bench` should say so. If it is not, the receipt tells you what happened and how strong the claim is. Every run also reports which measure surfaces the traffic actually exercised: `N of M surfaces your selected providers can open (M varies by provider)`. A zero only counts for a watched surface, and anything unexercised is labeled, never silently claimed clean.
 
 ## Share your receipt
 
@@ -301,7 +301,7 @@ Export the receipt when you want a compact, shareable proof card from your own m
 npx inferock-bench receipt --compact
 ```
 
-The receipt leads with spend, bill-bounded money loss, and time loss. Provider-recognized recovery, recognition gap, and cache-discount exposure render below the headline. It is not a provider ranking and it is not generated from fixtures.
+The receipt leads with spend, bill-bounded money loss, time loss, and invoice-check exposure. Provider-recognized recovery, recognition gap, and cache-discount invoice-check exposure detail render below the headline. It is not a provider ranking and it is not generated from fixtures.
 
 ## Docs
 
@@ -309,7 +309,8 @@ The receipt leads with spend, bill-bounded money loss, and time loss. Provider-r
 | --- | --- |
 | [The Inferock Standard](./spec/standard.md) | the public rulebook for what counts as loss, what counts as recoverable, and what stays separate. |
 | [Hard questions](./docs/hard-questions.md) | direct answers to the launch questions skeptics are most likely to ask. |
-| [Public run card: 2026-07-09](./docs/public-run-2026-07-09.md) | sanitized aggregate receipt facts for the current public real-traffic run. |
+| [Public run card: 2026-07-10](./docs/public-run-2026-07-10.md) | run15 facts, cumulative-store reconciliation, and adaptive issue-weighted denominator disclosure. |
+| [Public run card: 2026-07-09](./docs/public-run-2026-07-09.md) | sanitized aggregate receipt facts for the first 0.1.10 public real-traffic component. |
 | [Historical public run card: 2026-07-06](./docs/public-run-2026-07-06.md) | historical sanitized aggregate receipt facts for the pre-exposure-split public real-traffic run. |
 | [What leaves your machine](./docs/what-leaves-your-machine.md) | the exact local/network boundary from the shipped benchmark code. |
 | [Key handling](./docs/key-handling.md) | provider keys, the local `ibl_` key, masking, rotation, and malicious-fork risk. |

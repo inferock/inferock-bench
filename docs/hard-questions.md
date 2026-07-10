@@ -1,23 +1,23 @@
 # Hard Questions
 
-This page answers the questions a skeptical reader should ask before trusting an `inferock-bench` receipt. The short version: the receipt is evidence, not authority. It leads with spent dollars, bill-bounded money loss, and time loss; then it keeps provider-recognized recovery, bill-bounded recognition gap, and invoice-check exposure separate so arguments happen against concrete rows instead of slogans.
+This page answers the questions a skeptical reader should ask before trusting an `inferock-bench` receipt. The short version: the receipt is evidence, not authority. It leads with spent dollars, bill-bounded money loss, time loss, and invoice-check exposure; then it keeps provider-recognized recovery, bill-bounded recognition gap, and invoice-check exposure detail separate so arguments happen against concrete rows instead of slogans.
 
 Read this if you are wondering whether the benchmark is fair, legal, or overclaiming. The questions below are ordered to keep the receipt math first and the governance limits visible before any deeper method argument.
 
 | If you are checking | Start with |
 | --- | --- |
-| The receipt headline and exposure line | [Q1](#q1-can-the-headline-money-loss-exceed-my-provider-bill), [Q5](#q5-why-count-a-whole-call-as-loss-if-the-provider-returned-some-tokens), [Q6](#q6-are-you-accusing-providers-of-overbilling), [Q12](#q12-are-cache-discounts-and-duplicate-request-ids-real-losses) |
+| The receipt headline and invoice-check exposure detail line | [Q1](#q1-can-the-headline-money-loss-exceed-my-provider-bill), [Q5](#q5-why-count-a-whole-call-as-loss-if-the-provider-returned-some-tokens), [Q6](#q6-are-you-accusing-providers-of-overbilling), [Q12](#q12-are-cache-discounts-and-duplicate-request-ids-real-losses) |
 | Whether the standard can be trusted | [Q2](#q2-why-should-anyone-accept-a-standard-written-by-the-benchmark-vendor), [Q3](#q3-is-v010-draft-real-enough-to-compute-dollars), [Q10](#q10-can-inferock-move-the-goalposts-after-providers-criticize-a-result) |
 | Public-run and provider-scope limits | [Q4](#q4-is-a-public-run-statistically-meaningful), [Q8](#q8-are-gemini-and-openrouter-fully-supported), [Q13](#q13-is-the-public-mirror-hiding-governance-risk) |
 | Trust and disclosure boundaries | [Q7](#q7-why-cite-vaudit-if-its-refund-rate-is-not-independently-verified), [Q9](#q9-is-inferock-bench-open-source), [Q14](#q14-can-raw-event-logs-leak-data) |
 
 ## Q1. Can the headline money loss exceed my provider bill?
 
-No. From the exposure-split presentation forward, the receipt headline is `spent $X · money loss $Y · time loss Z`, and headline money loss is bill-bounded. Counterfactual or verify-against-invoice amounts get their own labeled exposure line instead of being summed into standard-loss or recognition gap.
+No. From the exposure-split presentation forward, the receipt headline is `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`, and headline money loss is bill-bounded. Counterfactual or verify-against-invoice amounts get their own fused-label invoice-check exposure element and detail line instead of being summed into standard-loss or recognition gap.
 
 For the exact formulas, see [Paid-loss arithmetic](loss-arithmetic.md).
 
-The public 2026-07-09 card shows the current read: `$1.71` spent, `$0.00` headline money loss (stored exact `$0.000371`), `~0s` time loss, and `$2.51` cache-discount exposure labeled "verify your invoice." The older 2026-07-06 card remains published as a historical pre-split artifact.
+The public 2026-07-09 card shows the current read: `$1.71` spent, `$0.00` headline money loss (stored exact `$0.000371`), `~0s` time loss, and `$2.51` cache-discount invoice-check exposure labeled "verify your invoice." The older 2026-07-06 card remains published as a historical pre-split artifact.
 
 ## Q2. Why should anyone accept a standard written by the benchmark vendor?
 

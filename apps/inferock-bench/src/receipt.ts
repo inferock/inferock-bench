@@ -253,6 +253,7 @@ function receiptHeadline(bundle: ReceiptBundle): string {
     `spent ${formatUsd(bundle.totals.providerSpendUsd)}`,
     `money loss ${receiptMoneyLossDisplay(bundle)}`,
     `time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
+    `invoice-check exposure ${formatReceiptUsd(invoiceCheckExposureAmount(bundle.exposures))}`,
   ].join(" · ");
 }
 
@@ -279,6 +280,10 @@ function receiptMoneyLossObservedSpendLine(bundle: ReceiptBundle): string {
 
 function receiptExposures(bundle: ReceiptBundle): BenchSummary["exposures"] {
   return (bundle.exposures ?? []).filter((exposure) => exposure.amount > 0);
+}
+
+function invoiceCheckExposureAmount(exposures: BenchSummary["exposures"] | undefined): number {
+  return sum((exposures ?? []).filter((exposure) => exposure.amount > 0).map((exposure) => exposure.amount));
 }
 
 function renderExposureLine(exposure: BenchSummary["exposures"][number]): string {

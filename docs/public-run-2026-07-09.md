@@ -2,7 +2,7 @@
 
 This public run is a sanitized aggregate receipt, not raw prompts or raw responses.
 
-Use this as the proof card for the current README visuals. It shows what the 2026-07-09 run measured, what was deliberately withheld from the public artifact, and why the rows are run-scoped rather than a provider ranking.
+Use this as the proof card for the first 0.1.10 public component in the cumulative README ledger. It shows what the 2026-07-09 run measured, what was deliberately withheld from the public artifact, and why the rows are run-scoped rather than a provider ranking.
 
 | First question | Where to look |
 | --- | --- |
@@ -112,4 +112,5 @@ Provider and local bench keys were not used for re-rendering. The re-render used
 - [Hard questions](hard-questions.md) for the limits on interpreting this run.
 - [Coverage test methodology](coverage-test-methodology.md) for how coverage states are opened without manufacturing failures.
 - [Asset provenance](../assets/PROVENANCE.md) for the masking and no-mock trail behind the public images.
+- [Public run card: 2026-07-10](public-run-2026-07-10.md) for run15 and the cumulative-store reconciliation.
 - [Historical 2026-07-06 run card](public-run-2026-07-06.md) for the pre-exposure-split artifact.

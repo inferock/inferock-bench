@@ -178,7 +178,7 @@ Cache read or cache creation usage is reconciled against expected pricing. Witho
 
 Detector: `billing-integrity`.
 
-From usage and pricing alone: `cache_read_tokens x (full input rate - cache read rate)`. This is an at-risk discount amount, not provider-recognized recovery, not headline standard-loss, and not a whole-call floor. The row tells the user to verify against the invoice, and receipts report the amount as a separate exposure line when nonzero.
+From usage and pricing alone: `cache_read_tokens x (full input rate - cache read rate)`. This is an at-risk discount amount, not provider-recognized recovery, not headline standard-loss, and not a whole-call floor. The row tells the user to verify against the invoice, and receipts report the amount as an invoice-check exposure headline element plus a separate invoice-check exposure detail line when nonzero.
 
 ### `SECURITY_SECRET_EXACT_MATCH`
 

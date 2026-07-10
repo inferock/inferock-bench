@@ -914,7 +914,7 @@ function providerLedgerLines(bundle: SpeedTestReceiptBundle): string[] {
 }
 
 function speedTestHeadline(bundle: SpeedTestReceiptBundle): string {
-  return `spent ${formatUsd(bundle.totals.providerSpendUsd)} · money loss ${formatUsd(bundle.totals.money.standardLossUsd)} · time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`;
+  return `spent ${formatUsd(bundle.totals.providerSpendUsd)} · money loss ${formatUsd(bundle.totals.money.standardLossUsd)} · time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)} · invoice-check exposure ${formatSpeedTestUsd(speedTestInvoiceCheckExposureAmount(bundle))}`;
 }
 
 function speedTestExposureLines(bundle: SpeedTestReceiptBundle): string[] {
@@ -926,6 +926,12 @@ function speedTestExposureLines(bundle: SpeedTestReceiptBundle): string[] {
         ? `cache discount at risk — ${exposure.guidance}: ${count}, ${formatSpeedTestUsd(exposure.amount)}`
         : `${exposure.class} — ${exposure.guidance}: ${count}, ${formatSpeedTestUsd(exposure.amount)}`;
     });
+}
+
+function speedTestInvoiceCheckExposureAmount(bundle: SpeedTestReceiptBundle): number {
+  return (bundle.exposures ?? [])
+    .filter((exposure) => exposure.amount > 0)
+    .reduce((sum, exposure) => sum + exposure.amount, 0);
 }
 
 function sanitizeCurrentSpeedTestReceiptBundle(bundle: SpeedTestReceiptBundle): SpeedTestReceiptBundle {

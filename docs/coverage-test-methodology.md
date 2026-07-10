@@ -95,7 +95,7 @@ The v1 suite is `inferock-coverage-suite-v1`, and its task IDs are immutable ins
 
 The manifest lists method surface definitions. The as-built receipt summarizes the shipped report rows as `surfaces watched N/13`; today that receipt view groups the suite's structured-output definitions into the current report surface model.
 
-`cache_integrity` opens when the run carries the repeated shared-prefix precondition and cache-token evidence. Exact charge reconciliation is included when provider charge observation is available. `CACHE_DISCOUNT_AT_RISK` may also produce a separate invoice-check exposure line from usage plus pricing; that exposure does not enter money loss or recognition gap.
+`cache_integrity` opens when the run carries the repeated shared-prefix precondition and cache-token evidence. Exact charge reconciliation is included when provider charge observation is available. `CACHE_DISCOUNT_AT_RISK` may also produce an invoice-check exposure headline element and separate detail line from usage plus pricing; that exposure does not enter money loss or recognition gap.
 
 `security_governance` is opened by the normal `organic_safety_overlays` task or by passive security capture/provider safety evidence on ordinary traffic. The suite never sends manufactured secrets, leaks, adversarial prompts, or policy-triggering content to open this surface.
 

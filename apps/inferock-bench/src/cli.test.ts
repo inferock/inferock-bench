@@ -411,7 +411,7 @@ describe("cli", () => {
     });
 
     const output = lines.join("\n");
-    expect(output).toContain("$0.00 lost across 0 calls — receipts to prove it");
+    expect(output).toContain("spent $0.00 · money loss $0.00 · time loss ~0s");
     expect(output).toContain("github.com/inferock/inferock-bench");
     expect(output).toContain("Share card: receipts/share-card-");
     expect(output).not.toContain(home);

@@ -92,6 +92,7 @@ export function createCombinedSpeedTestReceiptBundle(input: {
       ...first.coverage,
       runId: input.runId,
     }, surfaces),
+    exposures: combinedExposures(providerReceipts),
     rows: providerReceipts.flatMap((receipt) => receipt.rows),
     agent: undefined,
     ...(trafficMix ? { trafficMix } : { trafficMix: undefined }),
@@ -114,6 +115,28 @@ export function createCombinedSpeedTestReceiptBundle(input: {
     })),
     providerReceipts,
   };
+}
+
+function combinedExposures(
+  receipts: readonly SpeedTestReceiptBundle[],
+): SpeedTestReceiptBundle["exposures"] {
+  const amount = roundUsd(sum(receipts.flatMap((receipt) =>
+    (receipt.exposures ?? [])
+      .filter((exposure) => exposure.class === "cache_discount_at_risk")
+      .map((exposure) => exposure.amount)
+  )));
+  const count = sum(receipts.flatMap((receipt) =>
+    (receipt.exposures ?? [])
+      .filter((exposure) => exposure.class === "cache_discount_at_risk")
+      .map((exposure) => exposure.count)
+  ));
+  if (amount <= 0 || count <= 0) return [];
+  return [{
+    class: "cache_discount_at_risk",
+    amount,
+    count,
+    guidance: "verify your invoice",
+  }];
 }
 
 function providerSurfaceScope(receipt: SpeedTestReceiptBundle): {

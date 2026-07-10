@@ -15,6 +15,7 @@ import { BENCH_RECEIPT_SCHEMA_VERSION, LEGACY_BENCH_RECEIPT_SCHEMA_VERSION } fro
 import { buildReliabilityIndexPayload } from "./telemetry.js";
 import {
   formatUsd,
+  moneyLossObservedSpendLine,
   providerScopedCoverageTotalSurfaceCount,
   repriceLatencyRow,
   renderReport,
@@ -36,8 +37,9 @@ describe("summary and receipt", () => {
 
     const receipt = createReceiptBundle(summary);
     const rendered = renderReceipt(receipt, true);
-    expect(rendered.split("\n")[0]).toBe("Money loss: $0.00");
-    expect(rendered.split("\n")[1]).toBe("Time lost: ~0s");
+    expect(rendered.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s");
+    expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
+    expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
     expect(rendered).toContain("failures observed are calls with problems");
     expect(rendered).toContain("loss signals are the rows below");
     expect(rendered).toContain("provider-recognized is what your provider already reported or credited");
@@ -69,6 +71,99 @@ describe("summary and receipt", () => {
     const report = renderReport(summary);
     expect(report).toContain("pricing unknown — add model price");
     expect(report).not.toContain("BROKEN_OUTPUT/broken_output | refundable_candidate | 1 | $0.00");
+  });
+
+  it("money-loss-observed-spend-line: uses bill-bounded money loss only and excludes exposure/time dollars", () => {
+    const base = createReceiptBundle(summarizeBenchEvents([]));
+    const receipt = {
+      ...base,
+      totals: {
+        ...base.totals,
+        providerSpendUsd: 100,
+        money: {
+          ...base.totals.money,
+          standardLossUsd: 10,
+          recognitionGapUsd: 10,
+          unrecognizedUsd: 10,
+          providerSpendUsd: 100,
+        },
+        duration: {
+          ...base.totals.duration,
+          timeLossMs: 60_000,
+          dollarTranslationUsd: 40,
+        },
+      },
+      exposures: [{
+        class: "cache_discount_at_risk" as const,
+        amount: 50,
+        count: 1,
+        guidance: "verify your invoice" as const,
+      }],
+    };
+
+    const rendered = renderReceipt(receipt, true);
+
+    expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $10.00 · money loss = 10.0% of observed spend");
+    expect(rendered).not.toContain("money loss = 50.0% of observed spend");
+    expect(rendered).not.toContain("money loss = 60.0% of observed spend");
+  });
+
+  it("money-loss-observed-spend-line: annotates only below the one-dollar spend floor", () => {
+    expect(moneyLossObservedSpendLine({
+      standardLossUsd: 0.00435,
+      providerSpendUsd: 0.05,
+    })).toBe("money loss = 8.7% of observed spend (small sample: $0.05 measured)");
+
+    expect(moneyLossObservedSpendLine({
+      standardLossUsd: 0.08613,
+      providerSpendUsd: 0.99,
+    })).toBe("money loss = 8.7% of observed spend (small sample: $0.99 measured)");
+
+    expect(moneyLossObservedSpendLine({
+      standardLossUsd: 0.087,
+      providerSpendUsd: 1,
+    })).toBe("money loss = 8.7% of observed spend");
+  });
+
+  it("money-loss-observed-spend-line: renders zero spend without division", () => {
+    expect(moneyLossObservedSpendLine({
+      standardLossUsd: 0,
+      providerSpendUsd: 0,
+    })).toBe("money loss = no priced spend measured");
+  });
+
+  it("legacy receipts keep their compact render shape without the new secondary line", () => {
+    const rendered = renderReceipt({
+      schemaVersion: LEGACY_BENCH_RECEIPT_SCHEMA_VERSION,
+      title: "legacy compact receipt",
+      generatedAt: "2026-06-14T12:00:00.000Z",
+      totals: {
+        measuredCalls: 1,
+        failures: 1,
+        standardLossUsd: 0.25,
+        totalLostUsd: 0.25,
+        providerRecognizedUsd: 0,
+        recognitionGapUsd: 0.25,
+        unrecognizedUsd: 0.25,
+        providerSpendUsd: 1,
+      },
+      rows: [{
+        code: "BROKEN_OUTPUT",
+        failureClass: "structured_output",
+        evidenceGrade: "refundable_candidate",
+        count: 1,
+        standardLossUsd: 0.25,
+        providerRecognizedUsd: 0,
+        recognitionGapUsd: 0.25,
+        unrecognizedUsd: 0.25,
+        pricingUnknownCount: 0,
+        howComputed: ["legacy money row"],
+      }],
+    }, true);
+
+    expect(rendered.split("\n")[0]).toBe("spent $1.00 · money loss $0.25 · time loss ~0s");
+    expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.25");
+    expect(rendered).not.toContain("money loss = 25.0% of observed spend");
   });
 
   it("renders Gemini schema sanitization delta on broken-output receipts", () => {
@@ -386,8 +481,9 @@ describe("summary and receipt", () => {
     expect(receipt.totals.duration.timeLossMs).toBe(80_000);
     expect(receipt.totals).not.toHaveProperty("totalLossUsd");
     const rendered = renderReceipt(receipt, true);
-    expect(rendered.split("\n")[0]).toBe(`Money loss: ${formatUsd(summary.moneyTotals.standardLossUsd)}`);
-    expect(rendered.split("\n")[1]).toBe("Time lost: ~1.3 min");
+    expect(rendered.split("\n")[0]).toBe(
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss ${formatUsd(summary.moneyTotals.standardLossUsd)} · time loss ~1.3 min`,
+    );
     expect(rendered).toContain("approx $");
     expect(rendered).not.toMatch(/total\s*=\s*money\s*\+\s*time/i);
   });
@@ -1492,7 +1588,7 @@ describe("summary and receipt", () => {
     });
   });
 
-  it("dollarizes cache discount at risk from usage and pricing without charge observation per ratified #20", () => {
+  it("reports cache discount at risk only as exposure, not as a class-table loss row", () => {
     resetBillingIntegrityState();
     const summary = summarizeBenchEvents([
       stored(v2Event({
@@ -1521,16 +1617,13 @@ describe("summary and receipt", () => {
     ]);
 
     const row = reportRow(summary, "CACHE_DISCOUNT_AT_RISK");
-    expect(row).toMatchObject({
-      failureClass: "cache_discount_at_risk",
-      evidenceGrade: "unrecognized_standard_loss",
+    expect(row).toBeUndefined();
+    expect(summary.exposures).toEqual([{
+      class: "cache_discount_at_risk",
+      amount: 0.0015,
       count: 1,
-      standardLossUsd: 0.0015,
-      providerRecognizedUsd: 0,
-      recognitionGapUsd: 0.0015,
-    });
-    expect(row?.howComputed[0]).toContain("cache discount at risk");
-    expect(row?.howComputed[0]).toContain("verify your invoice");
+      guidance: "verify your invoice",
+    }]);
     expect(measure(summary, "cache_integrity")).toMatchObject({
       status: "signal",
       verdict: "signal",
@@ -1545,10 +1638,237 @@ describe("summary and receipt", () => {
         chargeObservationConfigured: false,
       },
     });
-    expect(summary.standardLossUsd).toBe(0.0015);
-    expect(renderReceipt(createReceiptBundle(summary), true)).toContain(
-      "CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk",
+    expect(summary.standardLossUsd).toBe(0);
+    expect(summary.moneyTotals.standardLossUsd).toBe(0);
+    expect(summary.moneyTotals.recognitionGapUsd).toBe(0);
+    expect(summary.standardLossUsd).toBeLessThanOrEqual(summary.providerSpendUsd);
+
+    const receipt = createReceiptBundle(summary);
+    expect(receipt.exposures).toEqual(summary.exposures);
+    expect(receipt.rows.some((entry) => entry.code === "CACHE_DISCOUNT_AT_RISK")).toBe(false);
+    const rendered = renderReceipt(receipt, true);
+    expect(rendered.split("\n")[0]).toBe(
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s`,
     );
+    expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
+    expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
+    expect(renderReport(summary)).toContain(
+      "cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500",
+    );
+    expect(renderReport(summary)).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
+  });
+
+  it("exposure-split-fixture: cache exposure plus tiny real loss excludes exposure from class rows and receipt rows", () => {
+    resetBillingIntegrityState();
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: { requestId: "req-cache-fixture-prefix" },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+      stored(v2Event({
+        request: { requestId: "req-cache-fixture" },
+        usage: {
+          input: 0,
+          output: 0,
+          cache: { read: 20_000, creation: 0 },
+          categories: [
+            { category: "cached", tokens: 20_000, provider: "openai" },
+          ],
+        },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+      stored(v2Event({
+        request: {
+          requestId: "req-tiny-real-loss",
+          generation: { response_format: { type: "json_object" } },
+        },
+        response: { content: "not json" },
+      })),
+    ]);
+
+    const brokenOutput = reportRow(summary, "BROKEN_OUTPUT");
+    expect(summary.exposures).toEqual([{
+      class: "cache_discount_at_risk",
+      amount: 0.0015,
+      count: 1,
+      guidance: "verify your invoice",
+    }]);
+    expect(brokenOutput?.standardLossUsd).toBeGreaterThan(0);
+    expect(summary.rows.map((row) => row.code)).toContain("BROKEN_OUTPUT");
+    expect(summary.rows.some((entry) => entry.code === "CACHE_DISCOUNT_AT_RISK")).toBe(false);
+    expect(summary.moneyTotals.standardLossUsd).toBe(roundUsd(
+      sum(summary.rows.filter((entry) => entry.primaryValueKind === "money").map((entry) => entry.standardLossUsd)),
+    ));
+    expect(summary.moneyTotals.recognitionGapUsd).toBe(roundUsd(
+      sum(summary.rows.filter((entry) => entry.primaryValueKind === "money").map((entry) => entry.recognitionGapUsd)),
+    ));
+
+    const receipt = createReceiptBundle(summary);
+    expect(receipt.rows.map((row) => row.code)).toContain("BROKEN_OUTPUT");
+    expect(receipt.rows.some((entry) => entry.code === "CACHE_DISCOUNT_AT_RISK")).toBe(false);
+    expect(receipt.totals.money.standardLossUsd).toBe(summary.moneyTotals.standardLossUsd);
+    expect(receipt.totals.money.recognitionGapUsd).toBe(summary.moneyTotals.recognitionGapUsd);
+    expect(renderReceipt(receipt, false)).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
+    expect(renderReport(summary)).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
+  });
+
+  it("exposure-split-property: exposure classes never contribute row or rendered recognition-gap values", () => {
+    resetBillingIntegrityState();
+
+    for (const cacheReadTokens of [10_000, 20_000, 100_000]) {
+      const summary = summarizeBenchEvents([
+        stored(v2Event({
+          request: {
+            requestId: `req-cache-property-prefix-${cacheReadTokens}`,
+            expectCompletion: false,
+          },
+          response: { content: "" },
+          usage: {
+            input: 100,
+            output: 0,
+            cache: { read: 0, creation: 0 },
+            categories: [
+              { category: "input", tokens: 100, provider: "openai" },
+              { category: "output", tokens: 0, provider: "openai" },
+            ],
+          },
+        }), { suiteTaskId: "shared_prefix_cache" }),
+        stored(v2Event({
+          request: {
+            requestId: `req-cache-property-${cacheReadTokens}`,
+            expectCompletion: false,
+          },
+          response: { content: "" },
+          usage: {
+            input: 0,
+            output: 0,
+            cache: { read: cacheReadTokens, creation: 0 },
+            categories: [
+              { category: "cached", tokens: cacheReadTokens, provider: "openai" },
+            ],
+          },
+        }), { suiteTaskId: "shared_prefix_cache" }),
+      ]);
+      const receipt = createReceiptBundle(summary);
+      const report = renderReport(summary);
+      const renderedReceipt = renderReceipt(receipt, false);
+
+      expect(summary.exposures[0]?.amount ?? 0).toBeGreaterThan(0);
+      expect(JSON.stringify(summary.rows)).not.toContain("cache_discount_at_risk");
+      expect(JSON.stringify(receipt.rows)).not.toContain("cache_discount_at_risk");
+      expect(summary.moneyTotals.standardLossUsd).toBe(0);
+      expect(summary.moneyTotals.recognitionGapUsd).toBe(0);
+      expect(receipt.totals.money.standardLossUsd).toBe(0);
+      expect(receipt.totals.money.recognitionGapUsd).toBe(0);
+      expect(report).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
+      expect(renderedReceipt).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
+    }
+  });
+
+  it("receipt-v2-split-migration strips stale exposure rows when a receipt already has exposure totals", () => {
+    resetBillingIntegrityState();
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: { requestId: "req-cache-stale-receipt-prefix" },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+      stored(v2Event({
+        request: { requestId: "req-cache-stale-receipt" },
+        usage: {
+          input: 0,
+          output: 0,
+          cache: { read: 20_000, creation: 0 },
+          categories: [
+            { category: "cached", tokens: 20_000, provider: "openai" },
+          ],
+        },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+    ]);
+    const receipt = createReceiptBundle(summary);
+    const exposure = receipt.exposures[0];
+    if (!exposure) throw new Error("fixture did not emit cache exposure");
+    const staleReceipt = {
+      ...receipt,
+      totals: {
+        ...receipt.totals,
+        money: {
+          ...receipt.totals.money,
+          standardLossUsd: exposure.amount,
+          recognitionGapUsd: exposure.amount,
+          unrecognizedUsd: exposure.amount,
+        },
+      },
+      rows: [{
+        code: "CACHE_DISCOUNT_AT_RISK",
+        failureClass: "cache_discount_at_risk",
+        evidenceGrade: "unrecognized_standard_loss",
+        count: exposure.count,
+        primaryValueKind: "money" as const,
+        standardLossUsd: exposure.amount,
+        providerRecognizedUsd: 0,
+        recognitionGapUsd: exposure.amount,
+        unrecognizedUsd: exposure.amount,
+        timeLossMs: 0,
+        providerRecognizedTimeLossMs: 0,
+        recognitionGapTimeMs: 0,
+        dollarTranslationUsd: null,
+        pricingUnknownCount: 0,
+        howComputed: ["stale split row from pre-fix receipt"],
+      }],
+    };
+
+    const migrated = migrateReceiptBundle(staleReceipt);
+    const rendered = renderReceipt(staleReceipt, false);
+
+    expect(migrated.rows).toEqual([]);
+    expect(migrated.totals.money.standardLossUsd).toBe(0);
+    expect(migrated.totals.money.recognitionGapUsd).toBe(0);
+    expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
+    expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
+    expect(rendered.split("\n")[0]).toBe(
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s`,
+    );
+  });
+
+  it("headline-never-exceeds-spend when cache exposure is larger than bill-bounded money loss", () => {
+    resetBillingIntegrityState();
+
+    for (const cacheReadTokens of [10_000, 20_000, 100_000]) {
+      const summary = summarizeBenchEvents([
+        stored(v2Event({
+          request: {
+            requestId: `req-cache-property-prefix-${cacheReadTokens}`,
+            expectCompletion: false,
+          },
+          response: { content: "" },
+          usage: {
+            input: 100,
+            output: 0,
+            cache: { read: 0, creation: 0 },
+            categories: [
+              { category: "input", tokens: 100, provider: "openai" },
+              { category: "output", tokens: 0, provider: "openai" },
+            ],
+          },
+        }), { suiteTaskId: "shared_prefix_cache" }),
+        stored(v2Event({
+          request: {
+            requestId: `req-cache-property-${cacheReadTokens}`,
+            expectCompletion: false,
+          },
+          response: { content: "" },
+          usage: {
+            input: 0,
+            output: 0,
+            cache: { read: cacheReadTokens, creation: 0 },
+            categories: [
+              { category: "cached", tokens: cacheReadTokens, provider: "openai" },
+            ],
+          },
+        }), { suiteTaskId: "shared_prefix_cache" }),
+      ]);
+
+      expect(summary.exposures[0]?.amount ?? 0).toBeGreaterThan(0);
+      expect(summary.moneyTotals.standardLossUsd).toBe(0);
+      expect(summary.moneyTotals.standardLossUsd).toBeLessThanOrEqual(summary.providerSpendUsd);
+    }
   });
 
   it("loads cache charge observations from bench config for watched-clean reconciliation", async () => {

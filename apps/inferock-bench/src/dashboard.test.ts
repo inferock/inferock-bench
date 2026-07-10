@@ -48,7 +48,10 @@ describe("dashboard", () => {
     expect(htmlText).toContain("Ready to spend");
     expect(htmlText).toContain("Loss measured by the standard");
     expect(htmlText).toContain("Surfaces watched");
+    expect(htmlText).toContain("data-testid=\"money-loss-spend-share\"");
     expect(htmlText).toContain("What should I do about it?");
+    expect(htmlText).toContain("data-testid=\"exposure-card\"");
+    expect(htmlText).toContain("invoice-check exposure, not standard-loss or recognition-gap dollars");
     expect(htmlText).toContain("consentDialog");
     expect(htmlText).toContain("agentInstallConsent");
     expect(htmlText).toContain("agentInstallAck");
@@ -77,6 +80,7 @@ describe("dashboard", () => {
         failureCount: number;
         standardLossUsd: number;
         totalLostUsd: number;
+        moneyLossObservedSpendLine: string;
         slaAssumptions: { impactFooterLines: readonly string[] };
       };
       setup: { maskedBenchKey: string | null; canRevealBenchKey: boolean };
@@ -87,6 +91,7 @@ describe("dashboard", () => {
       failureCount: 0,
       standardLossUsd: 0,
       totalLostUsd: 0,
+      moneyLossObservedSpendLine: "money loss = no priced spend measured",
     });
     expect(summary.summary.slaAssumptions.impactFooterLines[0])
       .toContain("no impact figures computed");
@@ -100,8 +105,8 @@ describe("dashboard", () => {
       calls: [],
     });
     const receipt = await (await app.request("/api/receipt")).json() as { compactText: string };
-    expect(receipt.compactText.split("\n")[0]).toBe("Money loss: $0.00");
-    expect(receipt.compactText.split("\n")[1]).toBe("Time lost: ~0s");
+    expect(receipt.compactText.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s");
+    expect(receipt.compactText.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
   });
 
   it("serves direct health status", async () => {

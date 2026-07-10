@@ -16,7 +16,7 @@ Use this page when you need to reproduce or integrate receipt evidence. It is th
 
 ## Shared Types
 
-The public `inferock-bench` provider adapters are `openai`, `anthropic`, `gemini`, and pinned `openrouter` OpenAI-compatible traffic. OpenRouter support is measured only when requested pinning, served endpoint metadata, and cited pricing evidence match the 0.1.8 pinned endpoint set. The as-built canonical parser also accepts additional provider identifiers used by compatible or internal records beyond those public app providers: `mistral`, `deepseek_platform`, `deepinfra`, `alibaba_dashscope_us_virginia`, `moonshot_kimi`, `zai`, `together`, and `groq`.
+The public `inferock-bench` provider adapters are `openai`, `anthropic`, `gemini`, and pinned `openrouter` OpenAI-compatible traffic. OpenRouter support is measured only when requested pinning, served endpoint metadata, and cited pricing evidence match the current pinned endpoint set. The as-built canonical parser also accepts additional provider identifiers used by compatible or internal records beyond those public app providers: `mistral`, `deepseek_platform`, `deepinfra`, `alibaba_dashscope_us_virginia`, `moonshot_kimi`, `zai`, `together`, and `groq`.
 
 Date and time fields are strings validated as date-time values with an offset.
 

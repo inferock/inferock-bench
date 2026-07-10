@@ -27,7 +27,7 @@ The CLI and full public docs live at https://github.com/inferock/inferock-bench.
 - Canonical provider event types, including OpenAI, Anthropic, Gemini, and OpenRouter-compatible events; OpenRouter public-app dollar pricing is restricted to pinned observed endpoints.
 - Broken-output, billed-empty, refusal, latency, availability, token-count, and billing-integrity detectors.
 - Pricing helpers for observed provider usage.
-- Receipt-oriented signal fields for standard-loss, provider-recognized, and recognition-gap accounting.
+- Receipt-oriented signal fields for spent dollars, bill-bounded money loss, time loss, provider-recognized recovery, recognition gap, and separate invoice-check exposure accounting.
 
 ## Anthropic Token Recount
 

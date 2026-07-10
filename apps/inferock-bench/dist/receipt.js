@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { WATERMARK_NAME, WATERMARK_URL } from "./config.js";
-import { formatCoverageStatus, formatUsd, renderCoverageSummaryLine, } from "./summary.js";
+import { formatCoverageStatus, formatUsd, isExposureReportRow, moneyLossObservedSpendLine, renderCoverageSummaryLine, } from "./summary.js";
 import { BENCH_RECEIPT_SCHEMA_VERSION, BENCH_RECEIPT_VERSION, } from "./receipt-schema.js";
 export const LOCAL_RECEIPT_LOCALITY = {
     providerKeysSentToInferock: false,
@@ -23,6 +23,7 @@ export function createReceiptBundle(summary) {
             duration: summary.durationTotals,
         },
         coverage: summary.coverage,
+        exposures: summary.exposures,
         rows: summary.rows,
         measures: summary.measures,
         assumptions: summary.slaAssumptions,
@@ -35,7 +36,7 @@ export function createReceiptBundle(summary) {
 }
 export function migrateReceiptBundle(value) {
     if (value.schemaVersion === BENCH_RECEIPT_SCHEMA_VERSION)
-        return value;
+        return sanitizeCurrentReceiptBundle(value);
     const totals = value.totals ?? {
         measuredCalls: 0,
         failures: 0,
@@ -94,6 +95,7 @@ export function migrateReceiptBundle(value) {
             notOpenableCount: 0,
             surfaces: [],
         },
+        exposures: [],
         rows,
         measures: value.measures ?? [],
         assumptions: value.assumptions ?? {
@@ -110,18 +112,24 @@ export function migrateReceiptBundle(value) {
     };
 }
 export function renderReceipt(input, compact) {
+    const inputSchemaVersion = input.schemaVersion;
     const bundle = migrateReceiptBundle(input);
+    const exposures = receiptExposures(bundle);
+    const observedSpendLine = compact && inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
+        ? receiptMoneyLossObservedSpendLine(bundle)
+        : null;
     const lines = [
-        `Money loss: ${formatUsd(bundle.totals.money.standardLossUsd)}`,
-        `Time lost: ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
+        receiptHeadline(bundle),
+        receiptMoneyRecognitionLine(bundle, observedSpendLine),
+        ...exposures.map(renderExposureLine),
         bundle.title,
         `period: ${bundle.period.since ?? "beginning"} to ${bundle.period.until}`,
         `measured ${bundle.totals.measuredCalls} calls, ${bundle.totals.failures} failures`,
         "Guide: failures observed are calls with problems, loss signals are the rows below, and provider-recognized is what your provider already reported or credited.",
-        `money-native standard loss ${formatUsd(bundle.totals.money.standardLossUsd)} | provider-recognized ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)}`,
+        `money-native standard loss ${formatReceiptUsd(bundle.totals.money.standardLossUsd)} | provider-recognized ${formatReceiptUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatReceiptUsd(bundle.totals.money.recognitionGapUsd)}`,
         `duration loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)} | provider-recognized time ${formatApproxTimeLost(bundle.totals.duration.providerRecognizedTimeLossMs)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
-        `secondary translation approx ${formatUsd(bundle.totals.duration.dollarTranslationUsd)} at your rate (edit)`,
-        `provider spend observed: ${formatUsd(bundle.totals.providerSpendUsd)}`,
+        `secondary translation approx ${formatReceiptUsd(bundle.totals.duration.dollarTranslationUsd)} at your rate (edit)`,
+        `provider spend observed: ${formatReceiptUsd(bundle.totals.providerSpendUsd)}`,
         renderCoverageSummaryLine(bundle.coverage),
     ];
     const rows = compact ? bundle.rows.slice(0, 6) : bundle.rows;
@@ -164,6 +172,68 @@ export function renderReceipt(input, compact) {
     lines.push(...bundle.assumptions.impactFooterLines);
     lines.push(`${bundle.watermark.name} - ${bundle.watermark.url}`);
     return lines.join("\n");
+}
+function receiptHeadline(bundle) {
+    return [
+        `spent ${formatUsd(bundle.totals.providerSpendUsd)}`,
+        `money loss ${receiptMoneyLossDisplay(bundle)}`,
+        `time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
+    ].join(" · ");
+}
+function receiptMoneyLossDisplay(bundle) {
+    const pricingUnknownCount = sum(bundle.rows.map((row) => row.pricingUnknownCount));
+    if (pricingUnknownCount > 0 && bundle.totals.money.standardLossUsd === 0)
+        return "pricing unknown";
+    return formatUsd(bundle.totals.money.standardLossUsd);
+}
+function receiptMoneyRecognitionLine(bundle, observedSpendLine) {
+    return [
+        `provider-recognized ${formatReceiptUsd(bundle.totals.money.providerRecognizedUsd)}`,
+        `recognition gap ${formatReceiptUsd(bundle.totals.money.recognitionGapUsd)}`,
+        observedSpendLine,
+    ].filter(Boolean).join(" · ");
+}
+function receiptMoneyLossObservedSpendLine(bundle) {
+    return moneyLossObservedSpendLine({
+        standardLossUsd: bundle.totals.money.standardLossUsd,
+        providerSpendUsd: bundle.totals.providerSpendUsd,
+    }) ?? "money loss = no priced spend measured";
+}
+function receiptExposures(bundle) {
+    return (bundle.exposures ?? []).filter((exposure) => exposure.amount > 0);
+}
+function renderExposureLine(exposure) {
+    const count = `${exposure.count} invoice exposure${exposure.count === 1 ? "" : "s"}`;
+    if (exposure.class === "cache_discount_at_risk") {
+        return `cache discount at risk — ${exposure.guidance}: ${count}, ${formatReceiptUsd(exposure.amount)}`;
+    }
+    return `${exposure.class} — ${exposure.guidance}: ${count}, ${formatReceiptUsd(exposure.amount)}`;
+}
+function sanitizeCurrentReceiptBundle(bundle) {
+    if (!hasPositiveExposure(bundle.exposures))
+        return bundle;
+    const rows = bundle.rows.filter((row) => !isExposureReportRow(row));
+    if (rows.length === bundle.rows.length)
+        return bundle;
+    const moneyRows = rows.filter((row) => row.primaryValueKind === "money");
+    const money = {
+        ...bundle.totals.money,
+        standardLossUsd: roundUsd(sum(moneyRows.map((row) => row.standardLossUsd))),
+        providerRecognizedUsd: roundUsd(sum(moneyRows.map((row) => row.providerRecognizedUsd))),
+        recognitionGapUsd: roundUsd(sum(moneyRows.map((row) => row.recognitionGapUsd))),
+        unrecognizedUsd: roundUsd(sum(moneyRows.map((row) => row.unrecognizedUsd))),
+    };
+    return {
+        ...bundle,
+        totals: {
+            ...bundle.totals,
+            money,
+        },
+        rows,
+    };
+}
+function hasPositiveExposure(exposures) {
+    return (exposures ?? []).some((exposure) => exposure.amount > 0 && exposure.count > 0);
 }
 function migrateLegacyRow(row) {
     const code = stringValue(row.code) ?? "";
@@ -226,6 +296,11 @@ function sum(values) {
 }
 function roundUsd(value) {
     return Math.round(value * 1_000_000) / 1_000_000;
+}
+function formatReceiptUsd(value) {
+    if (value > 0 && value < 0.01)
+        return `$${value.toFixed(6)}`;
+    return formatUsd(value);
 }
 export async function writeReceiptBundle(receiptsDir, bundle) {
     await mkdir(receiptsDir, { recursive: true });

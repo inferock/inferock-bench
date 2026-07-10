@@ -17,7 +17,7 @@ importers:
         specifier: ^1.14.0
         version: 1.19.14(hono@4.12.28)
       '@inferock/measure':
-        specifier: 0.1.9
+        specifier: 0.1.10
         version: link:../../packages/measure
       ajv:
         specifier: ^8.17.1

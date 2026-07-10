@@ -1,6 +1,6 @@
 # inferock-bench
 
-Local benchmark proxy for OpenAI, Anthropic, Gemini, and pinned OpenRouter calls. Provider keys are not sent to Inferock; attached only to provider requests. It accepts a generated local `ibl_` bench key from your SDK and writes per-call receipts for cost and failure evidence.
+Local benchmark proxy for OpenAI, Anthropic, Gemini, and pinned OpenRouter calls. Provider keys are not sent to Inferock; attached only to provider requests. It accepts a generated local `ibl_` bench key from your SDK and writes per-call receipts with spent dollars, bill-bounded money loss, time loss, provider-recognized recovery, recognition gap, and invoice-check exposure kept separate.
 
 Use it when you want to audit an AI/LLM bill, measure Claude or GPT token usage locally, or answer whether a failed API call was still billed. It helps investigate OpenAI overcharging-token questions and Anthropic billing-error questions by preserving local token usage, cost, retry, and failure evidence without sending provider keys to a hosted service.
 

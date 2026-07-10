@@ -56,7 +56,7 @@ Label: `Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recog
 
 User-directed 2026-07-05. The plain-English rationale is the cheap-labor drain analogy: a buyer may choose a cheaper worker at `$20/hour` over a premium worker at `$50/hour`, but if the cheap worker stretches a one-hour job across three hours, the buyer pays `$60` and loses the time the premium path would have saved. The loss is the drain on throughput and blocked work, not the sticker price.
 
-Latency follows the same logic. A slow provider call can look cheap in token spend while still costing the customer more in wasted time than a faster, more expensive route would have. This is why the standard translates excess latency into editable dollar context instead of treating a slow-but-completed call as cheap and fine. The loss can exceed provider spend; that is the point of measuring the drain rather than only the invoice.
+Latency follows the same logic. A slow provider call can look cheap in token spend while still costing the customer more in wasted time than a faster, more expensive route would have. This is why the standard translates excess latency into editable dollar context instead of treating a slow-but-completed call as cheap and fine. The time drain can exceed provider spend when translated at the customer's rate, but that translation remains secondary context; it is not added to the bill-bounded money-loss headline.
 
 The calculation stays defensible because two customer-confirmable knobs carry the judgment:
 
@@ -65,7 +65,7 @@ The calculation stays defensible because two customer-confirmable knobs carry th
 
 The standard proposes the threshold and dollarized time lens; the customer confirms or overrides the assumptions. Once confirmed, the number is the customer's time-value loss, not an invented provider charge.
 
-Provider-recognized loss for first-party latency defaults to no configured provider latency credit basis unless the receipt carries supported service-tier/contract context or a real published provider SLA and breach policy applies. The full time loss remains headline Inferock-standard loss, the dollar translation remains editable secondary context, and the provider-recognized gap is first-class.
+Provider-recognized loss for first-party latency defaults to no configured provider latency credit basis unless the receipt carries supported service-tier/contract context or a real published provider SLA and breach policy applies. The full time loss remains the headline time-loss value, the dollar translation remains editable secondary context, and the provider-recognized gap is first-class.
 
 ## Evidence Grade
 

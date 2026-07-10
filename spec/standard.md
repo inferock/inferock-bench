@@ -10,7 +10,7 @@ Note: The plain-English intro layer below is non-normative. The versioned rules 
 
 Draft means the standard is pre-ratification and open to evidence-backed issue reports; it does not mean rules can silently change inside a receipt. Public claims must cite the exact standard version and changelog entry that produced them.
 
-Read this as the rulebook behind a receipt, not as a provider refund policy. The quickest path is to understand the three receipt numbers, then follow the evidence posture and ledger rules that keep refund claims separate from measured loss.
+Read this as the rulebook behind a receipt, not as a provider refund policy. The quickest path is to understand the receipt headline - `spent $X · money loss $Y · time loss Z` - then follow the evidence posture and ledger rules that keep refund claims and invoice-check exposure separate from measured loss.
 
 | If you need to know | Start with |
 | --- | --- |
@@ -25,10 +25,10 @@ This non-normative layer is the quick map for readers who need the meaning befor
 
 > **TL;DR**
 >
-> - The standard assigns each AI provider failure to money loss, time loss, or both under Inferock rules.
-> - Every failed, priced, non-delivering call gets at least the priced cost of that call under Inferock rules.
-> - Receipts keep three numbers separate: standard-loss / provider-recognized / recognition-gap.
-> - The recognition gap is what the standard measures but current provider policy does not recognize yet.
+> - The standard assigns each AI provider failure to bill-bounded money loss, time loss, exposure, or review-only evidence under Inferock rules.
+> - Every failed, priced, non-delivering call tied to observed spend or charge evidence gets at least the priced cost of that call under Inferock rules.
+> - Receipts lead with three plain facts: provider spend, bill-bounded money loss, and time loss.
+> - Provider-recognized recovery, recognition gap, and exposure lines stay separate below the headline.
 > - Evidence grades decide whether a row is ready to dispute or watch-only.
 
 How to read this document: Most readers should start with [Failure Taxonomy](#failure-taxonomy) and [Evidence Postures](#evidence-postures); those sections explain what can fail and how strong the evidence is. Integrators should pair [Definitions](#definitions) with [`spec/event-schema.md`](event-schema.md) for the canonical event shape. Disputants should read [Liability Attribution](#liability-attribution) and [Separate Money And Time Ledgers](#separate-money-and-time-ledgers) before turning a receipt into a provider claim.
@@ -66,7 +66,7 @@ Fixtures are allowed only for tests and static specification examples. They must
 
 ## Definitions
 
-A provider call is one request to a supported provider surface. The public bench app currently ships OpenAI, Anthropic, Gemini, and pinned OpenRouter OpenAI-compatible provider adapters; OpenRouter support is measured only when requested pinning, served endpoint metadata, and cited pricing evidence match the 0.1.8 pinned endpoint set. The canonical event parser also accepts additional provider identifiers for compatible records. The call may include retries or attempts when those attempts are captured as part of the event.
+A provider call is one request to a supported provider surface. The public bench app currently ships OpenAI, Anthropic, Gemini, and pinned OpenRouter OpenAI-compatible provider adapters; OpenRouter support is measured only when requested pinning, served endpoint metadata, and cited pricing evidence match the current pinned endpoint set. The canonical event parser also accepts additional provider identifiers for compatible records. The call may include retries or attempts when those attempts are captured as part of the event.
 
 A canonical event is the measured record for a provider call. It carries request identity, response identity, usage, timing, attempts, and optional evidence surfaces. `spec/event-schema.md` defines the as-built v1 and v2 event fields.
 
@@ -78,9 +78,11 @@ Provider-recognized recoverable loss is a dollar amount or creditable downtime d
 
 Unrecognized loss is measured customer loss under The Inferock Standard that providers do not currently recognize as refundable or creditable. Latency time loss, downtime duration without a creditable provider SLA, retry amplification without per-request billing reconciliation, and other not-yet-recognized classes belong here unless a provider credit rule applies.
 
-For every priced non-delivering call, Inferock-standard loss includes at least the call's own priced cost. Measure-specific overcharge deltas, induced retry spend, or time-loss math can increase or refine that amount, but they do not gate whether the dollar appears. If model pricing is missing, the receipt must label `pricing_unknown — add model price` rather than treating the loss as zero.
+For every priced non-delivering call, Inferock-standard loss includes at least the call's own priced cost. Measure-specific charge-evidenced overcharge deltas and induced retry spend can increase or refine that amount, but headline money-native standard-loss is bill-bounded by observed provider spend for the run. If model pricing is missing, the receipt must label `pricing_unknown — add model price` rather than treating the loss as zero.
 
 The recognition gap is the difference between total customer loss under The Inferock Standard and provider-recognized recoverable loss within the same unit. The gap is a first-class metric and must not be hidden by collapsing recognized and unrecognized values.
+
+An exposure is a counterfactual or invoice-verification amount that the standard preserves as evidence but does not include in headline standard-loss or recognition gap. `CACHE_DISCOUNT_AT_RISK` is the launch exposure class: the receipt reports `cache discount at risk — verify your invoice: $X` separately when usage and pricing imply a discount could be at risk, and the customer should verify the invoice before treating it as observed loss.
 
 The receipt is the shareable artifact for an individual benchmark run or report. Receipt schema v2 reports measured evidence under this standard and preserves provider-recognized and unrecognized splits while keeping money totals and time totals as separate headlines.
 
@@ -92,7 +94,7 @@ The v0.1.0 public taxonomy includes these launch-safe classes:
 | --- | --- |
 | Output integrity | Declared JSON or schema failures, provider terminal truncation, and billed-empty output where safety, refusal, tool-call, and hidden-output guards do not explain the empty visible response. |
 | Refusal and content-filter billing | Provider-native refusal or content-filter evidence on expected completions, including the Anthropic pre-output refusal billing invariant when observed charge evidence proves billing. |
-| Billing integrity | OpenAI visible-output token recount overcharge candidates, pricing-unknown evidence preservation, cache charge reconciliation, cache discount-at-risk, and duplicate request-identifier standard-loss surfacing. |
+| Billing integrity | OpenAI visible-output token recount overcharge candidates, pricing-unknown evidence preservation, cache charge reconciliation, cache-discount exposure, and duplicate request-identifier bill-bounded loss surfacing. |
 | Availability and downtime | Clustered provider-owned 5xx, timeout, overloaded, and capacity evidence where the detector can distinguish provider ownership from ambiguous transport or customer-owned throttling. Time is primary; provider credits are capped by the applicable SLA and spend terms. |
 | Latency and time loss | Disclosed latency service-level objective breaches, real elapsed milliseconds, and excess wait evidence. Time is primary; dollar recovery requires an explicit credit basis and dollar translation requires an editable customer rate. |
 | Security/governance | Exact leaked-secret real-loss signals on priced calls, plus evidence-only provider safety/moderation context when no loss event fires. |
@@ -131,11 +133,13 @@ Unknown or shared liability may still be useful evidence. It must not be promote
 
 The standard uses separate money and time ledgers. Reports and receipts must show a money headline and a time-loss headline. They must never sum dollars and time into one total.
 
-The money ledger contains dollar-native losses: provider-recognized recoverable dollars, unrecognized standard-loss dollars, overcharge deltas, call-cost floors, and editable dollar translations shown as secondary context. A dollar-native signal enters provider-recognized recovery only when it is a qualifying refundable candidate under `spec/signals.md`, has known pricing or observed charge evidence as required by the signal, and carries `providerRecoverableLossUsd`.
+The money ledger contains bill-bounded dollar-native losses: provider-recognized recoverable dollars, unrecognized standard-loss dollars, charge-evidenced overcharge deltas, call-cost floors, and retry extra-attempt spend. A dollar-native signal enters provider-recognized recovery only when it is a qualifying refundable candidate under `spec/signals.md`, has known pricing or observed charge evidence as required by the signal, and carries `providerRecoverableLossUsd`.
 
 The time-loss ledger contains real milliseconds. Latency and downtime are time-primary classes. Their rows may carry editable dollar translations, but those translations are secondary and must not be added to the money headline. For latency without configured provider latency credit basis, the provider-recognized line is `$0 / 0s` or "no configured provider latency credit basis for this receipt" depending on service-tier/contract evidence.
 
 Unrecognized standard loss remains first-class in both ledgers. For priced non-delivering calls outside latency/downtime, the money ledger includes at least the call-cost floor. The built retry-chain refinement adds provider-fault extra-attempt costs. Unsupported duplicate charge concerns can add precision or stay provider-recognized `$0` until provider billing evidence exists.
+
+Exposure is not a third loss ledger. It is a separately labeled class for counterfactual amounts that require invoice verification before they can be treated as observed money loss. Exposure lines are reported beside the receipt, never summed into money-native standard-loss, provider-recognized recovery, or recognition gap. The launch exposure class is `cache_discount_at_risk` with guidance `verify your invoice`.
 
 The recognition gap is computed within each unit. Reports must show provider-recognized recovery, Inferock-standard loss, and the gap separately for money and for time. A dollar amount from the unrecognized ledger must never be added to provider-recognized recoverable loss merely to make a larger recoverable number.
 

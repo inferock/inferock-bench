@@ -26,6 +26,7 @@ import {
 import {
   formatCoverageStatus,
   formatUsd,
+  isExposureReportRow,
   renderCoverageSummaryLine,
   summarizeBenchEvents,
   type BenchSlaAssumptions,
@@ -153,6 +154,7 @@ export interface SpeedTestReceiptBundle {
     readonly legacyCombinedStandardLossUsd?: number;
   };
   readonly coverage: CoverageSummary;
+  readonly exposures: BenchSummary["exposures"];
   readonly rows: BenchSummary["rows"];
   readonly driftCanary?: DriftCanaryRunResult;
   readonly agent?: SpeedTestAgentReceipt;
@@ -544,6 +546,7 @@ export function createSpeedTestReceiptBundle(input: {
       failures: input.summary.failureCount + driftRows.length,
     },
     coverage,
+    exposures: input.summary.exposures,
     rows: [...input.summary.rows, ...driftRows],
     ...(input.driftCanary ? { driftCanary: input.driftCanary } : {}),
     ...(input.agent ? { agent: input.agent } : {}),
@@ -569,7 +572,7 @@ export function migrateSpeedTestReceiptBundle(value: unknown): SpeedTestReceiptB
     return null;
   }
   if (value.schemaVersion === SPEEDTEST_RECEIPT_SCHEMA_VERSION) {
-    return value as unknown as SpeedTestReceiptBundle;
+    return sanitizeCurrentSpeedTestReceiptBundle(value as unknown as SpeedTestReceiptBundle);
   }
   if (value.schemaVersion !== LEGACY_SPEEDTEST_RECEIPT_SCHEMA_VERSION) return null;
   const assumptions = isRecord(value.assumptions)
@@ -610,6 +613,7 @@ export function migrateSpeedTestReceiptBundle(value: unknown): SpeedTestReceiptB
       failures: numberValue(value.totals.failures) ?? 0,
       legacyCombinedStandardLossUsd,
     },
+    exposures: [],
     rows,
     assumptions,
   };
@@ -858,12 +862,12 @@ export function renderSpeedTestReceipt(bundle: SpeedTestReceiptBundle): string {
       ...(bundle.trafficMix ? [
         `traffic mix total: organic-agent ${bundle.trafficMix.organicAgentTasks} | harness-fill ${bundle.trafficMix.harnessPreconditionTasks} | drift-canary ${bundle.trafficMix.driftCanaryCalls} | sdk-retry ${bundle.trafficMix.sdkRetryWorkerCalls}`,
       ] : []),
-      `money loss ${formatUsd(bundle.totals.money.standardLossUsd)} | time lost ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
-      `money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
+      speedTestHeadline(bundle),
+      `provider-recognized ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
+      ...speedTestExposureLines(bundle),
       ...(bundle.totals.legacyCombinedStandardLossUsd !== undefined
         ? [`legacy combined standard loss: ${formatUsd(bundle.totals.legacyCombinedStandardLossUsd)} (legacy dollarized latency/downtime not included in v3 money loss)`]
         : []),
-      `provider spend observed: ${formatUsd(bundle.totals.providerSpendUsd)}`,
       ...providerLedgerLines(bundle),
       ...bundle.providerReceipts.flatMap((receipt) => {
         const provider = receipt.providerScope?.provider ?? receipt.run.selectedModels[0]?.provider ?? "unknown";
@@ -883,12 +887,12 @@ export function renderSpeedTestReceipt(bundle: SpeedTestReceiptBundle): string {
     ...(bundle.trafficMix ? [
       `traffic mix: organic-agent ${bundle.trafficMix.organicAgentTasks} | harness-fill ${bundle.trafficMix.harnessPreconditionTasks} | drift-canary ${bundle.trafficMix.driftCanaryCalls} | sdk-retry ${bundle.trafficMix.sdkRetryWorkerCalls}`,
     ] : []),
-    `money loss ${formatUsd(bundle.totals.money.standardLossUsd)} | time lost ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
-    `money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
+    speedTestHeadline(bundle),
+    `provider-recognized ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
+    ...speedTestExposureLines(bundle),
     ...(bundle.totals.legacyCombinedStandardLossUsd !== undefined
       ? [`legacy combined standard loss: ${formatUsd(bundle.totals.legacyCombinedStandardLossUsd)} (legacy dollarized latency/downtime not included in v3 money loss)`]
       : []),
-    `provider spend observed: ${formatUsd(bundle.totals.providerSpendUsd)}`,
     ...providerLedgerLines(bundle),
     renderCoverageSummaryLine(bundle.coverage),
     "surface | status | count | label",
@@ -907,6 +911,56 @@ function providerLedgerLines(bundle: SpeedTestReceiptBundle): string[] {
   return (bundle.providerLedgers ?? []).map((ledger) =>
     `provider ${ledger.provider} ledger: money loss ${formatUsd(ledger.standardLossUsd)} | provider-recognized ${formatUsd(ledger.providerRecognizedUsd)} | money gap ${formatUsd(ledger.recognitionGapUsd)} | time lost ${formatApproxTimeLost(ledger.durationTimeLossMs)} | approx ${formatUsd(ledger.durationDollarTranslationUsd)} at your rate`
   );
+}
+
+function speedTestHeadline(bundle: SpeedTestReceiptBundle): string {
+  return `spent ${formatUsd(bundle.totals.providerSpendUsd)} · money loss ${formatUsd(bundle.totals.money.standardLossUsd)} · time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`;
+}
+
+function speedTestExposureLines(bundle: SpeedTestReceiptBundle): string[] {
+  return (bundle.exposures ?? [])
+    .filter((exposure) => exposure.amount > 0)
+    .map((exposure) => {
+      const count = `${exposure.count} invoice exposure${exposure.count === 1 ? "" : "s"}`;
+      return exposure.class === "cache_discount_at_risk"
+        ? `cache discount at risk — ${exposure.guidance}: ${count}, ${formatSpeedTestUsd(exposure.amount)}`
+        : `${exposure.class} — ${exposure.guidance}: ${count}, ${formatSpeedTestUsd(exposure.amount)}`;
+    });
+}
+
+function sanitizeCurrentSpeedTestReceiptBundle(bundle: SpeedTestReceiptBundle): SpeedTestReceiptBundle {
+  if (!hasPositiveExposure(bundle.exposures)) return bundle;
+  const rows = bundle.rows.filter((row) => !isExposureReportRow(row));
+  if (rows.length === bundle.rows.length) return bundle;
+  const moneyRows = rows.filter((row) => row.primaryValueKind === "money");
+  const money = {
+    ...bundle.totals.money,
+    standardLossUsd: roundUsd(sum(moneyRows.map((row) => row.standardLossUsd))),
+    providerRecognizedUsd: roundUsd(sum(moneyRows.map((row) => row.providerRecognizedUsd))),
+    recognitionGapUsd: roundUsd(sum(moneyRows.map((row) => row.recognitionGapUsd))),
+    unrecognizedUsd: roundUsd(sum(moneyRows.map((row) => row.unrecognizedUsd))),
+  };
+  return {
+    ...bundle,
+    totals: {
+      ...bundle.totals,
+      money,
+      standardLossUsd: money.standardLossUsd,
+      providerRecognizedUsd: money.providerRecognizedUsd,
+      recognitionGapUsd: money.recognitionGapUsd,
+      unrecognizedUsd: money.unrecognizedUsd,
+    },
+    rows,
+  };
+}
+
+function hasPositiveExposure(exposures: BenchSummary["exposures"] | undefined): boolean {
+  return (exposures ?? []).some((exposure) => exposure.amount > 0 && exposure.count > 0);
+}
+
+function formatSpeedTestUsd(value: number): string {
+  if (value > 0 && value < 0.01) return `$${value.toFixed(6)}`;
+  return formatUsd(value);
 }
 
 function driftCanaryBudgetState(state: BudgetState): DriftCanaryBudgetState {

@@ -1,8 +1,10 @@
 # Public run card: 2026-07-06
 
+*Published under the pre-exposure-split presentation; from standard vNEXT, cache-discount-at-risk is reported as a separate exposure line, not inside standard-loss.*
+
 This public run is a sanitized aggregate receipt, not raw prompts or raw responses.
 
-Use this as the proof card for the README visuals. It shows what the 2026-07-06 run measured, what was deliberately withheld from the public artifact, and why the rows are run-scoped rather than a provider ranking.
+Historical note: this card remains the published proof record for the 2026-07-06 visuals and old receipt format; current README visuals and headline facts are refreshed from the 2026-07-09 `inferock-bench` 0.1.10 run.
 
 | First question | Where to look |
 | --- | --- |

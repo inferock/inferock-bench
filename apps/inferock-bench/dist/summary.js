@@ -53,6 +53,7 @@ export function coverageSummaryFromSurfaces(coverage, surfaces) {
 }
 const COVERAGE_SUITE_VERSION = "inferock-coverage-suite-v1";
 const COVERAGE_METHOD_VERSION = "inferock-bench-coverage-summary-v1";
+export const MONEY_LOSS_OBSERVED_SPEND_SMALL_SAMPLE_FLOOR_USD = 1;
 const TOOL_CALL_VALIDITY_SIGNAL_CODES = [
     "MALFORMED_TOOL_CALL",
     "TOOL_CALL_SCHEMA_VIOLATION",
@@ -222,19 +223,22 @@ export function summarizeBenchEvents(records, window = {}, options = {}) {
     const signals = signalSource.signals;
     const failureSignals = signals.filter(isCountedFailureSignal);
     const downtimeWindows = identifyDowntimeWindows(events);
-    const rows = reportRows(failureSignals, downtimeWindows);
-    const moneyRows = rows.filter(isMoneyNativeRow);
+    const allRows = reportRows(failureSignals, downtimeWindows);
+    const exposures = exposureTotalsForRows(allRows);
+    const rows = standardReportRows(allRows);
+    const moneyRows = rows.filter(isBillBoundedMoneyNativeRow);
     const providerRecognizedUsd = roundUsd(sum(moneyRows.map((row) => row.providerRecognizedUsd)));
     const standardLossUsd = roundUsd(sum(moneyRows.map((row) => row.standardLossUsd)));
     const recognitionGapUsd = roundUsd(sum(moneyRows.map((row) => row.recognitionGapUsd)));
     const totalLostUsd = roundUsd(providerRecognizedUsd + recognitionGapUsd);
     const slaAssumptions = buildSlaAssumptions(events, rows);
+    const providerSpendUsd = observedProviderSpendUsd(events, summaryContext);
     const moneyTotals = {
         standardLossUsd,
         providerRecognizedUsd,
         recognitionGapUsd,
         unrecognizedUsd: recognitionGapUsd,
-        providerSpendUsd: roundUsd(sum(events.map((event) => estimateCostUsd(event)))),
+        providerSpendUsd,
     };
     const durationTotals = {
         timeLossMs: sum(rows.map((row) => row.timeLossMs)),
@@ -254,6 +258,10 @@ export function summarizeBenchEvents(records, window = {}, options = {}) {
         measuredCalls: events.length,
         failureCount: failureSignals.length,
         providerSpendUsd: moneyTotals.providerSpendUsd,
+        moneyLossObservedSpendLine: moneyLossObservedSpendLine({
+            standardLossUsd: moneyTotals.standardLossUsd,
+            providerSpendUsd: moneyTotals.providerSpendUsd,
+        }) ?? "money loss = no priced spend measured",
         moneyTotals,
         durationTotals,
         standardLossUsd,
@@ -262,6 +270,7 @@ export function summarizeBenchEvents(records, window = {}, options = {}) {
         unrecognizedUsd: recognitionGapUsd,
         totalLostUsd,
         pricingUnknownCount: signals.filter((signal) => signal.code === "PRICING_UNKNOWN" || signal.standardLossStatus === "pricing_unknown").length,
+        exposures,
         rows,
         measures,
         coverage,
@@ -338,6 +347,7 @@ export function renderReport(summary) {
         renderLiveCounter(summary),
         `provider spend observed: ${formatUsd(summary.providerSpendUsd)}`,
         renderCoverageSummaryLine(summary.coverage),
+        ...renderExposureLines(summary.exposures),
     ];
     if (summary.rows.length === 0) {
         lines.push(`No loss rows. measured ${summary.measuredCalls} calls, 0 failures.`);
@@ -369,6 +379,32 @@ export function formatUsd(value) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(value);
+}
+export function moneyLossObservedSpendLine(input, options = {}) {
+    const standardLossUsd = nonnegativeNumberOrNull(input.standardLossUsd);
+    const providerSpendUsd = nonnegativeNumberOrNull(input.providerSpendUsd);
+    if (standardLossUsd === null || providerSpendUsd === null)
+        return null;
+    if (providerSpendUsd <= 0)
+        return "money loss = no priced spend measured";
+    const percent = standardLossUsd / providerSpendUsd * 100;
+    if (!Number.isFinite(percent) || percent > 100)
+        return null;
+    const formatted = percent.toFixed(1);
+    if (options.suppressRoundedZero && formatted === "0.0" && standardLossUsd > 0)
+        return null;
+    const annotation = providerSpendUsd < MONEY_LOSS_OBSERVED_SPEND_SMALL_SAMPLE_FLOOR_USD
+        ? ` (small sample: ${formatMeasuredSpendUsd(providerSpendUsd)} measured)`
+        : "";
+    return `money loss = ${formatted}% of observed spend${annotation}`;
+}
+function nonnegativeNumberOrNull(value) {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+function formatMeasuredSpendUsd(value) {
+    if (value > 0 && value < 0.01)
+        return `$${value.toFixed(6)}`;
+    return formatUsd(value);
 }
 export function repriceLatencyRow(row, options) {
     if (!isRepriceableLatencyRow(row))
@@ -465,6 +501,22 @@ function recognitionGapDisplay(row) {
         return formatApproxTimeLost(row.recognitionGapTimeMs);
     }
     return formatUsd(row.recognitionGapUsd);
+}
+function renderExposureLines(exposures) {
+    return exposures
+        .filter((exposure) => exposure.amount > 0 && exposure.count > 0)
+        .map((exposure) => {
+        const count = `${exposure.count} invoice exposure${exposure.count === 1 ? "" : "s"}`;
+        if (exposure.class === "cache_discount_at_risk") {
+            return `cache discount at risk — ${exposure.guidance}: ${count}, ${formatExposureUsd(exposure.amount)}`;
+        }
+        return `${exposure.class} — ${exposure.guidance}: ${count}, ${formatExposureUsd(exposure.amount)}`;
+    });
+}
+function formatExposureUsd(value) {
+    if (value > 0 && value < 0.01)
+        return `$${value.toFixed(6)}`;
+    return formatUsd(value);
 }
 function reportRows(signals, downtimeWindows = []) {
     const rows = new Map();
@@ -593,9 +645,41 @@ function primaryValueKindForSignal(signal) {
         return "time_loss";
     return "money";
 }
-function isMoneyNativeRow(row) {
+function isBillBoundedMoneyNativeRow(row) {
     return row.primaryValueKind === "money" &&
-        row.failureClass !== "latency";
+        row.failureClass !== "latency" &&
+        !isExposureReportRow(row);
+}
+export function isExposureReportRow(row) {
+    return row.code === "CACHE_DISCOUNT_AT_RISK" ||
+        row.failureClass === "cache_discount_at_risk";
+}
+function standardReportRows(rows) {
+    return rows.filter((row) => !isExposureReportRow(row));
+}
+function exposureTotalsForRows(rows) {
+    const cacheRows = rows.filter(isExposureReportRow);
+    const amount = roundUsd(sum(cacheRows.map((row) => row.standardLossUsd)));
+    const count = sum(cacheRows.map((row) => row.count));
+    if (amount <= 0 || count <= 0)
+        return [];
+    return [{
+            class: "cache_discount_at_risk",
+            amount,
+            count,
+            guidance: "verify your invoice",
+        }];
+}
+function observedProviderSpendUsd(events, context) {
+    return roundUsd(sum(events.map((event) => providerSpendUsdForEvent(event, context))));
+}
+function providerSpendUsdForEvent(event, context) {
+    const observedCharge = cacheObservedChargeForEvent(event, context);
+    if (typeof observedCharge === "number")
+        return observedCharge;
+    if (observedCharge)
+        return observedCharge.chargedUsd;
+    return estimateCostUsd(event);
 }
 function timeLossForSignal(signal) {
     if (primaryValueKindForSignal(signal) !== "time_loss") {

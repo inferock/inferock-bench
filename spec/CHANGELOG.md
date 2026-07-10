@@ -4,9 +4,23 @@ Use this file to tie any public receipt claim to the standard version and rule s
 
 | Need | Read |
 | --- | --- |
+| Bill-bounded headline and exposure split | [vNEXT - 2026-07-09](#vnext---2026-07-09) |
 | As-built provider-plane documentation correction | [v0.1.8 - 2026-07-08](#v018---2026-07-08) |
 | Current time-loss and receipt-ledger changes | [v0.1.6 - 2026-07-05](#v016---2026-07-05) |
 | Initial public draft scope | [v0.1.0 - 2026-07-02](#v010---2026-07-02) |
+
+## vNEXT - 2026-07-09
+
+Updated:
+
+- Made the receipt headline spend-anchored and bill-bounded: `spent $X · money loss $Y · time loss Z`.
+- Added the secondary presentation line `money loss = X.X% of observed spend` to bench receipt/dashboard/share-card renders, with small-denominator annotation; this changes presentation only, not loss rules.
+- Moved `CACHE_DISCOUNT_AT_RISK` out of money-native standard-loss and recognition gap into a separately labeled exposure line: `cache discount at risk — verify your invoice: $X`.
+- Preserved the cache-discount signal, evidence, and per-row wording so the invoice-verification trail remains visible.
+
+Rationale:
+
+- Headline money loss must fit within observed provider spend for the run. Counterfactual or verify-against-invoice amounts are useful evidence, but summing them into standard-loss made the headline less credible.
 
 ## v0.1.8 - 2026-07-08
 

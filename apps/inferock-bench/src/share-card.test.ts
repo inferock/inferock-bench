@@ -19,32 +19,38 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("$0.00 lost across 1 calls — receipts to prove it");
-    expect(rendered).toContain("standard loss: $0.00");
+    expect(rendered).toContain("spent $0.000016 · money loss $0.00 · time loss ~0s");
     expect(rendered).toContain("provider-recognized: $0.00");
     expect(rendered).toContain("recognition gap: $0.00");
+    expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
     expect(rendered).toContain("surfaces watched");
     expect(rendered).toContain("keys stayed local");
     expect(rendered).toContain(SHARE_CARD_FOOTER);
   });
 
-  it("uses the one-decimal percent headline for a sanitized measured receipt", () => {
+  it("uses the spend-first headline and keeps percent as a secondary line", () => {
     const receipt = measuredReceipt("benchtest-017r3-receipt.json");
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("65.4% of observed spend failed the Inferock Standard");
+    expect(rendered).toContain("spent $0.000555 · money loss $0.000363 · time loss ~0s");
+    expect(rendered).toContain("money loss = 65.4% of observed spend");
+    expect(rendered).toContain("small sample:");
+    expect(rendered).toContain("$0.000555");
+    expect(rendered).toContain("measured)");
     expect(rendered).not.toContain("standard loss; provider-recognized");
     expectEveryLineAtMost(rendered, 68);
   });
 
-  it("falls back to the dollar headline when percent exceeds 100", () => {
+  it("keeps pre-split stored receipt values without inferring an exposure split", () => {
     const receipt = measuredReceipt("benchtest-017-aggregate-receipt.json");
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("$4.62 standard loss on failed LLM calls");
-    expect(rendered).not.toContain("% of observed spend failed");
+    expect(rendered).toContain("spent $1.28 · money loss $4.62 · time loss ~0s");
+    expect(rendered).toContain("recognition gap: $4.62");
+    expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
+    expect(rendered).not.toContain("money loss =");
   });
 
   it("falls back to the dollar headline when percent would round to 0.0", () => {
@@ -57,8 +63,8 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(rendered).toContain("$0.000531 standard loss on failed LLM calls");
-    expect(rendered).not.toContain("0.0% of observed spend failed");
+    expect(rendered).toContain("spent $1.28 · money loss $0.000531 · time loss not in receipt");
+    expect(rendered).not.toContain("money loss = 0.0% of observed spend");
   });
 
   it("keeps latency and downtime time-primary", () => {
@@ -67,13 +73,12 @@ describe("share card", () => {
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
     expect(receipt.totals.money?.standardLossUsd).toBeGreaterThan(0);
-    expect(rendered).toContain("~13s time lost");
+    expect(rendered).toContain("spent $0.03 · money loss $0.000531 · time loss ~13s");
     expect(rendered).toContain("time lost: ~13s");
-    expect(rendered).toContain("standard loss: $0.000531");
     expect(rendered).toContain("provider-recognized time: ~0s");
     expect(rendered).toContain("time gap: ~13s");
     expect(rendered).toContain("approx $0.32 at your rate");
-    expect(rendered).not.toContain("% of observed spend failed");
+    expect(rendered).not.toContain("money loss =");
     expect(rendered).not.toContain("standard loss on failed LLM calls");
     expect(rendered).not.toContain("money and time");
   });
@@ -95,10 +100,10 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 96 });
 
-    expect(rendered).toContain("standard loss not in receipt");
+    expect(rendered).toContain("spent $0.00 · money loss pricing unknown · time loss ~0s");
     expect(rendered).toContain("standard loss: pricing unknown - add model price");
     expect(rendered.replace(/\s+/gu, " ")).toContain("pricing unknown — add model price");
-    expect(rendered).not.toContain("% of observed spend failed");
+    expect(rendered).not.toContain("money loss =");
     expect(rendered).not.toContain("standard loss on failed LLM calls");
     expect(rendered).not.toContain("$0.00 lost across 1 calls — receipts to prove it");
     expect(rendered).not.toContain("standard loss: $0.00");
@@ -130,9 +135,9 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 96 });
 
-    expect(rendered).toContain("standard loss on failed LLM calls (+1 unpriced)");
+    expect(rendered).toContain("spent $0.000016 · money loss $0.000016 · time loss ~0s");
     expect(rendered).toContain("(+1 unpriced failures)");
-    expect(rendered).not.toContain("% of observed spend failed");
+    expect(rendered).not.toContain("money loss =");
   });
 
   it("does not invent provider-recognized dollars when the field is absent", () => {
@@ -203,13 +208,40 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(legacyReceipt), { width: 68 });
 
-    expect(rendered).toContain("standard loss not in receipt");
+    expect(rendered).toContain("spent not in receipt · money loss not in receipt · time loss not");
     expect(rendered).toContain("provider-recognized: provider-recognized not in receipt");
     expect(rendered).toContain("recognition gap: gap not in receipt");
     expect(rendered).toContain("top cause: failure rows not in receipt");
     expect(rendered).toContain(SHARE_CARD_FOOTER);
     expect(rendered).not.toContain("$0.00 lost across");
     expect(rendered).not.toContain("surfaces watched 0/0");
+  });
+
+  it("renders a one-screen cache exposure line for new receipts only when nonzero", () => {
+    const receipt = createReceiptBundle(summarizeBenchEvents([
+      stored(v2Event({
+        request: { requestId: "req-cache-card-prefix" },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+      stored(v2Event({
+        request: { requestId: "req-cache-card" },
+        usage: {
+          input: 0,
+          output: 0,
+          cache: { read: 20_000, creation: 0 },
+          categories: [
+            { category: "cached", tokens: 20_000, provider: "openai" },
+          ],
+        },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+    ]));
+
+    const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
+
+    expect(rendered).toContain("spent $0.001516 · money loss $0.00 · time loss ~0s");
+    expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice");
+    expect(rendered).toContain("exposure, $0.001500");
+    expectEveryLineAtMost(rendered, 68);
+    expect(rendered.split("\n").length).toBeLessThanOrEqual(24);
   });
 
   it("truncates long selected model names within the configured width", () => {

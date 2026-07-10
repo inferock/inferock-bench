@@ -20,7 +20,7 @@ Read this after the key-boundary pages if you are deciding what risk this local 
 - Reliability-index overreach. The index is opt-in, records consent locally, shows the payload, and sends nothing while the public index is pre-launch; any live send path must stay reviewable and revocable.
 - Provider-key leakage through the dashboard. Saved keys are written to a local `0600` config file and shown back only in masked form.
 - Accidental unauthenticated localhost use. The local `ibl_` bench key gates proxied model requests.
-- Weak public claims. Reports and receipts come from measured local events; failure dollars keep standard-loss, provider-recognized, and recognition-gap separate.
+- Weak public claims. Reports and receipts come from measured local events; receipts keep spent, bill-bounded money loss, time loss, provider-recognized amounts, bill-bounded recognition gap, and invoice-check exposure separate.
 - Public-export drift. The generated repo is manifest-driven so the public code and docs can be reviewed as a set.
 
 ## We do not protect against

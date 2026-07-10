@@ -26,7 +26,7 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 - public-run-id: `inferock-bench-0.1.7-real-traffic-2026-07-06`.
 - package-version: `inferock-bench` 0.1.7.
 - source: Terminal GIF rendered from sanitized 2026-07-06 real-run evidence: real CLI cold-start checks, local coding-agent traffic, tri-provider coverage, and `receipt --compact` output. Watermark overlaid during rendering.
-- traffic-summary: 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
+- traffic-summary: historical pre-exposure-split presentation; 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
 - asset-dimensions: 1280 x 720 GIF.
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; no host-user path shown; watermark is `github.com/inferock/inferock-bench`.
 - masking-check: asset strings and rendered pixels were checked for local bench keys, provider keys, host-user paths, and watermark correctness.
@@ -38,7 +38,7 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 - public-run-id: `inferock-bench-0.1.7-real-traffic-2026-07-06`.
 - package-version: `inferock-bench` 0.1.7.
 - source: Playwright screenshot of the live local dashboard from the 2026-07-06 public real-traffic run, with the aggregate 175-call receipt values rendered from the current run. Watermark overlaid during capture.
-- traffic-summary: 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
+- traffic-summary: historical pre-exposure-split presentation; 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
 - asset-dimensions: 1440 x 1100 PNG.
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; no host-user path shown; watermark is `github.com/inferock/inferock-bench`.
 - masking-check: provider-key panel hidden and rendered pixels checked for local bench keys, provider keys, host-user paths, and watermark correctness.
@@ -50,7 +50,7 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 - public-run-id: `inferock-bench-0.1.7-real-traffic-2026-07-06`.
 - package-version: `inferock-bench` 0.1.7.
 - source: Terminal-style PNG rendered by Playwright from the 2026-07-06 `inferock-bench receipt --compact` output for the aggregate 175-call public run. Receipt path sanitized to `~/.inferock-bench`; watermark overlaid during rendering.
-- traffic-summary: 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
+- traffic-summary: historical pre-exposure-split presentation; 175 measured calls across OpenAI, Anthropic, and Gemini provider scope; 46 failures; money-native standard loss `$4.62`; provider-recognized `$0.00`; money recognition gap `$4.62`; duration loss `~0s`; observed provider spend `$1.28`.
 - asset-dimensions: 1440 x 1100 PNG.
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead; watermark is `github.com/inferock/inferock-bench`.
 - masking-check: rendered receipt checked for local bench keys, provider keys, host-user paths, sanitized receipt path, and watermark correctness.

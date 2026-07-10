@@ -5,6 +5,8 @@ import { WATERMARK_NAME, WATERMARK_URL } from "./config.js";
 import {
   formatCoverageStatus,
   formatUsd,
+  isExposureReportRow,
+  moneyLossObservedSpendLine,
   type ReportRow,
   renderCoverageSummaryLine,
   type BenchSlaAssumptions,
@@ -41,6 +43,7 @@ export interface ReceiptBundle {
     readonly legacyCombinedStandardLossUsd?: number;
   };
   readonly coverage: BenchSummary["coverage"];
+  readonly exposures: BenchSummary["exposures"];
   readonly rows: BenchSummary["rows"];
   readonly measures: BenchSummary["measures"];
   readonly assumptions: BenchSlaAssumptions;
@@ -92,6 +95,7 @@ export function createReceiptBundle(summary: BenchSummary): ReceiptBundle {
       duration: summary.durationTotals,
     },
     coverage: summary.coverage,
+    exposures: summary.exposures,
     rows: summary.rows,
     measures: summary.measures,
     assumptions: summary.slaAssumptions,
@@ -104,7 +108,7 @@ export function createReceiptBundle(summary: BenchSummary): ReceiptBundle {
 }
 
 export function migrateReceiptBundle(value: ReceiptBundle | LegacyReceiptBundleV1): ReceiptBundle {
-  if (value.schemaVersion === BENCH_RECEIPT_SCHEMA_VERSION) return value;
+  if (value.schemaVersion === BENCH_RECEIPT_SCHEMA_VERSION) return sanitizeCurrentReceiptBundle(value);
   const totals = value.totals ?? {
     measuredCalls: 0,
     failures: 0,
@@ -163,6 +167,7 @@ export function migrateReceiptBundle(value: ReceiptBundle | LegacyReceiptBundleV
       notOpenableCount: 0,
       surfaces: [],
     },
+    exposures: [],
     rows,
     measures: value.measures ?? [],
     assumptions: value.assumptions ?? {
@@ -180,18 +185,24 @@ export function migrateReceiptBundle(value: ReceiptBundle | LegacyReceiptBundleV
 }
 
 export function renderReceipt(input: ReceiptBundle | LegacyReceiptBundleV1, compact: boolean): string {
+  const inputSchemaVersion = input.schemaVersion;
   const bundle = migrateReceiptBundle(input);
+  const exposures = receiptExposures(bundle);
+  const observedSpendLine = compact && inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
+    ? receiptMoneyLossObservedSpendLine(bundle)
+    : null;
   const lines = [
-    `Money loss: ${formatUsd(bundle.totals.money.standardLossUsd)}`,
-    `Time lost: ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
+    receiptHeadline(bundle),
+    receiptMoneyRecognitionLine(bundle, observedSpendLine),
+    ...exposures.map(renderExposureLine),
     bundle.title,
     `period: ${bundle.period.since ?? "beginning"} to ${bundle.period.until}`,
     `measured ${bundle.totals.measuredCalls} calls, ${bundle.totals.failures} failures`,
     "Guide: failures observed are calls with problems, loss signals are the rows below, and provider-recognized is what your provider already reported or credited.",
-    `money-native standard loss ${formatUsd(bundle.totals.money.standardLossUsd)} | provider-recognized ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)}`,
+    `money-native standard loss ${formatReceiptUsd(bundle.totals.money.standardLossUsd)} | provider-recognized ${formatReceiptUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatReceiptUsd(bundle.totals.money.recognitionGapUsd)}`,
     `duration loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)} | provider-recognized time ${formatApproxTimeLost(bundle.totals.duration.providerRecognizedTimeLossMs)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
-    `secondary translation approx ${formatUsd(bundle.totals.duration.dollarTranslationUsd)} at your rate (edit)`,
-    `provider spend observed: ${formatUsd(bundle.totals.providerSpendUsd)}`,
+    `secondary translation approx ${formatReceiptUsd(bundle.totals.duration.dollarTranslationUsd)} at your rate (edit)`,
+    `provider spend observed: ${formatReceiptUsd(bundle.totals.providerSpendUsd)}`,
     renderCoverageSummaryLine(bundle.coverage),
   ];
 
@@ -235,6 +246,73 @@ export function renderReceipt(input: ReceiptBundle | LegacyReceiptBundleV1, comp
   lines.push(...bundle.assumptions.impactFooterLines);
   lines.push(`${bundle.watermark.name} - ${bundle.watermark.url}`);
   return lines.join("\n");
+}
+
+function receiptHeadline(bundle: ReceiptBundle): string {
+  return [
+    `spent ${formatUsd(bundle.totals.providerSpendUsd)}`,
+    `money loss ${receiptMoneyLossDisplay(bundle)}`,
+    `time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
+  ].join(" · ");
+}
+
+function receiptMoneyLossDisplay(bundle: ReceiptBundle): string {
+  const pricingUnknownCount = sum(bundle.rows.map((row) => row.pricingUnknownCount));
+  if (pricingUnknownCount > 0 && bundle.totals.money.standardLossUsd === 0) return "pricing unknown";
+  return formatUsd(bundle.totals.money.standardLossUsd);
+}
+
+function receiptMoneyRecognitionLine(bundle: ReceiptBundle, observedSpendLine: string | null): string {
+  return [
+    `provider-recognized ${formatReceiptUsd(bundle.totals.money.providerRecognizedUsd)}`,
+    `recognition gap ${formatReceiptUsd(bundle.totals.money.recognitionGapUsd)}`,
+    observedSpendLine,
+  ].filter(Boolean).join(" · ");
+}
+
+function receiptMoneyLossObservedSpendLine(bundle: ReceiptBundle): string {
+  return moneyLossObservedSpendLine({
+    standardLossUsd: bundle.totals.money.standardLossUsd,
+    providerSpendUsd: bundle.totals.providerSpendUsd,
+  }) ?? "money loss = no priced spend measured";
+}
+
+function receiptExposures(bundle: ReceiptBundle): BenchSummary["exposures"] {
+  return (bundle.exposures ?? []).filter((exposure) => exposure.amount > 0);
+}
+
+function renderExposureLine(exposure: BenchSummary["exposures"][number]): string {
+  const count = `${exposure.count} invoice exposure${exposure.count === 1 ? "" : "s"}`;
+  if (exposure.class === "cache_discount_at_risk") {
+    return `cache discount at risk — ${exposure.guidance}: ${count}, ${formatReceiptUsd(exposure.amount)}`;
+  }
+  return `${exposure.class} — ${exposure.guidance}: ${count}, ${formatReceiptUsd(exposure.amount)}`;
+}
+
+function sanitizeCurrentReceiptBundle(bundle: ReceiptBundle): ReceiptBundle {
+  if (!hasPositiveExposure(bundle.exposures)) return bundle;
+  const rows = bundle.rows.filter((row) => !isExposureReportRow(row));
+  if (rows.length === bundle.rows.length) return bundle;
+  const moneyRows = rows.filter((row) => row.primaryValueKind === "money");
+  const money = {
+    ...bundle.totals.money,
+    standardLossUsd: roundUsd(sum(moneyRows.map((row) => row.standardLossUsd))),
+    providerRecognizedUsd: roundUsd(sum(moneyRows.map((row) => row.providerRecognizedUsd))),
+    recognitionGapUsd: roundUsd(sum(moneyRows.map((row) => row.recognitionGapUsd))),
+    unrecognizedUsd: roundUsd(sum(moneyRows.map((row) => row.unrecognizedUsd))),
+  };
+  return {
+    ...bundle,
+    totals: {
+      ...bundle.totals,
+      money,
+    },
+    rows,
+  };
+}
+
+function hasPositiveExposure(exposures: BenchSummary["exposures"] | undefined): boolean {
+  return (exposures ?? []).some((exposure) => exposure.amount > 0 && exposure.count > 0);
 }
 
 function migrateLegacyRow(row: Record<string, unknown>): ReportRow {
@@ -303,6 +381,11 @@ function sum(values: readonly number[]): number {
 
 function roundUsd(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function formatReceiptUsd(value: number): string {
+  if (value > 0 && value < 0.01) return `$${value.toFixed(6)}`;
+  return formatUsd(value);
 }
 
 export async function writeReceiptBundle(

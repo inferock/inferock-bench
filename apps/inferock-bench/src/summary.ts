@@ -107,6 +107,13 @@ export interface ReportRow {
   readonly howComputed: readonly string[];
 }
 
+export interface BenchExposure {
+  readonly class: "cache_discount_at_risk";
+  readonly amount: number;
+  readonly count: number;
+  readonly guidance: "verify your invoice";
+}
+
 export type BenchMeasureVerdict = "signal" | "exercised" | "not_exercised";
 export type CoverageSurfaceStatus = "watched_clean" | "signal" | "not_openable" | "not_applicable";
 
@@ -230,6 +237,7 @@ export interface BenchSummary {
   readonly measuredCalls: number;
   readonly failureCount: number;
   readonly providerSpendUsd: number;
+  readonly moneyLossObservedSpendLine: string;
   readonly moneyTotals: BenchMoneyTotals;
   readonly durationTotals: BenchDurationTotals;
   readonly standardLossUsd: number;
@@ -238,6 +246,7 @@ export interface BenchSummary {
   readonly unrecognizedUsd: number;
   readonly totalLostUsd: number;
   readonly pricingUnknownCount: number;
+  readonly exposures: readonly BenchExposure[];
   readonly rows: readonly ReportRow[];
   readonly measures: readonly BenchMeasureRow[];
   readonly coverage: CoverageSummary;
@@ -319,6 +328,7 @@ interface BenchChargeObservation {
 
 const COVERAGE_SUITE_VERSION = "inferock-coverage-suite-v1";
 const COVERAGE_METHOD_VERSION = "inferock-bench-coverage-summary-v1";
+export const MONEY_LOSS_OBSERVED_SPEND_SMALL_SAMPLE_FLOOR_USD = 1;
 const TOOL_CALL_VALIDITY_SIGNAL_CODES = [
   "MALFORMED_TOOL_CALL",
   "TOOL_CALL_SCHEMA_VIOLATION",
@@ -513,19 +523,22 @@ export function summarizeBenchEvents(
   const signals = signalSource.signals;
   const failureSignals = signals.filter(isCountedFailureSignal);
   const downtimeWindows = identifyDowntimeWindows(events);
-  const rows = reportRows(failureSignals, downtimeWindows);
-  const moneyRows = rows.filter(isMoneyNativeRow);
+  const allRows = reportRows(failureSignals, downtimeWindows);
+  const exposures = exposureTotalsForRows(allRows);
+  const rows = standardReportRows(allRows);
+  const moneyRows = rows.filter(isBillBoundedMoneyNativeRow);
   const providerRecognizedUsd = roundUsd(sum(moneyRows.map((row) => row.providerRecognizedUsd)));
   const standardLossUsd = roundUsd(sum(moneyRows.map((row) => row.standardLossUsd)));
   const recognitionGapUsd = roundUsd(sum(moneyRows.map((row) => row.recognitionGapUsd)));
   const totalLostUsd = roundUsd(providerRecognizedUsd + recognitionGapUsd);
   const slaAssumptions = buildSlaAssumptions(events, rows);
+  const providerSpendUsd = observedProviderSpendUsd(events, summaryContext);
   const moneyTotals: BenchMoneyTotals = {
     standardLossUsd,
     providerRecognizedUsd,
     recognitionGapUsd,
     unrecognizedUsd: recognitionGapUsd,
-    providerSpendUsd: roundUsd(sum(events.map((event) => estimateCostUsd(event)))),
+    providerSpendUsd,
   };
   const durationTotals: BenchDurationTotals = {
     timeLossMs: sum(rows.map((row) => row.timeLossMs)),
@@ -546,6 +559,10 @@ export function summarizeBenchEvents(
     measuredCalls: events.length,
     failureCount: failureSignals.length,
     providerSpendUsd: moneyTotals.providerSpendUsd,
+    moneyLossObservedSpendLine: moneyLossObservedSpendLine({
+      standardLossUsd: moneyTotals.standardLossUsd,
+      providerSpendUsd: moneyTotals.providerSpendUsd,
+    }) ?? "money loss = no priced spend measured",
     moneyTotals,
     durationTotals,
     standardLossUsd,
@@ -556,6 +573,7 @@ export function summarizeBenchEvents(
     pricingUnknownCount: signals.filter((signal) =>
       signal.code === "PRICING_UNKNOWN" || signal.standardLossStatus === "pricing_unknown"
     ).length,
+    exposures,
     rows,
     measures,
     coverage,
@@ -653,6 +671,7 @@ export function renderReport(summary: BenchSummary): string {
     renderLiveCounter(summary),
     `provider spend observed: ${formatUsd(summary.providerSpendUsd)}`,
     renderCoverageSummaryLine(summary.coverage),
+    ...renderExposureLines(summary.exposures),
   ];
   if (summary.rows.length === 0) {
     lines.push(`No loss rows. measured ${summary.measuredCalls} calls, 0 failures.`);
@@ -686,6 +705,45 @@ export function formatUsd(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+export interface MoneyLossObservedSpendLineInput {
+  readonly standardLossUsd: number | null;
+  readonly providerSpendUsd: number | null;
+}
+
+export interface MoneyLossObservedSpendLineOptions {
+  readonly suppressRoundedZero?: boolean;
+}
+
+export function moneyLossObservedSpendLine(
+  input: MoneyLossObservedSpendLineInput,
+  options: MoneyLossObservedSpendLineOptions = {},
+): string | null {
+  const standardLossUsd = nonnegativeNumberOrNull(input.standardLossUsd);
+  const providerSpendUsd = nonnegativeNumberOrNull(input.providerSpendUsd);
+  if (standardLossUsd === null || providerSpendUsd === null) return null;
+  if (providerSpendUsd <= 0) return "money loss = no priced spend measured";
+
+  const percent = standardLossUsd / providerSpendUsd * 100;
+  if (!Number.isFinite(percent) || percent > 100) return null;
+
+  const formatted = percent.toFixed(1);
+  if (options.suppressRoundedZero && formatted === "0.0" && standardLossUsd > 0) return null;
+
+  const annotation = providerSpendUsd < MONEY_LOSS_OBSERVED_SPEND_SMALL_SAMPLE_FLOOR_USD
+    ? ` (small sample: ${formatMeasuredSpendUsd(providerSpendUsd)} measured)`
+    : "";
+  return `money loss = ${formatted}% of observed spend${annotation}`;
+}
+
+function nonnegativeNumberOrNull(value: number | null): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function formatMeasuredSpendUsd(value: number): string {
+  if (value > 0 && value < 0.01) return `$${value.toFixed(6)}`;
+  return formatUsd(value);
 }
 
 export function repriceLatencyRow(
@@ -797,6 +855,23 @@ function recognitionGapDisplay(row: ReportRow): string {
     return formatApproxTimeLost(row.recognitionGapTimeMs);
   }
   return formatUsd(row.recognitionGapUsd);
+}
+
+function renderExposureLines(exposures: readonly BenchExposure[]): readonly string[] {
+  return exposures
+    .filter((exposure) => exposure.amount > 0 && exposure.count > 0)
+    .map((exposure) => {
+      const count = `${exposure.count} invoice exposure${exposure.count === 1 ? "" : "s"}`;
+      if (exposure.class === "cache_discount_at_risk") {
+        return `cache discount at risk — ${exposure.guidance}: ${count}, ${formatExposureUsd(exposure.amount)}`;
+      }
+      return `${exposure.class} — ${exposure.guidance}: ${count}, ${formatExposureUsd(exposure.amount)}`;
+    });
+}
+
+function formatExposureUsd(value: number): string {
+  if (value > 0 && value < 0.01) return `$${value.toFixed(6)}`;
+  return formatUsd(value);
 }
 
 function reportRows(
@@ -934,9 +1009,49 @@ function primaryValueKindForSignal(signal: LossSignal): ReportRow["primaryValueK
   return "money";
 }
 
-function isMoneyNativeRow(row: ReportRow): boolean {
+function isBillBoundedMoneyNativeRow(row: ReportRow): boolean {
   return row.primaryValueKind === "money" &&
-    row.failureClass !== "latency";
+    row.failureClass !== "latency" &&
+    !isExposureReportRow(row);
+}
+
+export function isExposureReportRow(row: Pick<ReportRow, "code" | "failureClass">): boolean {
+  return row.code === "CACHE_DISCOUNT_AT_RISK" ||
+    row.failureClass === "cache_discount_at_risk";
+}
+
+function standardReportRows(rows: readonly ReportRow[]): ReportRow[] {
+  return rows.filter((row) => !isExposureReportRow(row));
+}
+
+function exposureTotalsForRows(rows: readonly ReportRow[]): readonly BenchExposure[] {
+  const cacheRows = rows.filter(isExposureReportRow);
+  const amount = roundUsd(sum(cacheRows.map((row) => row.standardLossUsd)));
+  const count = sum(cacheRows.map((row) => row.count));
+  if (amount <= 0 || count <= 0) return [];
+  return [{
+    class: "cache_discount_at_risk",
+    amount,
+    count,
+    guidance: "verify your invoice",
+  }];
+}
+
+function observedProviderSpendUsd(
+  events: readonly CanonicalEventNormalized[],
+  context: SummaryContext,
+): number {
+  return roundUsd(sum(events.map((event) => providerSpendUsdForEvent(event, context))));
+}
+
+function providerSpendUsdForEvent(
+  event: CanonicalEventNormalized,
+  context: SummaryContext,
+): number {
+  const observedCharge = cacheObservedChargeForEvent(event, context);
+  if (typeof observedCharge === "number") return observedCharge;
+  if (observedCharge) return observedCharge.chargedUsd;
+  return estimateCostUsd(event);
 }
 
 function timeLossForSignal(signal: LossSignal): {

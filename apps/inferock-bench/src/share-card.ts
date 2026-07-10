@@ -10,7 +10,7 @@ import {
   type ReceiptBundle,
 } from "./receipt.js";
 import { migrateSpeedTestReceiptBundle, type SpeedTestReceiptBundle } from "./coverage-suite/runner.js";
-import { formatUsd, type ReportRow } from "./summary.js";
+import { formatUsd, moneyLossObservedSpendLine, type ReportRow } from "./summary.js";
 
 export const SHARE_CARD_FOOTER = "github.com/inferock/inferock-bench";
 const DEFAULT_CARD_WIDTH = 68;
@@ -27,6 +27,8 @@ export interface ShareCardModel {
   readonly standardLoss: string;
   readonly providerRecognized: string;
   readonly recognitionGap: string;
+  readonly spendShare?: string;
+  readonly cacheDiscountExposure?: string;
   readonly timeLoss?: string;
   readonly providerRecognizedTime?: string;
   readonly timeGap?: string;
@@ -55,6 +57,7 @@ interface NormalizedReceipt {
   };
   readonly totals?: Record<string, unknown>;
   readonly coverage?: Record<string, unknown>;
+  readonly exposures?: readonly Record<string, unknown>[];
   readonly rows?: readonly Record<string, unknown>[];
   readonly locality?: Record<string, unknown>;
 }
@@ -75,18 +78,18 @@ export function createShareCardModel(receipt: ShareCardReceipt): ShareCardModel 
   const timeGapMs = explicitTimeGapMs ?? derivedGap(timeLossMs, providerRecognizedTimeLossMs);
   const dollarTranslation = numberValue(duration?.dollarTranslationUsd);
   const rows = (normalized.rows ?? []).map((row) => row as unknown as ReportRow);
+  const cacheDiscountExposure = cacheDiscountExposureTotal(normalized.exposures);
   const pricingUnknownCount = rows.reduce((total, row) => total + (numberValue(row.pricingUnknownCount) ?? 0), 0);
   const measuredCalls = numberValue(totals?.measuredCalls);
   const failures = numberValue(totals?.failures);
+  const spendShare = spendShareLine({ standardLoss, providerSpend, timeLossMs, pricingUnknownCount });
 
   return {
     headline: headlineFor({
       standardLoss,
       providerSpend,
       timeLossMs,
-      measuredCalls,
       pricingUnknownCount,
-      rowsPresent: normalized.rows !== undefined,
     }),
     receiptLabel: receiptLabel(normalized),
     standardLoss: standardLossLine(standardLoss, pricingUnknownCount),
@@ -94,6 +97,13 @@ export function createShareCardModel(receipt: ShareCardReceipt): ShareCardModel 
       ? "provider-recognized not in receipt"
       : formatShareUsd(providerRecognized),
     recognitionGap: recognitionGap === null ? "gap not in receipt" : formatShareUsd(recognitionGap),
+    ...(spendShare ? { spendShare } : {}),
+    ...(cacheDiscountExposure !== null
+      ? {
+          cacheDiscountExposure:
+            `cache discount at risk — verify your invoice: ${integer(cacheDiscountExposure.count)} invoice exposure${cacheDiscountExposure.count === 1 ? "" : "s"}, ${formatShareUsd(cacheDiscountExposure.amount)}`,
+        }
+      : {}),
     ...(timeLossMs && timeLossMs > 0
       ? {
           timeLoss: formatApproxTimeLost(timeLossMs),
@@ -130,6 +140,8 @@ export function renderShareCard(
       `standard loss: ${model.standardLoss}`,
       `provider-recognized: ${model.providerRecognized}`,
       `recognition gap: ${model.recognitionGap}`,
+      ...(model.cacheDiscountExposure ? [model.cacheDiscountExposure] : []),
+      ...(model.spendShare ? [model.spendShare] : []),
     ],
     timeLines(model),
     wrapLine(runFacts(model), innerWidth),
@@ -202,36 +214,36 @@ function headlineFor(input: {
   readonly standardLoss: number | null;
   readonly providerSpend: number | null;
   readonly timeLossMs: number | null;
-  readonly measuredCalls: number | null;
   readonly pricingUnknownCount: number;
-  readonly rowsPresent: boolean;
 }): string {
-  const standardLoss = input.standardLoss ?? 0;
-  const timeLoss = input.timeLossMs ?? 0;
-  if (input.standardLoss !== null && standardLoss === 0 && timeLoss === 0 && input.pricingUnknownCount === 0 && input.measuredCalls !== null) {
-    return `$0.00 lost across ${integer(input.measuredCalls ?? 0)} calls — receipts to prove it`;
-  }
-  if (timeLoss > 0) return `${formatApproxTimeLost(timeLoss)} time lost`;
-  if (standardLoss > 0) {
-    if (input.pricingUnknownCount > 0) {
-      return `${formatShareUsd(standardLoss)} standard loss on failed LLM calls (+${integer(input.pricingUnknownCount)} unpriced)`;
-    }
-    const percent = lossPercentDisplay(standardLoss, input.providerSpend);
-    if (percent) return `${percent}% of observed spend failed the Inferock Standard`;
-    return `${formatShareUsd(standardLoss)} standard loss on failed LLM calls`;
-  }
-  if (input.standardLoss === null) return "standard loss not in receipt";
-  if (input.measuredCalls === null) return "calls not in receipt";
-  return input.rowsPresent ? "standard loss not in receipt" : "failure rows not in receipt";
+  return [
+    `spent ${input.providerSpend === null ? "not in receipt" : formatShareUsd(input.providerSpend)}`,
+    `money loss ${moneyLossHeadlineValue(input.standardLoss, input.pricingUnknownCount)}`,
+    `time loss ${input.timeLossMs === null ? "not in receipt" : formatApproxTimeLost(input.timeLossMs)}`,
+  ].join(" · ");
 }
 
-function lossPercentDisplay(standardLoss: number, providerSpend: number | null): string | null {
-  if (!providerSpend || providerSpend <= 0) return null;
-  const percent = (standardLoss / providerSpend) * 100;
-  if (!Number.isFinite(percent) || percent > 100) return null;
-  const formatted = percent.toFixed(1);
-  if (formatted === "0.0" && standardLoss > 0) return null;
-  return formatted;
+function moneyLossHeadlineValue(
+  standardLoss: number | null,
+  pricingUnknownCount: number,
+): string {
+  if (pricingUnknownCount > 0 && (standardLoss ?? 0) === 0) return "pricing unknown";
+  return standardLoss === null ? "not in receipt" : formatShareUsd(standardLoss);
+}
+
+function spendShareLine(input: {
+  readonly standardLoss: number | null;
+  readonly providerSpend: number | null;
+  readonly timeLossMs: number | null;
+  readonly pricingUnknownCount: number;
+}): string | null {
+  if ((input.timeLossMs ?? 0) > 0 || input.pricingUnknownCount > 0) return null;
+  const standardLoss = input.standardLoss ?? 0;
+  if (standardLoss <= 0) return null;
+  return moneyLossObservedSpendLine(
+    { standardLossUsd: standardLoss, providerSpendUsd: input.providerSpend },
+    { suppressRoundedZero: true },
+  );
 }
 
 function receiptLabel(receipt: NormalizedReceipt): string {
@@ -289,6 +301,21 @@ function primaryImpact(row: ReportRow): string {
     return `${formatShareUsd(row.standardLossUsd)} (+ ${integer(row.pricingUnknownCount)} pricing unknown — add model price)`;
   }
   return formatShareUsd(row.standardLossUsd);
+}
+
+function cacheDiscountExposureTotal(
+  exposures: readonly Record<string, unknown>[] | undefined,
+): { readonly amount: number; readonly count: number } | null {
+  if (!exposures) return null;
+  const matching = exposures
+    .filter((exposure) => stringValue(exposure.class) === "cache_discount_at_risk")
+    .map((exposure) => ({
+      amount: numberValue(exposure.amount) ?? 0,
+      count: numberValue(exposure.count) ?? 0,
+    }));
+  const amount = matching.reduce((sum, exposure) => sum + exposure.amount, 0);
+  const count = matching.reduce((sum, exposure) => sum + exposure.count, 0);
+  return amount > 0 && count > 0 ? { amount, count } : null;
 }
 
 function standardLossLine(standardLoss: number | null, pricingUnknownCount: number): string {

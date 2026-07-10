@@ -7,15 +7,22 @@
     "totalSpendUsd": 0,
     "pricingUnknownCalls": 1
   },
+  "headline": {
+    "spentUsd": 0,
+    "moneyLossUsd": 0,
+    "timeLossMs": 0
+  },
   "ledgers": {
     "providerRecognizedRecoverableUsd": 0,
-    "unrecognizedLoss": {
+    "moneyRecognitionGapUsd": 0,
+    "timeRecognitionGapMs": 0,
+    "timeLoss": {
       "timeLossMs": 0,
       "dollarizedTimeUsd": null,
       "customerDeclaredRate": null,
       "customerDeclaredRateSourceLabel": null
-    },
-    "recognitionGapUsd": 0
+    }
   },
+  "exposures": [],
   "fixtureRule": "Do not use this fixture as measured dashboard, benchmark, loss report, or receipt data."
 }

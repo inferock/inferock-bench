@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CanonicalEventAny, CanonicalEventV2 } from "@inferock/measure/canonical-event";
 import type { EventStore, StoredBenchEvent } from "../storage.js";
 import { loadCoverageTokenBaselineFromValue } from "./baseline.js";
 import { estimateCoverageSuite } from "./estimate.js";
@@ -201,6 +202,66 @@ describe("provider-scoped speed-test receipts", () => {
       expect(ledger.surfacesWatched).toBe(receipt?.coverage.watchedCount);
       expect(ledger.totalSurfaces).toBe(receipt?.coverage.totalSurfaceCount);
     }
+  });
+
+  it("keeps cache exposure out of provider ledgers when a provider has a tiny real loss", async () => {
+    const suite = await loadCoverageSuiteManifest();
+    const baseline = loadCoverageTokenBaselineFromValue(completeBaselineForSuite(suite), suite);
+    const estimate = estimateCoverageSuite({
+      selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
+      suite,
+      baseline,
+      generator: "built-in",
+      spendCapUsd: 1,
+      eventTime: "2026-07-05T00:00:00.000Z",
+    });
+    const summary = summarizeBenchEvents(cacheExposureAndTinyLossEvents(), {
+      runId: "speedtest_exposure/openai",
+    });
+    const realLossRow = summary.rows.find((row) => row.code === "BROKEN_OUTPUT");
+    const openai = createSpeedTestReceiptBundle({
+      runId: "speedtest_exposure/openai",
+      providerId: "openai",
+      status: "completed",
+      startedAt: "2026-07-05T00:00:00.000Z",
+      endedAt: "2026-07-05T00:00:01.000Z",
+      consentedAt: "2026-07-05T00:00:00.000Z",
+      estimate,
+      summary,
+      suite,
+    });
+
+    const combined = createCombinedSpeedTestReceiptBundle({
+      runId: "speedtest_exposure",
+      startedAt: "2026-07-05T00:00:00.000Z",
+      endedAt: "2026-07-05T00:00:01.000Z",
+      providerReceipts: [openai],
+      parallelProviderCount: 1,
+      acceptedEstimate: estimate,
+    });
+    const ledger = combined.providerLedgers?.[0];
+
+    expect(summary.exposures).toEqual([{
+      class: "cache_discount_at_risk",
+      amount: 0.0015,
+      count: 1,
+      guidance: "verify your invoice",
+    }]);
+    expect(realLossRow?.standardLossUsd).toBeGreaterThan(0);
+    const moneyRows = summary.rows.filter((row) => row.primaryValueKind === "money");
+    const standardLossUsd = roundUsd(sum(moneyRows.map((row) => row.standardLossUsd)));
+    const recognitionGapUsd = roundUsd(sum(moneyRows.map((row) => row.recognitionGapUsd)));
+    expect(summary.rows.some((row) => row.failureClass === "cache_discount_at_risk")).toBe(false);
+    expect(openai.rows.some((row) => row.failureClass === "cache_discount_at_risk")).toBe(false);
+    expect(combined.rows.some((row) => row.failureClass === "cache_discount_at_risk")).toBe(false);
+    expect(openai.totals.money.standardLossUsd).toBe(standardLossUsd);
+    expect(openai.totals.money.recognitionGapUsd).toBe(recognitionGapUsd);
+    expect(ledger?.standardLossUsd).toBe(standardLossUsd);
+    expect(ledger?.recognitionGapUsd).toBe(recognitionGapUsd);
+    expect(combined.exposures).toEqual(summary.exposures);
+    expect(renderSpeedTestReceipt(combined)).toContain(
+      "cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500",
+    );
   });
 
   it("labels agent receipts with agent identity and traffic mix", async () => {
@@ -495,4 +556,126 @@ function completeBaselineForSuite(suite: Awaited<ReturnType<typeof loadCoverageS
       },
     })),
   } as const;
+}
+
+function cacheExposureAndTinyLossEvents(): readonly StoredBenchEvent[] {
+  return [
+    stored(v2Event({
+      request: { requestId: "req-provider-cache-prefix" },
+    }), {
+      runId: "speedtest_exposure/openai",
+      suiteTaskId: "shared_prefix_cache",
+    }),
+    stored(v2Event({
+      request: { requestId: "req-provider-cache" },
+      usage: {
+        input: 0,
+        output: 0,
+        cache: { read: 20_000, creation: 0 },
+        categories: [
+          { category: "cached", tokens: 20_000, provider: "openai" },
+        ],
+      },
+    }), {
+      runId: "speedtest_exposure/openai",
+      suiteTaskId: "shared_prefix_cache",
+    }),
+    stored(v2Event({
+      request: {
+        requestId: "req-provider-tiny-real-loss",
+        generation: { response_format: { type: "json_object" } },
+      },
+      response: { content: "not json" },
+    }), {
+      runId: "speedtest_exposure/openai",
+    }),
+  ];
+}
+
+function stored(
+  event: CanonicalEventAny,
+  metadata: Partial<Pick<StoredBenchEvent, "runId" | "suiteTaskId">> = {},
+): StoredBenchEvent {
+  return {
+    schemaVersion: "inferock-bench-event-v1",
+    capturedAt: "2026-06-14T12:00:02.000Z",
+    ...metadata,
+    event,
+  };
+}
+
+type V2Overrides = {
+  readonly request?: Partial<CanonicalEventV2["request"]>;
+  readonly response?: Partial<CanonicalEventV2["response"]>;
+  readonly usage?: Partial<CanonicalEventV2["usage"]>;
+  readonly timing?: Partial<CanonicalEventV2["timing"]>;
+  readonly attempts?: CanonicalEventV2["attempts"];
+};
+
+function v2Event(overrides: V2Overrides = {}): CanonicalEventV2 {
+  const request = {
+    tenantId: "tenant-bench",
+    provider: "openai" as const,
+    requestId: "req-bench",
+    requestedModel: "gpt-4o-mini",
+    model: "gpt-4o-mini",
+    attemptIndex: 0,
+    expectCompletion: true,
+    route: "chat.completions",
+    workloadClass: "interactive",
+    ...overrides.request,
+  };
+  const response = {
+    statusCode: 200,
+    finishReason: "stop",
+    content: "completed",
+    servedModel: request.model ?? request.requestedModel,
+    ...overrides.response,
+  };
+  const usage = {
+    input: 100,
+    output: 10,
+    cache: { read: 0, creation: 0 },
+    categories: [
+      { category: "input", tokens: 100, provider: request.provider },
+      { category: "output", tokens: 10, provider: request.provider },
+    ],
+    usageSource: "provider" as const,
+    ...overrides.usage,
+  };
+  const timing = {
+    startedAt: "2026-06-14T12:00:00.000Z",
+    endedAt: "2026-06-14T12:00:01.000Z",
+    latencyMs: 1_000,
+    chunkCount: 0,
+    terminalStatus: "complete" as const,
+    ...overrides.timing,
+  };
+  return {
+    schemaVersion: "v2",
+    request,
+    response,
+    usage,
+    timing,
+    attempts: overrides.attempts ?? [{
+      attemptNumber: 0,
+      provider: request.provider,
+      model: request.model ?? request.requestedModel,
+      status: "success",
+      timing: {
+        startedAt: timing.startedAt,
+        endedAt: timing.endedAt,
+        latencyMs: timing.latencyMs,
+      },
+      finalSelected: true,
+    }],
+  };
+}
+
+function sum(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function roundUsd(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
 }

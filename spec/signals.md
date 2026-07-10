@@ -8,7 +8,7 @@ Implementation sources: detector files in `packages/measure/src/`, including `br
 
 This file defines the launch-safe public signal set for The Inferock Standard v0.1.0. It uses the as-built `LossSignal` shape, but it does not expose every signal code present in the implementation enum as a public v0.1.0 standard signal.
 
-The shipped public bench provider planes are OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter OpenAI-compatible traffic. OpenRouter support is measured only when requested pinning, served endpoint metadata, and cited pricing evidence match the 0.1.8 pinned endpoint set. Provider-specific checks remain provider-specific: OpenAI visible-output recount is OpenAI-only, Anthropic output-token cross-check and citation-support checks are Anthropic-only, Gemini countTokens evidence is input-recount evidence only, and OpenRouter pinned-endpoint evidence does not turn all router models into measured support.
+The shipped public bench provider planes are OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter OpenAI-compatible traffic. OpenRouter support is measured only when requested pinning, served endpoint metadata, and cited pricing evidence match the current pinned endpoint set. Provider-specific checks remain provider-specific: OpenAI visible-output recount is OpenAI-only, Anthropic output-token cross-check and citation-support checks are Anthropic-only, Gemini countTokens evidence is input-recount evidence only, and OpenRouter pinned-endpoint evidence does not turn all router models into measured support.
 
 Read this when you need to translate a receipt row into the detector evidence behind it. The page keeps the public launch-safe set separate from implementation enums so weak or deferred classes do not become public refund claims by implication.
 
@@ -88,7 +88,7 @@ Each public signal carries an `evidenceGrade`, `status`, and ledger placement. L
 | `LATENCY_BILLED` | `latency` | `time_loss` | `refundable_candidate` only with disclosed `creditBasis: "billed_wait"` and known pricing; otherwise `triage_only` | Conditional |
 | `DUPLICATE_REQUEST_ID` | `duplicate_request_id` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No until provider billing evidence proves duplicate charge |
 | `CACHE_RATE_ANOMALY` | `cache_rate_anomaly` | `money` | `triage_only` by default; `refundable_candidate` only with dashboard-eligible provider-origin observed charge evidence | Conditional |
-| `CACHE_DISCOUNT_AT_RISK` | `cache_discount_at_risk` | `money` | `unrecognized_standard_loss`, `candidate` when cache-read usage and pricing are known; `pricing_unknown` when missing or partial | No; verify against invoice |
+| `CACHE_DISCOUNT_AT_RISK` | `cache_discount_at_risk` | `exposure` | Invoice-check exposure when cache-read usage and pricing are known; `pricing_unknown` when missing or partial | No; verify against invoice; never summed into money loss or recognition gap |
 | `SECURITY_SECRET_EXACT_MATCH` | `security_secret_leak` when real-loss; otherwise null | `money` for real-loss; `security` for evidence-only context | `unrecognized_standard_loss` on priced real-loss calls; `triage_only` for carried-in-request/evidence-only context | No |
 | `FACTUALITY_KNOWN_ANSWER_FAIL` | `factuality_contradiction` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No |
 | `ANTHROPIC_CITATION_CONTRADICTS_CITED_TEXT` | `factuality_contradiction` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No; Anthropic-specific |
@@ -178,7 +178,7 @@ Cache read or cache creation usage is reconciled against expected pricing. Witho
 
 Detector: `billing-integrity`.
 
-From usage and pricing alone: `cache_read_tokens x (full input rate - cache read rate)`. This is an at-risk discount amount, not provider-recognized recovery and not a whole-call floor. The row tells the user to verify against the invoice.
+From usage and pricing alone: `cache_read_tokens x (full input rate - cache read rate)`. This is an at-risk discount amount, not provider-recognized recovery, not headline standard-loss, and not a whole-call floor. The row tells the user to verify against the invoice, and receipts report the amount as a separate exposure line when nonzero.
 
 ### `SECURITY_SECRET_EXACT_MATCH`
 

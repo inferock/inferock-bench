@@ -95,7 +95,7 @@ The v1 suite is `inferock-coverage-suite-v1`, and its task IDs are immutable ins
 
 The manifest lists method surface definitions. The as-built receipt summarizes the shipped report rows as `surfaces watched N/13`; today that receipt view groups the suite's structured-output definitions into the current report surface model.
 
-`cache_integrity` opens when the run carries the repeated shared-prefix precondition and cache-token or cache-discount-at-risk evidence. Exact charge reconciliation is included when provider charge observation is available, but charge observation is not required to open the at-risk cache-integrity surface.
+`cache_integrity` opens when the run carries the repeated shared-prefix precondition and cache-token evidence. Exact charge reconciliation is included when provider charge observation is available. `CACHE_DISCOUNT_AT_RISK` may also produce a separate invoice-check exposure line from usage plus pricing; that exposure does not enter money loss or recognition gap.
 
 `security_governance` is opened by the normal `organic_safety_overlays` task or by passive security capture/provider safety evidence on ordinary traffic. The suite never sends manufactured secrets, leaks, adversarial prompts, or policy-triggering content to open this surface.
 
@@ -111,7 +111,7 @@ The manifest loader enforces those rules before a suite can run: it validates ro
 
 `signal` means the surface was open and real provider traffic emitted one or more signals. The count is actual signal evidence, not a fixture count.
 
-When a priced call emits a signal for a standard-defined failure, the standard-loss floor is the call's own priced cost. Provider-recognized loss can still be `$0` until the provider admits the category; the recognition gap is standard-loss minus provider-recognized. If pricing is missing, the run must label the limitation as `pricing_unknown — add model price` rather than treating the loss as zero.
+When a priced call emits a signal for a standard-defined bill-bounded failure, the money-loss floor is the call's own priced cost. Provider-recognized loss can still be `$0` until the provider admits the category; the recognition gap is bill-bounded money loss minus provider-recognized. Exposure-only rows such as cache discount at risk are labeled separately with invoice-verification guidance and are not summed. If pricing is missing, the run must label the limitation as `pricing_unknown -- add model price` rather than treating the loss as zero.
 
 `not-openable` means the run lacked something required to judge that surface: the selected provider, a supported route or model capability, a configured contract, charge observation, SDK/native retry evidence, or enough completed task calls. That is coverage debt for the run, not evidence that the provider was clean.
 
@@ -145,6 +145,6 @@ The coverage test opens surfaces and records evidence. The public thresholds, ra
 
 ## What to read next
 
-- [Public run card](public-run-2026-07-06.md) for one sanitized aggregate run produced by this method.
+- [Public run card](public-run-2026-07-09.md) for one sanitized aggregate run produced by this method.
 - [Evidence grade methodology](evidence-grade-methodology.md) for how detector posture controls provider-recognized recovery.
 - [Pricing methodology](pricing-methodology.md) for the `pricing_unknown` rule that prevents silent zero-dollar fallback.

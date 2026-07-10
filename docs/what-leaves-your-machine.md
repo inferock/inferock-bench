@@ -166,4 +166,4 @@ That means contribution is pre-launch and local-only today. When the public inde
 
 - [Key handling](key-handling.md) for provider keys, local `ibl_` keys, masking, and rotation.
 - [Threat model](threat-model.md) for what the local benchmark does and does not protect against.
-- [Hard questions](hard-questions.md#q14-can-raw-event-logs-leak-data) before posting any event-derived artifact.
+- [Hard questions](hard-questions.md#q14-what-should-i-share-instead-of-raw-event-logs) before posting any event-derived artifact.

@@ -89,7 +89,7 @@ The cumulative render store was assembled from the 2026-07-09 component plus run
 - Current-code cumulative compact receipt hash after public path/watermark masking: `sha256:273d92698595c49feb495f6b05280b4356c5b8b83fdad8cf9d1e7aeedab67ee0` (`cumulative-receipt-compact.txt`, 6,787 bytes).
 - Current-code cumulative share-card hash: `sha256:9f60d0afb73ad1131d8fcb93a0651d5357243e01bfe647823e7759883764a34c` (`cumulative-share-card.txt`, 1,795 bytes).
 - Public capture hash: `sha256:b331f9d2d6cc63c4a01b581c054f826027eda17eee26acbbcc0836c4c13cc7f5` (`assets/receipt-real-traffic.png`, 533,898 bytes).
-- Public capture hash: `sha256:37d604d422ea9177b41b1775b0b547708a5ff0480a371968bde1e10f17687c97` (`assets/dashboard-real-traffic.png`, 96,230 bytes).
+- Public capture hash: `sha256:b826b77a2443f9a6c2c9cf3ff09d2e76929d44463aaa516c91cc372dc88043be` (`assets/dashboard-real-traffic.png`, 91,758 bytes).
 - Public capture hash: `sha256:e1d5f96c49d28636fc53a53f803e367df8eb186f1a2077a290f3e62cfc02afc6` (`assets/bench-demo.gif`, 265,014 bytes).
 
 The cumulative current-code receipt renders the four-element headline: `spent $7.15 · money loss $0.07 · time loss ~2.9 min · invoice-check exposure $16.80`. It also renders `money loss = 1.0% of observed spend` and `cache discount at risk -- verify your invoice: 202 invoice exposures, $16.80`.

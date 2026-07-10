@@ -7,7 +7,8 @@
 </p>
 
 <p align="center">
-  <strong>Providers shouldn't get to grade their own bills.</strong>
+  <strong>Providers shouldn't get to grade their own bills.</strong><br>
+  Today, the company that charges you also decides what counts as a failure, what gets credited, and keeps the only detailed records. <code>inferock-bench</code> puts an independent, per-call receipt of what you were billed — and what failed — in your own hands.
 </p>
 
 <p align="center">
@@ -196,7 +197,7 @@ Run `npx inferock-bench init` to detect OpenAI or Anthropic SDK usage and print 
 git clone https://github.com/inferock/inferock-bench.git
 cd inferock-bench
 pnpm install
-pnpm build
+pnpm -r --workspace-concurrency=1 build
 node apps/inferock-bench/dist/index.js start
 ```
 

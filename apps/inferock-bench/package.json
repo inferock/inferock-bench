@@ -51,11 +51,12 @@
     "build": "tsc && node scripts/copy-coverage-assets.mjs",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
+    "capture:dashboard-real-traffic": "tsx scripts/capture-dashboard-real-traffic.ts",
     "coverage:derive-baseline": "tsx src/coverage-suite/derive-token-baseline.ts",
     "test": "vitest run",
     "e2e": "playwright test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "lint": "eslint src/ playwright.config.ts e2e/ --max-warnings 0",
+    "lint": "eslint src/ scripts/ playwright.config.ts e2e/ --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage e2e/test-results e2e/results"
   },

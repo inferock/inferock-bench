@@ -4,7 +4,7 @@ No assets in this folder may be mocked. Every GIF, screenshot, hosted sample rep
 
 Illustrative explanatory diagrams are allowed only when they do not present numbers as measured data and the asset plus README caption clearly label the diagram as illustrative.
 
-Masking sign-offs live in [PROVENANCE.md](./PROVENANCE.md) and are enforced by `pnpm oss:asset-scan`. No image or GIF ships without a provenance entry and at least `masked-verified: PENDING user sign-off YYYY-MM-DD`; publish enforcement requires a completed human sign-off.
+Masking sign-offs live in [PROVENANCE.md](./PROVENANCE.md) and are enforced by `pnpm oss:asset-scan`. No image or GIF ships without a provenance entry and at least `masked-verified: PENDING user sign-off YYYY-MM-DD` or `masked-verified: PENDING conductor`; publish enforcement requires a completed human sign-off.
 
 Read this before adding or replacing a visual. The rule is simple: product proof assets come from real normal traffic; explanatory diagrams must label themselves as illustrative.
 
@@ -20,7 +20,7 @@ Read this before adding or replacing a visual. The rule is simple: product proof
 
 ## Captured 2026-07-10
 
-- `dashboard-real-traffic.png` - Playwright screenshot of the local dashboard at `http://127.0.0.1:4318/`, loaded from the cumulative event store after the previous-results view and fade-in animation settled.
+- `dashboard-real-traffic.png` - Playwright screenshot of the local dashboard at `http://127.0.0.1:4318/`, loaded from the cumulative event store after the previous-results view and fade-in animation settled, clipped to the dashboard content column plus capture padding.
 - `receipt-real-traffic.png` - terminal-style PNG rendered by Playwright from the post-merge `src/index.ts receipt --compact` output against the cumulative event store.
 - `bench-demo.gif` - terminal GIF rendered from sanitized cumulative run evidence: startup/version, real provider scope, `first call measured`, and the final four-element receipt headline.
 - Traffic: 1,268 measured calls routed through `inferock-bench` 0.1.10 since 2026-07-09 across OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints, using maintainer-owned development provider keys; key values were never committed.

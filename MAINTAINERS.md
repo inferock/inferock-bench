@@ -38,4 +38,4 @@ GitHub remains a downstream mirror. Maintainers port accepted public changes int
 
 - [CONTRIBUTING](./CONTRIBUTING.md) for tests, no-secret rules, and license signoff.
 - [SECURITY](./SECURITY.md) for private vulnerability reports.
-- [Hard questions](./docs/hard-questions.md#q13-is-the-public-mirror-hiding-governance-risk) for the public mirror limitation in the receipt-trust context.
+- [Hard questions](./docs/hard-questions.md#q13-what-does-the-public-mirror-represent) for the public mirror limitation in the receipt-trust context.

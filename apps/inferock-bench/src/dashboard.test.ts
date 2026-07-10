@@ -51,7 +51,12 @@ describe("dashboard", () => {
     expect(htmlText).toContain("data-testid=\"money-loss-spend-share\"");
     expect(htmlText).toContain("data-testid=\"invoice-check-exposure-headline\"");
     expect(htmlText.match(/class="headline-card"/g) ?? []).toHaveLength(4);
+    expect(htmlText.match(/class="headline-card-gloss small muted"/g) ?? []).toHaveLength(4);
     expect(htmlText.match(/class="headline-card-value money-headline"/g) ?? []).toHaveLength(4);
+    expect(htmlText).toContain("what providers charged");
+    expect(htmlText).toContain("lost within that bill");
+    expect(htmlText).toContain("latency & downtime");
+    expect(htmlText).toContain("double-check on your bill");
     expect(htmlText).toContain(".headline-card-value");
     expect(htmlText).toContain("white-space: nowrap;");
     expect(htmlText).toContain("data-testid=\"receipt-invoice-check-exposure\"");
@@ -130,6 +135,91 @@ describe("dashboard", () => {
       ok: true,
       service: "inferock-bench",
     });
+  });
+
+  it("feeds dashboard money-loss headline percent from the observed-spend line", async () => {
+    const app = createBenchApp({
+      config: { benchKey: "local_bench_key_ratio" },
+      store: new MemoryStore([
+        storedCall({
+          requestId: "req-dashboard-ratio-loss",
+          generation: { response_format: { type: "json_object" } },
+          responseContent: "not json",
+          usage: { input: 200_000, output: 50_000 },
+        }),
+        storedCall({
+          requestId: "req-dashboard-ratio-spend",
+          usage: { input: 2_000_000, output: 0 },
+        }),
+      ]),
+      env: {},
+      log: () => undefined,
+    });
+
+    const summary = await (await app.request("/api/summary")).json() as {
+      summary: { moneyLossObservedSpendLine: string | null };
+    };
+    expect(summary.summary.moneyLossObservedSpendLine).toMatch(/^money loss = \d+\.\d% of observed spend/);
+    const percent = summary.summary.moneyLossObservedSpendLine?.match(/^money loss = (\d+\.\d)%/)?.[1];
+    if (!percent) throw new Error("dashboard fixture should expose a percent");
+
+    const receipt = await (await app.request("/api/receipt")).json() as { compactText: string };
+    expect(receipt.compactText.split("\n")[0]).toContain(` (${percent}%)`);
+    expect(receipt.compactText.split("\n")[1]).toContain(summary.summary.moneyLossObservedSpendLine);
+  });
+
+  it("feeds dashboard money-loss headline without percent when the ratio is guard-suppressed", async () => {
+    const app = createBenchApp({
+      config: { benchKey: "local_bench_key_ratio_guard" },
+      store: new MemoryStore([
+        storedCall({
+          requestId: "req-dashboard-rounded-zero-loss",
+          generation: { response_format: { type: "json_object" } },
+          responseContent: "not json",
+        }),
+        storedCall({
+          requestId: "req-dashboard-rounded-zero-spend",
+          usage: { input: 3_000_000, output: 0 },
+        }),
+      ]),
+      env: {},
+      log: () => undefined,
+    });
+
+    const summary = await (await app.request("/api/summary")).json() as {
+      summary: { moneyLossObservedSpendLine: string | null };
+    };
+    expect(summary.summary.moneyLossObservedSpendLine).toBeNull();
+
+    const receipt = await (await app.request("/api/receipt")).json() as { compactText: string };
+    const headline = receipt.compactText.split("\n")[0] ?? "";
+    expect(headline).toContain("money loss $");
+    expect(headline).not.toMatch(/money loss [^·]+\(\d+\.\d%\)/);
+  });
+
+  it("feeds dashboard money-loss headline without percent when pricing is unknown", async () => {
+    const app = createBenchApp({
+      config: { benchKey: "local_bench_key_pricing_unknown" },
+      store: new MemoryStore([
+        storedCall({
+          requestId: "req-dashboard-pricing-unknown",
+          model: "missing-model-price",
+          generation: { response_format: { type: "json_object" } },
+          responseContent: "not json",
+        }),
+      ]),
+      env: {},
+      log: () => undefined,
+    });
+
+    const summary = await (await app.request("/api/summary")).json() as {
+      summary: { moneyLossObservedSpendLine: string | null; pricingUnknownCount: number };
+    };
+    expect(summary.summary.pricingUnknownCount).toBeGreaterThan(0);
+    expect(summary.summary.moneyLossObservedSpendLine).toBeNull();
+
+    const receipt = await (await app.request("/api/receipt")).json() as { compactText: string };
+    expect(receipt.compactText.split("\n")[0]).toBe("spent $0.00 · money loss pricing unknown · time loss ~0s · invoice-check exposure $0.00");
   });
 
   it("streams Anthropic SSE through the bench server with a mocked provider", async () => {
@@ -916,6 +1006,9 @@ function storedCall(input: {
   readonly model?: string;
   readonly capturedAt?: string;
   readonly runId?: string;
+  readonly generation?: Record<string, unknown>;
+  readonly responseContent?: string;
+  readonly usage?: CanonicalEventAny["usage"];
 } = {}): StoredBenchEvent {
   const startedAt = input.capturedAt ?? "2026-07-02T00:00:00.000Z";
   const endedAt = input.capturedAt ?? "2026-07-02T00:00:01.000Z";
@@ -927,13 +1020,14 @@ function storedCall(input: {
       model,
       requestId: input.requestId ?? "req-local",
       expectCompletion: true,
+      ...(input.generation ? { generation: input.generation } : {}),
     },
     response: {
       statusCode: 200,
       finishReason: "stop",
-      content: "ok",
+      content: input.responseContent ?? "ok",
     },
-    usage: {
+    usage: input.usage ?? {
       input: 8,
       output: 2,
     },

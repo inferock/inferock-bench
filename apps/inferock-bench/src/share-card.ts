@@ -10,7 +10,7 @@ import {
   type ReceiptBundle,
 } from "./receipt.js";
 import { migrateSpeedTestReceiptBundle, type SpeedTestReceiptBundle } from "./coverage-suite/runner.js";
-import { formatUsd, moneyLossObservedSpendLine, type ReportRow } from "./summary.js";
+import { formatUsd, moneyLossObservedSpendLine, moneyLossObservedSpendPercentFromLine, type ReportRow } from "./summary.js";
 
 export const SHARE_CARD_FOOTER = "github.com/inferock/inferock-bench";
 const DEFAULT_CARD_WIDTH = 68;
@@ -83,7 +83,7 @@ export function createShareCardModel(receipt: ShareCardReceipt): ShareCardModel 
   const pricingUnknownCount = rows.reduce((total, row) => total + (numberValue(row.pricingUnknownCount) ?? 0), 0);
   const measuredCalls = numberValue(totals?.measuredCalls);
   const failures = numberValue(totals?.failures);
-  const spendShare = spendShareLine({ standardLoss, providerSpend, timeLossMs, pricingUnknownCount });
+  const spendShare = spendShareLine({ standardLoss, providerSpend, pricingUnknownCount });
 
   return {
     headline: headlineFor({
@@ -92,6 +92,7 @@ export function createShareCardModel(receipt: ShareCardReceipt): ShareCardModel 
       timeLossMs,
       invoiceCheckExposure,
       pricingUnknownCount,
+      spendShare,
     }),
     receiptLabel: receiptLabel(normalized),
     standardLoss: standardLossLine(standardLoss, pricingUnknownCount),
@@ -218,10 +219,11 @@ function headlineFor(input: {
   readonly timeLossMs: number | null;
   readonly invoiceCheckExposure: number;
   readonly pricingUnknownCount: number;
+  readonly spendShare: string | null;
 }): string {
   return [
     `spent ${input.providerSpend === null ? "not in receipt" : formatShareUsd(input.providerSpend)}`,
-    `money loss ${moneyLossHeadlineValue(input.standardLoss, input.pricingUnknownCount)}`,
+    `money loss ${moneyLossHeadlineValue(input.standardLoss, input.pricingUnknownCount, input.spendShare)}`,
     `time loss ${input.timeLossMs === null ? "not in receipt" : formatApproxTimeLost(input.timeLossMs)}`,
     `invoice-check exposure ${formatShareUsd(input.invoiceCheckExposure)}`,
   ].join(" · ");
@@ -230,19 +232,22 @@ function headlineFor(input: {
 function moneyLossHeadlineValue(
   standardLoss: number | null,
   pricingUnknownCount: number,
+  spendShare: string | null,
 ): string {
   if (pricingUnknownCount > 0 && (standardLoss ?? 0) === 0) return "pricing unknown";
-  return standardLoss === null ? "not in receipt" : formatShareUsd(standardLoss);
+  if (standardLoss === null) return "not in receipt";
+  const formatted = formatShareUsd(standardLoss);
+  const percent = moneyLossObservedSpendPercentFromLine(spendShare);
+  return percent ? `${formatted} (${percent})` : formatted;
 }
 
 function spendShareLine(input: {
   readonly standardLoss: number | null;
   readonly providerSpend: number | null;
-  readonly timeLossMs: number | null;
   readonly pricingUnknownCount: number;
 }): string | null {
-  if ((input.timeLossMs ?? 0) > 0 || input.pricingUnknownCount > 0) return null;
   const standardLoss = input.standardLoss ?? 0;
+  if (input.pricingUnknownCount > 0 && standardLoss === 0) return null;
   if (standardLoss <= 0) return null;
   return moneyLossObservedSpendLine(
     { standardLossUsd: standardLoss, providerSpendUsd: input.providerSpend },

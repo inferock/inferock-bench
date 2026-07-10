@@ -23,7 +23,7 @@
   <a href="#docs">Docs</a>
 </p>
 
-![Inferock Bench dashboard from a real measured cumulative run, captured after traffic loaded, showing the four-element headline spent, money loss, time loss, and invoice-check exposure, plus provider-recognized, recognition-gap, SLA threshold, and surfaces-watched visibility with provider keys masked.](./assets/dashboard-real-traffic.png)
+![Inferock Bench dashboard from a real measured cumulative run, captured after traffic loaded, showing the four-element headline spent, money loss, time loss, and invoice-check exposure, plus the previous-results receipt ledger with provider-recognized, recognition-gap, surfaces-watched, calls, failures, and at-rate translation visible with provider keys masked.](./assets/dashboard-real-traffic.png)
 
 Use it when you need to audit an AI/LLM bill, measure Claude or GPT token usage locally, or answer "was I billed for a failed API call?" It is a local LLM cost-tracking proxy for four measured provider planes: OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints spanning meta-llama, deepseek, mistral, moonshot/kimi, z-ai/glm, and qwen on observed hosts. Everything else is extensible-by-design, not measured today. It does not declare every mismatch an OpenAI overcharge or Anthropic billing error; it preserves token, cost, retry, and failure evidence so billing-integrity questions can be checked.
 

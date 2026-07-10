@@ -16,6 +16,7 @@ import { buildReliabilityIndexPayload } from "./telemetry.js";
 import {
   formatUsd,
   moneyLossObservedSpendLine,
+  moneyLossObservedSpendPercentFromLine,
   providerScopedCoverageTotalSurfaceCount,
   repriceLatencyRow,
   renderReport,
@@ -71,6 +72,11 @@ describe("summary and receipt", () => {
     const report = renderReport(summary);
     expect(report).toContain("pricing unknown — add model price");
     expect(report).not.toContain("BROKEN_OUTPUT/broken_output | refundable_candidate | 1 | $0.00");
+
+    const rendered = renderReceipt(createReceiptBundle(summary), true);
+    expect(rendered.split("\n")[0]).toBe("spent $0.00 · money loss pricing unknown · time loss ~0s · invoice-check exposure $0.00");
+    expect(rendered.split("\n")[0]).not.toContain("(");
+    expect(rendered).not.toContain("money loss =");
   });
 
   it("money-loss-observed-spend-line: uses bill-bounded money loss only and excludes exposure/time dollars", () => {
@@ -103,6 +109,7 @@ describe("summary and receipt", () => {
 
     const rendered = renderReceipt(receipt, true);
 
+    expect(rendered.split("\n")[0]).toBe("spent $100.00 · money loss $10.00 (10.0%) · time loss ~1.0 min · invoice-check exposure $50.00");
     expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $10.00 · money loss = 10.0% of observed spend");
     expect(rendered).not.toContain("money loss = 50.0% of observed spend");
     expect(rendered).not.toContain("money loss = 60.0% of observed spend");
@@ -123,6 +130,11 @@ describe("summary and receipt", () => {
       standardLossUsd: 0.087,
       providerSpendUsd: 1,
     })).toBe("money loss = 8.7% of observed spend");
+
+    expect(moneyLossObservedSpendLine({
+      standardLossUsd: 0.000531,
+      providerSpendUsd: 1.280414,
+    }, { suppressRoundedZero: true })).toBeNull();
   });
 
   it("money-loss-observed-spend-line: renders zero spend without division", () => {
@@ -481,8 +493,10 @@ describe("summary and receipt", () => {
     expect(receipt.totals.duration.timeLossMs).toBe(80_000);
     expect(receipt.totals).not.toHaveProperty("totalLossUsd");
     const rendered = renderReceipt(receipt, true);
+    const moneyLossPercent = moneyLossObservedSpendPercentFromLine(summary.moneyLossObservedSpendLine);
+    if (!moneyLossPercent) throw new Error("fixture should expose a money-loss observed-spend percent");
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss ${formatUsd(summary.moneyTotals.standardLossUsd)} · time loss ~1.3 min · invoice-check exposure $0.00`,
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss ${formatUsd(summary.moneyTotals.standardLossUsd)} (${moneyLossPercent}) · time loss ~1.3 min · invoice-check exposure $0.00`,
     );
     expect(rendered).toContain("approx $");
     expect(rendered).not.toMatch(/total\s*=\s*money\s*\+\s*time/i);
@@ -1648,7 +1662,7 @@ describe("summary and receipt", () => {
     expect(receipt.rows.some((entry) => entry.code === "CACHE_DISCOUNT_AT_RISK")).toBe(false);
     const rendered = renderReceipt(receipt, true);
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s · invoice-check exposure $0.001500`,
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 (0.0%) · time loss ~0s · invoice-check exposure $0.001500`,
     );
     expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
     expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
@@ -1823,7 +1837,7 @@ describe("summary and receipt", () => {
     expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
     expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 · time loss ~0s · invoice-check exposure $0.001500`,
+      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 (0.0%) · time loss ~0s · invoice-check exposure $0.001500`,
     );
   });
 

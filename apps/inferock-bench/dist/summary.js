@@ -250,6 +250,13 @@ export function summarizeBenchEvents(records, window = {}, options = {}) {
     };
     const measures = measureRows(events, signals, summaryContext, signalSource.suiteTaskIds);
     const coverage = coverageSummary(measures, window.runId);
+    const pricingUnknownCount = signals.filter((signal) => signal.code === "PRICING_UNKNOWN" || signal.standardLossStatus === "pricing_unknown").length;
+    const moneyLossSpendLine = pricingUnknownCount > 0 && moneyTotals.standardLossUsd === 0
+        ? null
+        : moneyLossObservedSpendLine({
+            standardLossUsd: moneyTotals.standardLossUsd,
+            providerSpendUsd: moneyTotals.providerSpendUsd,
+        }, { suppressRoundedZero: true });
     return {
         period: {
             since: window.since ? window.since.toISOString() : null,
@@ -258,10 +265,7 @@ export function summarizeBenchEvents(records, window = {}, options = {}) {
         measuredCalls: events.length,
         failureCount: failureSignals.length,
         providerSpendUsd: moneyTotals.providerSpendUsd,
-        moneyLossObservedSpendLine: moneyLossObservedSpendLine({
-            standardLossUsd: moneyTotals.standardLossUsd,
-            providerSpendUsd: moneyTotals.providerSpendUsd,
-        }) ?? "money loss = no priced spend measured",
+        moneyLossObservedSpendLine: moneyLossSpendLine,
         moneyTotals,
         durationTotals,
         standardLossUsd,
@@ -269,7 +273,7 @@ export function summarizeBenchEvents(records, window = {}, options = {}) {
         recognitionGapUsd,
         unrecognizedUsd: recognitionGapUsd,
         totalLostUsd,
-        pricingUnknownCount: signals.filter((signal) => signal.code === "PRICING_UNKNOWN" || signal.standardLossStatus === "pricing_unknown").length,
+        pricingUnknownCount,
         exposures,
         rows,
         measures,
@@ -397,6 +401,10 @@ export function moneyLossObservedSpendLine(input, options = {}) {
         ? ` (small sample: ${formatMeasuredSpendUsd(providerSpendUsd)} measured)`
         : "";
     return `money loss = ${formatted}% of observed spend${annotation}`;
+}
+export function moneyLossObservedSpendPercentFromLine(line) {
+    const match = line?.match(/^money loss = ([0-9]+(?:\.[0-9])?)% of observed spend(?:\s|$)/u);
+    return match?.[1] ? `${match[1]}%` : null;
 }
 function nonnegativeNumberOrNull(value) {
     return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;

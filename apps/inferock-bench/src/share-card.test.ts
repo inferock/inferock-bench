@@ -28,12 +28,12 @@ describe("share card", () => {
     expect(rendered).toContain(SHARE_CARD_FOOTER);
   });
 
-  it("uses the spend-first headline and keeps percent as a secondary line", () => {
+  it("uses the spend-first headline and keeps percent in the headline and secondary line", () => {
     const receipt = measuredReceipt("benchtest-017r3-receipt.json");
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(cardText(rendered)).toContain("spent $0.000555 · money loss $0.000363 · time loss ~0s · invoice-check exposure $0.00");
+    expect(cardText(rendered)).toContain("spent $0.000555 · money loss $0.000363 (65.4%) · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered).toContain("money loss = 65.4% of observed spend");
     expect(rendered).toContain("small sample:");
     expect(rendered).toContain("$0.000555");
@@ -73,12 +73,12 @@ describe("share card", () => {
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
     expect(receipt.totals.money?.standardLossUsd).toBeGreaterThan(0);
-    expect(cardText(rendered)).toContain("spent $0.03 · money loss $0.000531 · time loss ~13s · invoice-check exposure $0.00");
+    expect(cardText(rendered)).toContain("spent $0.03 · money loss $0.000531 (1.7%) · time loss ~13s · invoice-check exposure $0.00");
     expect(rendered).toContain("time lost: ~13s");
     expect(rendered).toContain("provider-recognized time: ~0s");
     expect(rendered).toContain("time gap: ~13s");
     expect(rendered).toContain("approx $0.32 at your rate");
-    expect(rendered).not.toContain("money loss =");
+    expect(rendered).toContain("money loss = 1.7% of observed spend");
     expect(rendered).not.toContain("standard loss on failed LLM calls");
     expect(rendered).not.toContain("money and time");
   });
@@ -135,9 +135,9 @@ describe("share card", () => {
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 96 });
 
-    expect(cardText(rendered)).toContain("spent $0.000016 · money loss $0.000016 · time loss ~0s · invoice-check exposure $0.00");
+    expect(cardText(rendered)).toContain("spent $0.000016 · money loss $0.000016 (100.0%) · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered).toContain("(+1 unpriced failures)");
-    expect(rendered).not.toContain("money loss =");
+    expect(rendered).toContain("money loss = 100.0% of observed spend");
   });
 
   it("does not invent provider-recognized dollars when the field is absent", () => {

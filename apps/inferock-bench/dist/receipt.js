@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { WATERMARK_NAME, WATERMARK_URL } from "./config.js";
-import { formatCoverageStatus, formatUsd, isExposureReportRow, moneyLossObservedSpendLine, renderCoverageSummaryLine, } from "./summary.js";
+import { formatCoverageStatus, formatUsd, isExposureReportRow, moneyLossObservedSpendPercentFromLine, moneyLossObservedSpendLine, renderCoverageSummaryLine, } from "./summary.js";
 import { BENCH_RECEIPT_SCHEMA_VERSION, BENCH_RECEIPT_VERSION, } from "./receipt-schema.js";
 export const LOCAL_RECEIPT_LOCALITY = {
     providerKeysSentToInferock: false,
@@ -115,11 +115,12 @@ export function renderReceipt(input, compact) {
     const inputSchemaVersion = input.schemaVersion;
     const bundle = migrateReceiptBundle(input);
     const exposures = receiptExposures(bundle);
-    const observedSpendLine = compact && inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
+    const headlineObservedSpendLine = inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
         ? receiptMoneyLossObservedSpendLine(bundle)
         : null;
+    const observedSpendLine = compact ? headlineObservedSpendLine : null;
     const lines = [
-        receiptHeadline(bundle),
+        receiptHeadline(bundle, headlineObservedSpendLine),
         receiptMoneyRecognitionLine(bundle, observedSpendLine),
         ...exposures.map(renderExposureLine),
         bundle.title,
@@ -173,13 +174,21 @@ export function renderReceipt(input, compact) {
     lines.push(`${bundle.watermark.name} - ${bundle.watermark.url}`);
     return lines.join("\n");
 }
-function receiptHeadline(bundle) {
+function receiptHeadline(bundle, observedSpendLine) {
     return [
         `spent ${formatUsd(bundle.totals.providerSpendUsd)}`,
-        `money loss ${receiptMoneyLossDisplay(bundle)}`,
+        `money loss ${receiptMoneyLossHeadlineDisplay(bundle, observedSpendLine)}`,
         `time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
         `invoice-check exposure ${formatReceiptUsd(invoiceCheckExposureAmount(bundle.exposures))}`,
     ].join(" · ");
+}
+function receiptMoneyLossHeadlineDisplay(bundle, observedSpendLine) {
+    const display = receiptMoneyLossDisplay(bundle);
+    const pricingUnknownCount = sum(bundle.rows.map((row) => row.pricingUnknownCount));
+    if (pricingUnknownCount > 0 && bundle.totals.money.standardLossUsd === 0)
+        return display;
+    const percent = moneyLossObservedSpendPercentFromLine(observedSpendLine);
+    return percent ? `${display} (${percent})` : display;
 }
 function receiptMoneyLossDisplay(bundle) {
     const pricingUnknownCount = sum(bundle.rows.map((row) => row.pricingUnknownCount));
@@ -195,10 +204,13 @@ function receiptMoneyRecognitionLine(bundle, observedSpendLine) {
     ].filter(Boolean).join(" · ");
 }
 function receiptMoneyLossObservedSpendLine(bundle) {
+    const pricingUnknownCount = sum(bundle.rows.map((row) => row.pricingUnknownCount));
+    if (pricingUnknownCount > 0 && bundle.totals.money.standardLossUsd === 0)
+        return null;
     return moneyLossObservedSpendLine({
         standardLossUsd: bundle.totals.money.standardLossUsd,
         providerSpendUsd: bundle.totals.providerSpendUsd,
-    }) ?? "money loss = no priced spend measured";
+    }, { suppressRoundedZero: true });
 }
 function receiptExposures(bundle) {
     return (bundle.exposures ?? []).filter((exposure) => exposure.amount > 0);

@@ -206,6 +206,7 @@ export function renderDashboardHtml(): string {
       --weight-semibold: 650;
       --tracking-none: 0;
       --page-max: 720px;
+      --capture-page-max: 1052px;
       --dialog-width: 760px;
       --dialog-offset: 28px;
       --control-min: 44px;
@@ -385,12 +386,19 @@ export function renderDashboardHtml(): string {
     }
     .status-line {
       color: var(--secondary);
-      font-size: var(--type-sm);
+      font-size: var(--type-xs);
       line-height: var(--leading-body);
     }
     .stage {
       display: none;
       animation: appear var(--motion);
+    }
+    body[data-static-capture="dashboard-real-traffic"] {
+      --page-max: var(--capture-page-max);
+    }
+    body[data-static-capture="dashboard-real-traffic"] [data-testid="open-settings"],
+    body[data-static-capture="dashboard-real-traffic"] .time-edit-grid {
+      display: none !important;
     }
     body[data-stage="empty"] #emptyStage,
     body[data-stage="running"] #runningStage,
@@ -734,11 +742,11 @@ export function renderDashboardHtml(): string {
       padding: var(--space-2) var(--space-0);
       border-bottom: var(--border-size) solid var(--hairline);
     }
-    .receipt-stage { gap: var(--space-section); }
+    .receipt-stage { gap: var(--space-4); }
     .receipt-hero {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-2);
+      grid-template-columns: minmax(0, .85fr) minmax(0, 1.42fr) minmax(0, .85fr) minmax(0, 1.18fr);
+      gap: var(--space-1);
       align-items: stretch;
     }
     .headline-card {
@@ -749,13 +757,19 @@ export function renderDashboardHtml(): string {
       gap: var(--space-1);
     }
     .headline-card-label {
-      min-height: 2.7em;
       display: flex;
       align-items: flex-start;
       margin-bottom: var(--space-0);
       color: var(--ink);
-      font-size: var(--type-body);
+      font-size: var(--type-sm);
       font-weight: var(--weight-semibold);
+      line-height: var(--leading-body);
+      overflow-wrap: normal;
+      white-space: nowrap;
+    }
+    .headline-card-gloss {
+      overflow-wrap: normal;
+      white-space: nowrap;
     }
     .headline-card-value {
       max-width: 100%;
@@ -790,7 +804,7 @@ export function renderDashboardHtml(): string {
       border-color: transparent;
       background: transparent;
       box-shadow: none;
-      margin-top: var(--space-4);
+      margin-top: var(--space-0);
       padding: var(--space-0);
     }
     .receipt-ledger,
@@ -799,10 +813,17 @@ export function renderDashboardHtml(): string {
       margin-bottom: var(--space-0);
       border-top: var(--border-size) solid var(--hairline);
     }
+    .receipt-ledger {
+      grid-template-columns: minmax(0, 1fr) minmax(7rem, max-content);
+      column-gap: var(--space-3);
+      align-items: stretch;
+    }
     @media (min-width: 760px) {
       .receipt-ledger {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        column-gap: var(--space-5);
+        grid-template-columns:
+          minmax(12rem, 1fr) minmax(7rem, max-content)
+          minmax(12rem, 1fr) minmax(7rem, max-content);
+        column-gap: var(--space-3);
       }
     }
     @media (max-width: 760px) {
@@ -811,19 +832,29 @@ export function renderDashboardHtml(): string {
       }
     }
     .ledger-row:last-child { border-bottom: var(--border-size) solid var(--hairline); }
+    .receipt-ledger > dt,
+    .receipt-ledger > dd {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      padding: var(--space-2) var(--space-0);
+      border-bottom: var(--border-size) solid var(--hairline);
+    }
     .ledger-row span:first-child,
-    dt {
+    .receipt-ledger > dt {
       color: var(--secondary);
       font-size: var(--type-sm);
     }
     .ledger-row strong,
-    dd {
+    .receipt-ledger > dd {
       color: var(--ink);
       font-size: var(--type-body);
       font-weight: var(--weight-semibold);
+      justify-content: flex-end;
+      margin: var(--space-0);
       text-align: right;
     }
-    .ledger-row dd {
+    .receipt-ledger > dd {
       min-width: 0;
       overflow-wrap: anywhere;
     }
@@ -1096,10 +1127,11 @@ export function renderDashboardHtml(): string {
       .advanced-grid {
         grid-template-columns: 1fr;
       }
-      dd,
+      .receipt-ledger > dd,
       .ledger-row strong,
       td.table-number,
       th.table-number { text-align: left; }
+      .receipt-ledger > dd { justify-content: flex-start; }
       .card,
       .surface,
       .receipt-card,
@@ -1246,18 +1278,22 @@ export function renderDashboardHtml(): string {
         <div class="receipt-hero">
           <article class="headline-card">
             <div class="headline-card-label label">Spent</div>
+            <div class="headline-card-gloss small muted">what providers charged</div>
             <strong class="headline-card-value money-headline" id="receiptSpentHeadline" data-testid="spent-headline">$0.00</strong>
           </article>
           <article class="headline-card">
             <div class="headline-card-label label">Money loss</div>
+            <div class="headline-card-gloss small muted">lost within that bill</div>
             <strong class="headline-card-value money-headline" id="receiptMoneyLossHeadline" data-testid="money-headline-standard">$0.00</strong>
           </article>
           <article class="headline-card">
             <div class="headline-card-label label">Time lost</div>
+            <div class="headline-card-gloss small muted">latency & downtime</div>
             <strong class="headline-card-value money-headline" id="receiptTimeLossHeadline" data-testid="time-headline">~0s</strong>
           </article>
           <article class="headline-card">
             <div class="headline-card-label label">Invoice-check exposure</div>
+            <div class="headline-card-gloss small muted">double-check on your bill</div>
             <strong class="headline-card-value money-headline" id="receiptInvoiceCheckExposureHeadline" data-testid="invoice-check-exposure-headline">$0.00</strong>
           </article>
         </div>
@@ -1269,18 +1305,18 @@ export function renderDashboardHtml(): string {
           <span class="summary-secondary-line receipt-title-note" id="receiptMoneyLossSpendShare" data-testid="money-loss-spend-share">money loss = no priced spend measured</span>
         </div>
         <dl class="receipt-ledger ledger">
-          <div class="ledger-row"><dt>Money loss</dt><dd id="receiptStandardLoss" data-testid="receipt-standard-loss">$0.00</dd></div>
-          <div class="ledger-row"><dt>Already recognized by provider</dt><dd id="receiptRecognized" data-testid="receipt-provider-recognized">$0.00</dd></div>
-          <div class="ledger-row"><dt>Money not recognized yet</dt><dd id="receiptGap" data-testid="receipt-gap">$0.00</dd></div>
-          <div class="ledger-row"><dt>Duration loss</dt><dd id="receiptDurationLoss" data-testid="receipt-time-loss">~0s</dd></div>
-          <div class="ledger-row"><dt>Invoice-check exposure</dt><dd id="receiptInvoiceCheckExposure" data-testid="receipt-invoice-check-exposure">$0.00</dd></div>
-          <div class="ledger-row"><dt>Surfaces watched</dt><dd id="receiptSurfaces" data-testid="receipt-surfaces">0 / 0</dd></div>
-          <div class="ledger-row"><dt>Provider recognized time</dt><dd id="receiptRecognizedTime" data-testid="receipt-provider-recognized-time">~0s</dd></div>
-          <div class="ledger-row"><dt>Time not recognized yet</dt><dd id="receiptTimeGap" data-testid="receipt-time-gap">~0s</dd></div>
-          <div class="ledger-row"><dt>Approx at your rate</dt><dd id="receiptDurationTranslation" data-testid="receipt-duration-translation">approx $0.00 at your rate (edit)</dd></div>
-          <div class="ledger-row"><dt>Provider spend observed</dt><dd id="receiptProviderSpend" data-testid="receipt-provider-spend">$0.00</dd></div>
-          <div class="ledger-row"><dt>Calls measured</dt><dd id="receiptCalls" data-testid="receipt-calls">0</dd></div>
-          <div class="ledger-row"><dt>Failures</dt><dd id="receiptFailures" data-testid="receipt-failures">0</dd></div>
+          <dt>Money loss</dt><dd id="receiptStandardLoss" data-testid="receipt-standard-loss">$0.00</dd>
+          <dt>Already recognized by provider</dt><dd id="receiptRecognized" data-testid="receipt-provider-recognized">$0.00</dd>
+          <dt>Money not recognized yet</dt><dd id="receiptGap" data-testid="receipt-gap">$0.00</dd>
+          <dt>Duration loss</dt><dd id="receiptDurationLoss" data-testid="receipt-time-loss">~0s</dd>
+          <dt>Invoice-check exposure</dt><dd id="receiptInvoiceCheckExposure" data-testid="receipt-invoice-check-exposure">$0.00</dd>
+          <dt>Surfaces watched</dt><dd id="receiptSurfaces" data-testid="receipt-surfaces">0 / 0</dd>
+          <dt>Provider recognized time</dt><dd id="receiptRecognizedTime" data-testid="receipt-provider-recognized-time">~0s</dd>
+          <dt>Time not recognized yet</dt><dd id="receiptTimeGap" data-testid="receipt-time-gap">~0s</dd>
+          <dt>Approx at your rate</dt><dd id="receiptDurationTranslation" data-testid="receipt-duration-translation">≈ $0.00</dd>
+          <dt>Provider spend observed</dt><dd id="receiptProviderSpend" data-testid="receipt-provider-spend">$0.00</dd>
+          <dt>Calls measured</dt><dd id="receiptCalls" data-testid="receipt-calls">0</dd>
+          <dt>Failures</dt><dd id="receiptFailures" data-testid="receipt-failures">0</dd>
         </dl>
       </section>
 
@@ -1486,10 +1522,26 @@ export function renderDashboardHtml(): string {
       if (providerSpend <= 0) return "money loss = no priced spend measured";
       const percent = standardLoss / providerSpend * 100;
       if (!Number.isFinite(percent) || percent > 100) return null;
+      const formatted = percent.toFixed(1);
+      if (formatted === "0.0" && standardLoss > 0) return null;
       const annotation = providerSpend < 1
         ? " (small sample: " + formatExposureUsd(providerSpend) + " measured)"
         : "";
-      return "money loss = " + percent.toFixed(1) + "% of observed spend" + annotation;
+      return "money loss = " + formatted + "% of observed spend" + annotation;
+    }
+
+    function moneyLossObservedSpendPercentFromLine(line) {
+      const match = String(line || "").match(/^money loss = ([0-9]+(?:\\.[0-9])?)% of observed spend(?:\\s|$)/);
+      return match && match[1] ? match[1] + "%" : null;
+    }
+
+    function moneyLossHeadlineValue(standardLossUsd, pricingUnknownCount, observedSpendLine) {
+      const standardLoss = Number(standardLossUsd || 0);
+      const hasPricingUnknown = Number(pricingUnknownCount || 0) > 0;
+      if (hasPricingUnknown && standardLoss === 0) return "pricing unknown";
+      const formatted = formatUsd(standardLoss);
+      const percent = moneyLossObservedSpendPercentFromLine(observedSpendLine);
+      return percent ? formatted + " (" + percent + ")" : formatted;
     }
 
     function providerLabel(provider) {
@@ -2198,11 +2250,17 @@ export function renderDashboardHtml(): string {
         recognitionGapTimeMs: 0,
         dollarTranslationUsd: 0,
       };
+      const pricingUnknownCount = Number(summary.pricingUnknownCount || 0);
+      const hasSummarySpendShareLine = Object.prototype.hasOwnProperty.call(summary, "moneyLossObservedSpendLine");
+      const spendShareLine = pricingUnknownCount > 0 && Number(moneyTotals.standardLossUsd || 0) === 0
+        ? null
+        : hasSummarySpendShareLine
+        ? (typeof summary.moneyLossObservedSpendLine === "string" ? summary.moneyLossObservedSpendLine : null)
+        : moneyLossObservedSpendLine(moneyTotals.standardLossUsd, summary.providerSpendUsd);
       $("receiptSpentHeadline").textContent = formatUsd(summary.providerSpendUsd);
-      $("receiptMoneyLossHeadline").textContent = formatUsd(moneyTotals.standardLossUsd);
+      $("receiptMoneyLossHeadline").textContent = moneyLossHeadlineValue(moneyTotals.standardLossUsd, pricingUnknownCount, spendShareLine);
       const invoiceCheckExposure = invoiceCheckExposureAmount(summary.exposures || []);
       $("receiptInvoiceCheckExposureHeadline").textContent = formatExposureUsd(invoiceCheckExposure);
-      const spendShareLine = summary.moneyLossObservedSpendLine || moneyLossObservedSpendLine(moneyTotals.standardLossUsd, summary.providerSpendUsd);
       $("receiptMoneyLossSpendShare").textContent = spendShareLine || "";
       $("receiptMoneyLossSpendShare").hidden = !spendShareLine;
       $("receiptTimeLossHeadline").textContent = formatApproxTimeLost(durationTotals.timeLossMs);
@@ -2213,7 +2271,7 @@ export function renderDashboardHtml(): string {
       $("receiptInvoiceCheckExposure").textContent = formatExposureUsd(invoiceCheckExposure);
       $("receiptRecognizedTime").textContent = formatApproxTimeLost(durationTotals.providerRecognizedTimeLossMs);
       $("receiptTimeGap").textContent = formatApproxTimeLost(durationTotals.recognitionGapTimeMs);
-      $("receiptDurationTranslation").textContent = "approx " + formatUsd(durationTotals.dollarTranslationUsd) + " at your rate (edit)";
+      $("receiptDurationTranslation").textContent = "≈ " + formatUsd(durationTotals.dollarTranslationUsd);
       $("receiptProviderSpend").textContent = formatUsd(summary.providerSpendUsd);
       $("receiptCalls").textContent = integer.format(summary.measuredCalls);
       $("receiptFailures").textContent = integer.format(summary.failureCount);

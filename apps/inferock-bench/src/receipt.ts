@@ -6,6 +6,7 @@ import {
   formatCoverageStatus,
   formatUsd,
   isExposureReportRow,
+  moneyLossObservedSpendPercentFromLine,
   moneyLossObservedSpendLine,
   type ReportRow,
   renderCoverageSummaryLine,
@@ -188,11 +189,12 @@ export function renderReceipt(input: ReceiptBundle | LegacyReceiptBundleV1, comp
   const inputSchemaVersion = input.schemaVersion;
   const bundle = migrateReceiptBundle(input);
   const exposures = receiptExposures(bundle);
-  const observedSpendLine = compact && inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
+  const headlineObservedSpendLine = inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
     ? receiptMoneyLossObservedSpendLine(bundle)
     : null;
+  const observedSpendLine = compact ? headlineObservedSpendLine : null;
   const lines = [
-    receiptHeadline(bundle),
+    receiptHeadline(bundle, headlineObservedSpendLine),
     receiptMoneyRecognitionLine(bundle, observedSpendLine),
     ...exposures.map(renderExposureLine),
     bundle.title,
@@ -248,13 +250,21 @@ export function renderReceipt(input: ReceiptBundle | LegacyReceiptBundleV1, comp
   return lines.join("\n");
 }
 
-function receiptHeadline(bundle: ReceiptBundle): string {
+function receiptHeadline(bundle: ReceiptBundle, observedSpendLine: string | null): string {
   return [
     `spent ${formatUsd(bundle.totals.providerSpendUsd)}`,
-    `money loss ${receiptMoneyLossDisplay(bundle)}`,
+    `money loss ${receiptMoneyLossHeadlineDisplay(bundle, observedSpendLine)}`,
     `time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
     `invoice-check exposure ${formatReceiptUsd(invoiceCheckExposureAmount(bundle.exposures))}`,
   ].join(" · ");
+}
+
+function receiptMoneyLossHeadlineDisplay(bundle: ReceiptBundle, observedSpendLine: string | null): string {
+  const display = receiptMoneyLossDisplay(bundle);
+  const pricingUnknownCount = sum(bundle.rows.map((row) => row.pricingUnknownCount));
+  if (pricingUnknownCount > 0 && bundle.totals.money.standardLossUsd === 0) return display;
+  const percent = moneyLossObservedSpendPercentFromLine(observedSpendLine);
+  return percent ? `${display} (${percent})` : display;
 }
 
 function receiptMoneyLossDisplay(bundle: ReceiptBundle): string {
@@ -271,11 +281,13 @@ function receiptMoneyRecognitionLine(bundle: ReceiptBundle, observedSpendLine: s
   ].filter(Boolean).join(" · ");
 }
 
-function receiptMoneyLossObservedSpendLine(bundle: ReceiptBundle): string {
+function receiptMoneyLossObservedSpendLine(bundle: ReceiptBundle): string | null {
+  const pricingUnknownCount = sum(bundle.rows.map((row) => row.pricingUnknownCount));
+  if (pricingUnknownCount > 0 && bundle.totals.money.standardLossUsd === 0) return null;
   return moneyLossObservedSpendLine({
     standardLossUsd: bundle.totals.money.standardLossUsd,
     providerSpendUsd: bundle.totals.providerSpendUsd,
-  }) ?? "money loss = no priced spend measured";
+  }, { suppressRoundedZero: true });
 }
 
 function receiptExposures(bundle: ReceiptBundle): BenchSummary["exposures"] {

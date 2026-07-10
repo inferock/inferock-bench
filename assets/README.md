@@ -20,7 +20,7 @@ Read this before adding or replacing a visual. The rule is simple: product proof
 
 ## Captured 2026-07-10
 
-- `dashboard-real-traffic.png` - Playwright screenshot of the local dashboard at `http://127.0.0.1:4318/`, loaded from the cumulative event store after the previous-results view and fade-in animation settled, clipped to the dashboard content column plus capture padding.
+- `dashboard-real-traffic.png` - 2x-DPR Playwright screenshot of the local dashboard at `http://127.0.0.1:4318/`, loaded from the cumulative event store after the previous-results view and fade-in animation settled, clipped to the dashboard content column through the previous-results ledger plus capture padding.
 - `receipt-real-traffic.png` - terminal-style PNG rendered by Playwright from the post-merge `src/index.ts receipt --compact` output against the cumulative event store.
 - `bench-demo.gif` - terminal GIF rendered from sanitized cumulative run evidence: startup/version, real provider scope, `first call measured`, and the final four-element receipt headline.
 - Traffic: 1,268 measured calls routed through `inferock-bench` 0.1.10 since 2026-07-09 across OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints, using maintainer-owned development provider keys; key values were never committed.

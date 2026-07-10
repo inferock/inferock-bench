@@ -7,11 +7,20 @@ import playwright, { type Page } from "@playwright/test";
 import { createBenchApp } from "../src/proxy.js";
 import { JsonlEventStore } from "../src/storage.js";
 import type { BenchConfig, BenchPaths } from "../src/config.js";
+import {
+  DASHBOARD_CAPTURE_CLIP_PADDING,
+  DASHBOARD_CAPTURE_CLIP_WIDTH,
+  DASHBOARD_CAPTURE_DEVICE_SCALE_FACTOR,
+  DASHBOARD_CAPTURE_PAGE_WIDTH,
+  DASHBOARD_CAPTURE_VIEWPORT_HEIGHT,
+  DASHBOARD_CAPTURE_VIEWPORT_WIDTH,
+} from "../src/dashboard-capture-spec.js";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
 const seedRunId = "speedtest_20f50256-1816-4078-97af-2b9582c15c44";
 const benchKey = "capture-local-placeholder";
+const captureDeviceScaleFactor = DASHBOARD_CAPTURE_DEVICE_SCALE_FACTOR;
 const defaultComponentRoot = process.env.INFEROCK_BENCH_CAPTURE_COMPONENT_ROOT
   ? resolve(process.env.INFEROCK_BENCH_CAPTURE_COMPONENT_ROOT)
   : resolve(repoRoot, "scratchpad");
@@ -47,11 +56,23 @@ interface HeadlineMetric {
   readonly valueText: string;
   readonly valueTop: number;
   readonly valueBottom: number;
+  readonly labelWhiteSpace: string;
   readonly whiteSpace: string;
+  readonly labelScrollWidth: number;
+  readonly labelClientWidth: number;
   readonly height: number;
   readonly lineHeight: number;
   readonly scrollWidth: number;
   readonly clientWidth: number;
+}
+
+interface LedgerDividerMetric {
+  readonly rowIndex: number;
+  readonly labels: readonly string[];
+  readonly leftRuleY: number;
+  readonly rightRuleY: number;
+  readonly minRuleY: number;
+  readonly maxRuleY: number;
 }
 
 function usage(): string {
@@ -64,9 +85,9 @@ function usage(): string {
     "  --run15-events <path>     Override the run15 extracted event component.",
     "  --capture-home <path>     Temporary INFEROCK_BENCH_HOME for reassembled store.",
     "  --output <path>           Dashboard PNG output path.",
-    "  --viewport-width <px>     Desktop viewport width. Default: 1440.",
-    "  --viewport-height <px>    Desktop viewport height. Default: 1100.",
-    "  --clip-padding <px>       Padding around the rendered .page content column. Default: 24.",
+    `  --viewport-width <px>     Desktop viewport width. Default: ${DASHBOARD_CAPTURE_VIEWPORT_WIDTH}.`,
+    `  --viewport-height <px>    Desktop viewport height. Default: ${DASHBOARD_CAPTURE_VIEWPORT_HEIGHT}.`,
+    `  --clip-padding <px>       Padding around the rendered .page content column. Default: ${DASHBOARD_CAPTURE_CLIP_PADDING}.`,
   ].join("\n");
 }
 
@@ -76,9 +97,9 @@ function parseArgs(argv: readonly string[]): CaptureOptions {
   let run15Events: string | undefined;
   let captureHome = resolve(repoRoot, "scratchpad/dashboard-real-traffic-capture/.inferock-bench");
   let outputPath = resolve(repoRoot, "oss/public-root/assets/dashboard-real-traffic.png");
-  let viewportWidth = 1440;
-  let viewportHeight = 1100;
-  let clipPadding = 24;
+  let viewportWidth = DASHBOARD_CAPTURE_VIEWPORT_WIDTH;
+  let viewportHeight = DASHBOARD_CAPTURE_VIEWPORT_HEIGHT;
+  let clipPadding = DASHBOARD_CAPTURE_CLIP_PADDING;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -233,7 +254,7 @@ async function waitForDashboardValues(page: Page): Promise<void> {
   await page.waitForSelector('[data-testid="done-state"]', { state: "visible" });
   await page.waitForFunction(() => document.body.dataset.stage === "done");
   await assertTestIdText(page, "spent-headline", "$7.15");
-  await assertTestIdText(page, "money-headline-standard", "$0.07");
+  await assertTestIdText(page, "money-headline-standard", "$0.07 (1.0%)");
   await assertTestIdText(page, "time-headline", "~2.9 min");
   await assertTestIdText(page, "invoice-check-exposure-headline", "$16.80");
   await assertTestIdText(page, "receipt-calls", "1,268");
@@ -282,8 +303,8 @@ async function assertHeadlineAlignment(page: Page): Promise<void> {
     const cardRect = (card as HTMLElement).getBoundingClientRect();
     const labelRect = label.getBoundingClientRect();
     const valueRect = value.getBoundingClientRect();
-    const style = window.getComputedStyle(value);
     const labelStyle = window.getComputedStyle(label);
+    const style = window.getComputedStyle(value);
     return {
       cardTop: cardRect.top,
       labelText: label.textContent?.trim() ?? "",
@@ -293,7 +314,10 @@ async function assertHeadlineAlignment(page: Page): Promise<void> {
       valueText: value.textContent?.trim() ?? "",
       valueTop: valueRect.top,
       valueBottom: valueRect.bottom,
+      labelWhiteSpace: labelStyle.whiteSpace,
       whiteSpace: style.whiteSpace,
+      labelScrollWidth: label.scrollWidth,
+      labelClientWidth: label.clientWidth,
       height: valueRect.height,
       lineHeight: Number.parseFloat(style.lineHeight),
       scrollWidth: value.scrollWidth,
@@ -303,15 +327,18 @@ async function assertHeadlineAlignment(page: Page): Promise<void> {
   if (headlineMetrics.length !== 4) throw new Error(`expected four headline cards, saw ${headlineMetrics.length}`);
 
   for (const metric of headlineMetrics) {
+    if (metric.labelWhiteSpace !== "nowrap") {
+      throw new Error(`headline label ${metric.labelText} is not nowrap`);
+    }
+    if (Math.abs(metric.labelHeight - metric.labelLineHeight) > 1) {
+      throw new Error(`headline label ${metric.labelText} is not exactly one line`);
+    }
+    if (metric.labelScrollWidth > metric.labelClientWidth + 1) {
+      throw new Error(`headline label ${metric.labelText} overflowed`);
+    }
     if (metric.whiteSpace !== "nowrap") throw new Error(`headline value ${metric.valueText} is not nowrap`);
     if (metric.height > metric.lineHeight * 1.2) throw new Error(`headline value ${metric.valueText} wrapped vertically`);
     if (metric.scrollWidth > metric.clientWidth + 1) throw new Error(`headline value ${metric.valueText} overflowed`);
-  }
-  if (!headlineMetrics.some((metric) =>
-    metric.labelText === "Invoice-check exposure" &&
-    metric.labelHeight >= metric.labelLineHeight * 1.8
-  )) {
-    throw new Error("expected invoice-check exposure to exercise a two-line fixed label zone");
   }
   const labelHeights = headlineMetrics.map((metric) => metric.labelHeight);
   if (Math.max(...labelHeights) - Math.min(...labelHeights) > 1) {
@@ -334,13 +361,107 @@ async function assertHeadlineAlignment(page: Page): Promise<void> {
   }
 }
 
+async function assertLedgerDividerAlignment(page: Page): Promise<void> {
+  const metrics: LedgerDividerMetric[] = await page.locator(".receipt-ledger").evaluate((ledger) => {
+    const element = ledger as HTMLElement;
+    const computed = window.getComputedStyle(element);
+    if (computed.display !== "grid") throw new Error("receipt ledger is not a CSS grid");
+    if (computed.gridTemplateColumns.split(" ").length !== 4) {
+      throw new Error(`receipt ledger capture grid does not have four columns: ${computed.gridTemplateColumns}`);
+    }
+
+    const cells = Array.from(element.children) as HTMLElement[];
+    if (cells.length % 4 !== 0) throw new Error(`receipt ledger cell count ${cells.length} is not divisible by four`);
+
+    const rows: LedgerDividerMetric[] = [];
+    for (let index = 0; index < cells.length; index += 4) {
+      const rowCells = cells.slice(index, index + 4);
+      const bottoms = rowCells.map((cell) => cell.getBoundingClientRect().bottom);
+      const leftRuleY = Math.max(bottoms[0] ?? 0, bottoms[1] ?? 0);
+      const rightRuleY = Math.max(bottoms[2] ?? 0, bottoms[3] ?? 0);
+      rows.push({
+        rowIndex: index / 4,
+        labels: [rowCells[0]?.textContent?.trim() ?? "", rowCells[2]?.textContent?.trim() ?? ""],
+        leftRuleY,
+        rightRuleY,
+        minRuleY: Math.min(...bottoms),
+        maxRuleY: Math.max(...bottoms),
+      });
+    }
+    return rows;
+  });
+
+  if (metrics.length === 0) throw new Error("receipt ledger produced no divider rows");
+  for (const metric of metrics) {
+    if (Math.abs(metric.leftRuleY - metric.rightRuleY) > 1 || metric.maxRuleY - metric.minRuleY > 1) {
+      throw new Error(`receipt ledger divider row ${metric.rowIndex} is misaligned: ${JSON.stringify(metric)}`);
+    }
+  }
+}
+
+async function assertCaptureSpec(page: Page, options: CaptureOptions, clip: CaptureClip): Promise<void> {
+  if (captureDeviceScaleFactor !== DASHBOARD_CAPTURE_DEVICE_SCALE_FACTOR) {
+    throw new Error(`capture deviceScaleFactor ${captureDeviceScaleFactor} does not match ${DASHBOARD_CAPTURE_DEVICE_SCALE_FACTOR}`);
+  }
+  if (options.clipPadding !== DASHBOARD_CAPTURE_CLIP_PADDING) {
+    throw new Error(`capture clip padding ${options.clipPadding} does not match ${DASHBOARD_CAPTURE_CLIP_PADDING}`);
+  }
+  if (clip.width !== DASHBOARD_CAPTURE_CLIP_WIDTH) {
+    throw new Error(`capture clip width ${clip.width} does not match ${DASHBOARD_CAPTURE_CLIP_WIDTH}`);
+  }
+
+  const boundary = await page.locator(".page").evaluate((element, input) => {
+    const pageRect = (element as HTMLElement).getBoundingClientRect();
+    const ledger = document.querySelector(".receipt-card") as HTMLElement | null;
+    const actionSection = document.querySelector(".action-section") as HTMLElement | null;
+    if (!ledger) throw new Error("receipt ledger section not found for capture invariant");
+    const ledgerRect = ledger.getBoundingClientRect();
+    const actionTop = actionSection?.getBoundingClientRect().top ?? null;
+    return {
+      pageWidth: pageRect.width,
+      expectedClipBottom: Math.ceil(ledgerRect.bottom + input.clipPadding),
+      clipBottom: input.clip.y + input.clip.height,
+      actionTop,
+    };
+  }, { clip, clipPadding: options.clipPadding });
+
+  if (Math.abs(boundary.pageWidth - DASHBOARD_CAPTURE_PAGE_WIDTH) > 1) {
+    throw new Error(`capture page width ${boundary.pageWidth} does not match ${DASHBOARD_CAPTURE_PAGE_WIDTH}`);
+  }
+  if (Math.abs(boundary.clipBottom - boundary.expectedClipBottom) > 1) {
+    throw new Error(`capture clip bottom ${boundary.clipBottom} does not land on previous-results ledger boundary ${boundary.expectedClipBottom}`);
+  }
+  if (boundary.actionTop !== null && boundary.clipBottom > boundary.actionTop) {
+    throw new Error(`capture clip enters action section: bottom ${boundary.clipBottom}, action top ${boundary.actionTop}`);
+  }
+}
+
+async function assertCaptureInvariants(page: Page, options: CaptureOptions, clip: CaptureClip): Promise<void> {
+  await assertHeadlineAlignment(page);
+  await assertLedgerDividerAlignment(page);
+  await assertCaptureSpec(page, options, clip);
+}
+
 async function contentColumnClip(page: Page, options: CaptureOptions): Promise<CaptureClip> {
   const clip: CaptureClip = await page.locator(".page").evaluate((element, input) => {
     const rect = (element as HTMLElement).getBoundingClientRect();
+    const ledger = document.querySelector(".receipt-card") as HTMLElement | null;
+    if (!ledger) throw new Error("receipt ledger section not found for capture clip");
+    const ledgerRect = ledger.getBoundingClientRect();
+    const actionSection = document.querySelector(".action-section") as HTMLElement | null;
+    const bottom = Math.ceil(ledgerRect.bottom + input.clipPadding);
+    if (bottom > input.viewportHeight) {
+      throw new Error(`receipt ledger bottom ${bottom} exceeds viewport height ${input.viewportHeight}`);
+    }
+    if (actionSection) {
+      const actionTop = actionSection.getBoundingClientRect().top;
+      if (bottom > actionTop) {
+        throw new Error(`capture clip would cut into action section: bottom ${bottom}, action top ${actionTop}`);
+      }
+    }
     const x = Math.max(0, Math.floor(rect.left - input.clipPadding));
     const y = Math.max(0, Math.floor(rect.top - input.clipPadding));
     const right = Math.min(input.viewportWidth, Math.ceil(rect.right + input.clipPadding));
-    const bottom = input.viewportHeight;
     return {
       x,
       y,
@@ -354,8 +475,16 @@ async function contentColumnClip(page: Page, options: CaptureOptions): Promise<C
   });
 
   if (clip.width <= 0 || clip.height <= 0) throw new Error(`invalid screenshot clip ${JSON.stringify(clip)}`);
-  if (clip.width > 900) throw new Error(`content clip is too wide and would retain dead margins: ${JSON.stringify(clip)}`);
+  if (clip.width > DASHBOARD_CAPTURE_CLIP_WIDTH) {
+    throw new Error(`content clip is too wide and would retain dead margins: ${JSON.stringify(clip)}`);
+  }
   return clip;
+}
+
+async function applyStaticCaptureMode(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    document.body.dataset.staticCapture = "dashboard-real-traffic";
+  });
 }
 
 async function addWatermarkInsideClip(page: Page, clip: CaptureClip): Promise<void> {
@@ -374,6 +503,7 @@ async function addWatermarkInsideClip(page: Page, clip: CaptureClip): Promise<vo
       left: `${captureClip.x + captureClip.width - 22}px`,
       top: `${top}px`,
       transform: "translateX(-100%)",
+      width: "max-content",
       zIndex: "2147483647",
       padding: "7px 12px",
       border: "1px solid #D8D1C7",
@@ -385,6 +515,7 @@ async function addWatermarkInsideClip(page: Page, clip: CaptureClip): Promise<vo
       fontWeight: "700",
       lineHeight: "1",
       letterSpacing: "0",
+      whiteSpace: "nowrap",
     });
     document.body.appendChild(watermark);
   }, { captureClip: clip, top: watermarkTop });
@@ -405,14 +536,15 @@ async function captureDashboard(options: CaptureOptions): Promise<void> {
   try {
     const page = await browser.newPage({
       viewport: { width: options.viewportWidth, height: options.viewportHeight },
-      deviceScaleFactor: 1,
+      deviceScaleFactor: captureDeviceScaleFactor,
     });
     await page.goto(`http://127.0.0.1:${server.port}/`, { waitUntil: "networkidle" });
     await waitForDashboardValues(page);
+    await applyStaticCaptureMode(page);
     await assertNoVisibleKeyPanel(page);
     await assertNoVisibleSecretsOrHostPaths(page);
-    await assertHeadlineAlignment(page);
     const clip = await contentColumnClip(page, options);
+    await assertCaptureInvariants(page, options, clip);
     await addWatermarkInsideClip(page, clip);
     await page.waitForTimeout(300);
     await mkdir(dirname(options.outputPath), { recursive: true });
@@ -424,8 +556,10 @@ async function captureDashboard(options: CaptureOptions): Promise<void> {
       outputPath: options.outputPath,
       sha256: `sha256:${hash}`,
       bytes,
-      dimensions: `${clip.width} x ${clip.height}`,
-      captureMethod: `1440x1100 desktop viewport; Playwright screenshot clip of .page bounding box plus ${options.clipPadding}px padding`,
+      dimensions: `${clip.width * captureDeviceScaleFactor} x ${clip.height * captureDeviceScaleFactor}`,
+      cssDimensions: `${clip.width} x ${clip.height}`,
+      deviceScaleFactor: captureDeviceScaleFactor,
+      captureMethod: `${options.viewportWidth}x${options.viewportHeight} desktop viewport at ${captureDeviceScaleFactor}x DPR; Playwright screenshot clip of ${DASHBOARD_CAPTURE_PAGE_WIDTH}px .page bounding box plus ${options.clipPadding}px padding (${DASHBOARD_CAPTURE_CLIP_WIDTH}px CSS clip width), ending after the previous-results ledger`,
       clip,
       cumulativeEvents: 1268,
       eventsHash,

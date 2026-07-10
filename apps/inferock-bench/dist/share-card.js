@@ -4,7 +4,7 @@ import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { LEGACY_SPEEDTEST_RECEIPT_SCHEMA_VERSION, SPEEDTEST_RECEIPT_SCHEMA_VERSION, } from "./receipt-schema.js";
 import { migrateReceiptBundle, } from "./receipt.js";
 import { migrateSpeedTestReceiptBundle } from "./coverage-suite/runner.js";
-import { formatUsd, moneyLossObservedSpendLine } from "./summary.js";
+import { formatUsd, moneyLossObservedSpendLine, moneyLossObservedSpendPercentFromLine } from "./summary.js";
 export const SHARE_CARD_FOOTER = "github.com/inferock/inferock-bench";
 const DEFAULT_CARD_WIDTH = 68;
 const MIN_CARD_WIDTH = 48;
@@ -32,7 +32,7 @@ export function createShareCardModel(receipt) {
     const pricingUnknownCount = rows.reduce((total, row) => total + (numberValue(row.pricingUnknownCount) ?? 0), 0);
     const measuredCalls = numberValue(totals?.measuredCalls);
     const failures = numberValue(totals?.failures);
-    const spendShare = spendShareLine({ standardLoss, providerSpend, timeLossMs, pricingUnknownCount });
+    const spendShare = spendShareLine({ standardLoss, providerSpend, pricingUnknownCount });
     return {
         headline: headlineFor({
             standardLoss,
@@ -40,6 +40,7 @@ export function createShareCardModel(receipt) {
             timeLossMs,
             invoiceCheckExposure,
             pricingUnknownCount,
+            spendShare,
         }),
         receiptLabel: receiptLabel(normalized),
         standardLoss: standardLossLine(standardLoss, pricingUnknownCount),
@@ -149,20 +150,24 @@ function normalizeReceipt(receipt) {
 function headlineFor(input) {
     return [
         `spent ${input.providerSpend === null ? "not in receipt" : formatShareUsd(input.providerSpend)}`,
-        `money loss ${moneyLossHeadlineValue(input.standardLoss, input.pricingUnknownCount)}`,
+        `money loss ${moneyLossHeadlineValue(input.standardLoss, input.pricingUnknownCount, input.spendShare)}`,
         `time loss ${input.timeLossMs === null ? "not in receipt" : formatApproxTimeLost(input.timeLossMs)}`,
         `invoice-check exposure ${formatShareUsd(input.invoiceCheckExposure)}`,
     ].join(" · ");
 }
-function moneyLossHeadlineValue(standardLoss, pricingUnknownCount) {
+function moneyLossHeadlineValue(standardLoss, pricingUnknownCount, spendShare) {
     if (pricingUnknownCount > 0 && (standardLoss ?? 0) === 0)
         return "pricing unknown";
-    return standardLoss === null ? "not in receipt" : formatShareUsd(standardLoss);
+    if (standardLoss === null)
+        return "not in receipt";
+    const formatted = formatShareUsd(standardLoss);
+    const percent = moneyLossObservedSpendPercentFromLine(spendShare);
+    return percent ? `${formatted} (${percent})` : formatted;
 }
 function spendShareLine(input) {
-    if ((input.timeLossMs ?? 0) > 0 || input.pricingUnknownCount > 0)
-        return null;
     const standardLoss = input.standardLoss ?? 0;
+    if (input.pricingUnknownCount > 0 && standardLoss === 0)
+        return null;
     if (standardLoss <= 0)
         return null;
     return moneyLossObservedSpendLine({ standardLossUsd: standardLoss, providerSpendUsd: input.providerSpend }, { suppressRoundedZero: true });

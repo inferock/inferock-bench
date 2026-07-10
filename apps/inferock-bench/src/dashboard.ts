@@ -738,14 +738,31 @@ export function renderDashboardHtml(): string {
     .receipt-hero {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-4);
-      align-items: end;
+      gap: var(--space-2);
+      align-items: stretch;
     }
-    .receipt-hero .label {
+    .headline-card {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: var(--space-1);
+    }
+    .headline-card-label {
+      min-height: 2.7em;
+      display: flex;
+      align-items: flex-start;
       margin-bottom: var(--space-0);
       color: var(--ink);
       font-size: var(--type-body);
       font-weight: var(--weight-semibold);
+    }
+    .headline-card-value {
+      max-width: 100%;
+      overflow-wrap: normal;
+      white-space: nowrap;
+      word-break: normal;
+      font-size: var(--type-section);
     }
     .summary-secondary-line {
       display: block;
@@ -786,6 +803,11 @@ export function renderDashboardHtml(): string {
       .receipt-ledger {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         column-gap: var(--space-5);
+      }
+    }
+    @media (max-width: 760px) {
+      .receipt-hero {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
     .ledger-row:last-child { border-bottom: var(--border-size) solid var(--hairline); }
@@ -1222,22 +1244,22 @@ export function renderDashboardHtml(): string {
         <p class="small muted" id="receiptModeNote" data-testid="receipt-mode-note" hidden></p>
         <div class="run-history-list" id="previousRunList" data-testid="previous-run-list" hidden></div>
         <div class="receipt-hero">
-          <div>
-            <div class="label">Spent</div>
-            <strong class="money-headline" id="receiptSpentHeadline" data-testid="spent-headline">$0.00</strong>
-          </div>
-          <div>
-            <div class="label">Money loss</div>
-            <strong class="money-headline" id="receiptMoneyLossHeadline" data-testid="money-headline-standard">$0.00</strong>
-          </div>
-          <div>
-            <div class="label">Time lost</div>
-            <strong class="money-headline" id="receiptTimeLossHeadline" data-testid="time-headline">~0s</strong>
-          </div>
-          <div>
-            <div class="label">Invoice-check exposure</div>
-            <strong class="money-headline" id="receiptInvoiceCheckExposureHeadline" data-testid="invoice-check-exposure-headline">$0.00</strong>
-          </div>
+          <article class="headline-card">
+            <div class="headline-card-label label">Spent</div>
+            <strong class="headline-card-value money-headline" id="receiptSpentHeadline" data-testid="spent-headline">$0.00</strong>
+          </article>
+          <article class="headline-card">
+            <div class="headline-card-label label">Money loss</div>
+            <strong class="headline-card-value money-headline" id="receiptMoneyLossHeadline" data-testid="money-headline-standard">$0.00</strong>
+          </article>
+          <article class="headline-card">
+            <div class="headline-card-label label">Time lost</div>
+            <strong class="headline-card-value money-headline" id="receiptTimeLossHeadline" data-testid="time-headline">~0s</strong>
+          </article>
+          <article class="headline-card">
+            <div class="headline-card-label label">Invoice-check exposure</div>
+            <strong class="headline-card-value money-headline" id="receiptInvoiceCheckExposureHeadline" data-testid="invoice-check-exposure-headline">$0.00</strong>
+          </article>
         </div>
       </section>
 

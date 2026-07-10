@@ -50,6 +50,10 @@ describe("dashboard", () => {
     expect(htmlText).toContain("Surfaces watched");
     expect(htmlText).toContain("data-testid=\"money-loss-spend-share\"");
     expect(htmlText).toContain("data-testid=\"invoice-check-exposure-headline\"");
+    expect(htmlText.match(/class="headline-card"/g) ?? []).toHaveLength(4);
+    expect(htmlText.match(/class="headline-card-value money-headline"/g) ?? []).toHaveLength(4);
+    expect(htmlText).toContain(".headline-card-value");
+    expect(htmlText).toContain("white-space: nowrap;");
     expect(htmlText).toContain("data-testid=\"receipt-invoice-check-exposure\"");
     expect(htmlText).toContain("What should I do about it?");
     expect(htmlText).toContain("data-testid=\"exposure-card\"");

@@ -37,13 +37,14 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 
 - public-run-id: `inferock-bench-0.1.10-cumulative-ledger-2026-07-09-through-run15-2026-07-10`.
 - package-version: `inferock-bench` 0.1.10.
-- source: Playwright screenshot of the local dashboard loaded from the cumulative event store after prior results opened and the fade-in animation settled. Watermark overlaid during capture.
+- source: Playwright screenshot of the local dashboard loaded from the rebuilt cumulative event store after prior results opened and the fade-in animation settled; re-rendered after the headline-card nowrap fix. Store assembly used 107 newrun events plus 1,162 run15 extracted-store events with the run15 seed/carry-forward row `speedtest_20f50256-1816-4078-97af-2b9582c15c44` dropped. Watermark overlaid during capture.
 - traffic-summary: 1,268 measured calls since 2026-07-09 across OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints; 565 failures/signals; observed spend `$7.15`; bill-bounded money loss `$0.07` (stored exact `$0.073875`); provider-recognized `$0.05`; recognition gap `$0.02`; time loss `~2.9 min`; at-rate translation `$4.449810`; invoice-check exposure `$16.80` across 202 signals; surfaces watched 12/13. Invoice-check exposure is separate and not summed into money loss.
+- capture-hash: `sha256:37d604d422ea9177b41b1775b0b547708a5ff0480a371968bde1e10f17687c97` (`dashboard-real-traffic.png`, 96,230 bytes).
 - asset-dimensions: 1440 x 1100 PNG.
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead where paths appear; watermark is `github.com/inferock/inferock-bench`.
 - masking-check: provider-key panel hidden and rendered pixels checked for local bench keys, provider keys, host-user paths, settled dashboard state, four-element headline, and watermark correctness.
 - human-sign-off: pending user sign-off, 2026-07-10.
-- masked-verified: 2026-07-10 by conductor visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
+- masked-verified: 2026-07-10 by conductor visual inspection (24th lineage; card alignment four-criteria check + masking, post user-caught wrap fix)
 
 ### `receipt-real-traffic.png`
 

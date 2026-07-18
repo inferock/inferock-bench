@@ -115,6 +115,49 @@ describe("summary and receipt", () => {
     expect(rendered).not.toContain("money loss = 60.0% of observed spend");
   });
 
+  it("bill-bounded-invariant: caps same-call floor plus delta before summary money totals", () => {
+    const event = v2Event({
+      request: {
+        requestId: "req-bill-bound-floor-plus-delta",
+        generation: { response_format: { type: "json_object" } },
+      },
+      response: {
+        content: "not json",
+      },
+      usage: {
+        input: 100,
+        output: 100,
+        cache: { read: 0, creation: 0 },
+        categories: [
+          { category: "input", tokens: 100, provider: "openai" },
+          { category: "output", tokens: 100, provider: "openai" },
+        ],
+      },
+    });
+
+    const summary = summarizeBenchEvents([stored(event)]);
+    const brokenOutput = reportRow(summary, "BROKEN_OUTPUT");
+    const tokenRecount = reportRow(summary, "OPENAI_TOKEN_RECOUNT_MISMATCH");
+    const perCallMoneyLossUsd = roundUsd(sum(
+      summary.rows
+        .filter((row) => row.primaryValueKind === "money")
+        .map((row) => row.standardLossUsd),
+    ));
+
+    expect(brokenOutput?.standardLossUsd).toBeGreaterThan(0);
+    expect(tokenRecount?.standardLossUsd).toBeGreaterThan(0);
+    expect(perCallMoneyLossUsd).toBe(summary.moneyTotals.standardLossUsd);
+    expect(perCallMoneyLossUsd).toBeLessThanOrEqual(summary.providerSpendUsd);
+    expect(summary.moneyTotals.standardLossUsd).toBeLessThanOrEqual(summary.moneyTotals.providerSpendUsd);
+    expect(summary.moneyTotals.providerRecognizedUsd).toBeLessThanOrEqual(summary.moneyTotals.standardLossUsd);
+    expect(summary.moneyTotals.recognitionGapUsd).toBe(roundUsd(
+      summary.moneyTotals.standardLossUsd - summary.moneyTotals.providerRecognizedUsd,
+    ));
+    expect(createReceiptBundle(summary).totals.money.standardLossUsd).toBeLessThanOrEqual(
+      summary.providerSpendUsd,
+    );
+  });
+
   it("money-loss-observed-spend-line: annotates only below the one-dollar spend floor", () => {
     expect(moneyLossObservedSpendLine({
       standardLossUsd: 0.00435,
@@ -236,11 +279,21 @@ describe("summary and receipt", () => {
   });
 
   it("counts one published whole-call floor when an event-floor call is also a duplicate", () => {
+    const noRecountUsage = {
+      input: 100,
+      output: 4,
+      cache: { read: 0, creation: 0 },
+      categories: [
+        { category: "input", tokens: 100, provider: "openai" as const },
+        { category: "output", tokens: 4, provider: "openai" as const },
+      ],
+    };
     const summary = summarizeBenchEvents([
       stored(v2Event({
         request: {
           requestId: "req-broken-duplicate",
         },
+        usage: noRecountUsage,
         timing: {
           startedAt: "2026-06-14T12:00:00.000Z",
           endedAt: "2026-06-14T12:00:01.000Z",
@@ -254,6 +307,7 @@ describe("summary and receipt", () => {
         response: {
           content: "not json",
         },
+        usage: noRecountUsage,
         timing: {
           startedAt: "2026-06-14T12:01:00.000Z",
           endedAt: "2026-06-14T12:01:01.000Z",
@@ -263,6 +317,7 @@ describe("summary and receipt", () => {
         request: {
           requestId: "req-duplicate-only",
         },
+        usage: noRecountUsage,
         timing: {
           startedAt: "2026-06-14T12:02:00.000Z",
           endedAt: "2026-06-14T12:02:01.000Z",
@@ -272,6 +327,7 @@ describe("summary and receipt", () => {
         request: {
           requestId: "req-duplicate-only",
         },
+        usage: noRecountUsage,
         timing: {
           startedAt: "2026-06-14T12:03:00.000Z",
           endedAt: "2026-06-14T12:03:01.000Z",

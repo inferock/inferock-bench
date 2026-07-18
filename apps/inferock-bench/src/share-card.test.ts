@@ -42,15 +42,15 @@ describe("share card", () => {
     expectEveryLineAtMost(rendered, 68);
   });
 
-  it("keeps pre-split stored receipt values without inferring an exposure split", () => {
+  it("keeps pre-split stored receipts bill-bounded without inferring an exposure split", () => {
     const receipt = measuredReceipt("benchtest-017-aggregate-receipt.json");
 
     const rendered = renderShareCard(createShareCardModel(receipt), { width: 68 });
 
-    expect(cardText(rendered)).toContain("spent $1.28 · money loss $4.62 · time loss ~0s · invoice-check exposure $0.00");
-    expect(rendered).toContain("recognition gap: $4.62");
+    expect(cardText(rendered)).toContain("spent $1.28 · money loss $1.28 (100.0%) · time loss ~0s · invoice-check exposure $0.00");
+    expect(rendered).toContain("recognition gap: $1.28");
     expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
-    expect(rendered).not.toContain("money loss =");
+    expect(rendered).toContain("money loss = 100.0% of observed spend");
   });
 
   it("falls back to the dollar headline when percent would round to 0.0", () => {

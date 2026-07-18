@@ -55,7 +55,7 @@ describe("standard loss economics", () => {
     )).toEqual([]);
   });
 
-  it("standard-loss-floor-plus-delta: stacks exact overcharge deltas above one call-cost floor", () => {
+  it("standard-loss-floor-plus-delta: caps exact overcharge deltas inside one call-cost floor", () => {
     const event = pricedEvent({
       provider: "openai",
       model: "gpt-4o-mini",
@@ -80,22 +80,33 @@ describe("standard loss economics", () => {
     });
 
     const signals = applyStandardLossEconomicsToSignals(event, [floor, delta]);
-    expect(standardLossTotal(signals)).toBeCloseTo(floor.costUsd + 0.000004, 6);
+    const floorSignal = signals.find((signal) => signal.code === "BROKEN_OUTPUT");
+    const deltaSignal = signals.find((signal) => signal.code === "OPENAI_TOKEN_RECOUNT_MISMATCH");
+
+    // Bill-bound: the same-call overcharge delta is inside the failed call's price, not on top of it.
+    expect(standardLossTotal(signals)).toBeCloseTo(floor.costUsd, 6);
+    expect(standardLossTotal(signals)).toBeLessThanOrEqual(floor.costUsd);
     expect(providerRecognizedTotal(signals)).toBeCloseTo(0.000004, 6);
-    expect(recognitionGapTotal(signals)).toBeCloseTo(floor.costUsd, 6);
-    expect(signals.find((signal) => signal.code === "OPENAI_TOKEN_RECOUNT_MISMATCH"))
-      .toMatchObject({
-        standardLossUsd: 0.000004,
-        providerRecognizedLossUsd: 0.000004,
-        recognitionGapUsd: 0,
-        computationTrace: {
-          method: "measure_specific_delta_v1",
-          basis: "token_overcharge_delta",
-        },
-      });
+    expect(recognitionGapTotal(signals)).toBeCloseTo(floor.costUsd - 0.000004, 6);
+    expect(floorSignal?.standardLossUsd).toBeCloseTo(floor.costUsd - 0.000004, 6);
+    expect(floorSignal?.recognitionGapUsd).toBeCloseTo(floor.costUsd - 0.000004, 6);
+    expect(floorSignal?.computationTrace?.inputs).toMatchObject({
+      billBoundedCap: {
+        callExpectedChargeUsd: floor.costUsd,
+      },
+    });
+    expect(deltaSignal).toMatchObject({
+      standardLossUsd: 0.000004,
+      providerRecognizedLossUsd: 0.000004,
+      recognitionGapUsd: 0,
+      computationTrace: {
+        method: "measure_specific_delta_v1",
+        basis: "token_overcharge_delta",
+      },
+    });
   });
 
-  it("standard-loss-anthropic-recount-delta: stacks provider-assisted grade-B recount delta above a failed-call floor", () => {
+  it("standard-loss-anthropic-recount-delta: absorbs provider-assisted grade-B recount delta into a failed-call floor", () => {
     const event = pricedEvent({
       provider: "anthropic",
       model: "claude-haiku-4-5-20251001",
@@ -132,13 +143,14 @@ describe("standard loss economics", () => {
     const signals = applyStandardLossEconomicsToSignals(event, [floor, delta]);
     const anthropic = signals.find((signal) => signal.code === "ANTHROPIC_TOKEN_CROSSCHECK");
 
-    expect(standardLossTotal(signals)).toBeCloseTo(floor.costUsd + 0.000125, 6);
+    expect(standardLossTotal(signals)).toBeCloseTo(floor.costUsd, 6);
+    expect(standardLossTotal(signals)).toBeLessThanOrEqual(floor.costUsd);
     expect(providerRecognizedTotal(signals)).toBeCloseTo(0, 6);
-    expect(recognitionGapTotal(signals)).toBeCloseTo(floor.costUsd + 0.000125, 6);
+    expect(recognitionGapTotal(signals)).toBeCloseTo(floor.costUsd, 6);
     expect(anthropic).toMatchObject({
-      standardLossUsd: 0.000125,
+      standardLossUsd: 0,
       providerRecognizedLossUsd: 0,
-      recognitionGapUsd: 0.000125,
+      recognitionGapUsd: 0,
       evidenceGrade: "unrecognized_standard_loss",
       standardLossGrade: "unrecognized_standard_loss",
       computationTrace: {
@@ -149,6 +161,9 @@ describe("standard loss economics", () => {
         inputs: {
           methodMetadata: {
             evidenceGradeCap: "B",
+          },
+          billBoundedCap: {
+            callExpectedChargeUsd: floor.costUsd,
           },
         },
       },

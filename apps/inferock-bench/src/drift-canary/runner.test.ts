@@ -165,22 +165,26 @@ describe("drift canary runner dollarization", () => {
         requestId: "customer-duplicate",
         startedAt: "2026-07-04T09:50:00.000Z",
         content: "ordinary answer",
+        outputTokens: 4,
       }),
       storedWindowEvent({
         requestId: "customer-duplicate",
         startedAt: "2026-07-04T10:10:00.000Z",
         content: "ordinary duplicate answer",
+        outputTokens: 4,
       }),
       storedWindowEvent({
         requestId: "customer-event-floor",
         startedAt: "2026-07-04T10:20:00.000Z",
         content: "not json",
         generation: { response_format: { type: "json_object" } },
+        outputTokens: 4,
       }),
       storedWindowEvent({
         requestId: "customer-clean",
         startedAt: "2026-07-04T10:30:00.000Z",
         content: "ordinary answer",
+        outputTokens: 4,
       }),
     ];
     const summary = summarizeBenchEvents(records, { runId: RUN_ID });
@@ -402,6 +406,7 @@ function storedWindowEvent(input: {
   readonly requestId: string;
   readonly startedAt: string;
   readonly content: string;
+  readonly outputTokens?: number;
   readonly generation?: Record<string, unknown>;
 }): StoredBenchEvent {
   const endedAt = new Date(Date.parse(input.startedAt) + 1_000).toISOString();
@@ -431,11 +436,11 @@ function storedWindowEvent(input: {
       },
       usage: {
         input: 100,
-        output: 10,
+        output: input.outputTokens ?? 10,
         cache: { read: 0, creation: 0 },
         categories: [
           { category: "input", tokens: 100, provider: "openai" },
-          { category: "output", tokens: 10, provider: "openai" },
+          { category: "output", tokens: input.outputTokens ?? 10, provider: "openai" },
         ],
         usageSource: "provider",
       },

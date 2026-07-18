@@ -4,12 +4,19 @@ Use this file to tie any public receipt claim to the standard version and rule s
 
 | Need | Read |
 | --- | --- |
-| Bill-bounded headline and exposure split | [vNEXT - 2026-07-10](#vnext---2026-07-10) |
+| Money-loss clamp to observed spend | [v0.1.11 - 2026-07-18](#v0111---2026-07-18) |
+| Bill-bounded headline and exposure split | [v0.1.10 - 2026-07-10](#v0110---2026-07-10) |
 | As-built provider-plane documentation correction | [v0.1.8 - 2026-07-08](#v018---2026-07-08) |
 | Current time-loss and receipt-ledger changes | [v0.1.6 - 2026-07-05](#v016---2026-07-05) |
 | Initial public draft scope | [v0.1.0 - 2026-07-02](#v010---2026-07-02) |
 
-## vNEXT - 2026-07-10
+## v0.1.11 - 2026-07-18
+
+Updated:
+
+- Clamp money-loss to observed spend per-call and in aggregate; add invariant regression test.
+
+## v0.1.10 - 2026-07-10
 
 Updated:
 

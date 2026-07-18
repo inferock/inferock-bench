@@ -101,7 +101,7 @@ export function applyStandardLossEconomicsToSignals(
   const floorCandidates = signals.filter(isWholeCallFloorCandidate);
   const floorWinner = selectWholeCallFloorWinner(floorCandidates);
 
-  return signals.map((signal) =>
+  const enrichedSignals = signals.map((signal) =>
     standardLossSignalForInput(signal, {
       event,
       price,
@@ -109,6 +109,15 @@ export function applyStandardLossEconomicsToSignals(
       hasFloorCandidates: floorCandidates.length > 0,
     })
   );
+  return applyBillBoundedMoneyLossCapForPrice(enrichedSignals, price);
+}
+
+export function applyBillBoundedMoneyLossCapToSignals(
+  event: CanonicalEventV1,
+  signals: readonly LossSignal[],
+): LossSignal[] {
+  if (signals.length === 0) return [];
+  return applyBillBoundedMoneyLossCapForPrice(signals, lookupPriceForEvent(event));
 }
 
 function standardLossSignalForInput(
@@ -168,6 +177,198 @@ function standardLossSignalForInput(
   }
 
   return withNotApplicableStandardTrace(signal, context.event, context.price);
+}
+
+interface BillBoundedMoneySignal {
+  readonly index: number;
+  readonly signal: LossSignal;
+  readonly standardLossUsd: number;
+  readonly providerRecognizedLossUsd: number;
+}
+
+function applyBillBoundedMoneyLossCapForPrice(
+  signals: readonly LossSignal[],
+  price: PriceLookupResult,
+): LossSignal[] {
+  if (!isFullyPriced(price)) return [...signals];
+
+  // Public receipt invariant: headline money loss is bill-bounded to observed spend.
+  // See oss/public-root/docs/hard-questions.md Q1 and docs/MEASUREMENT-DECISION-RECORD.md 2026-07-09.
+  const capUsd = roundUsd(price.expectedChargeUsd);
+  const moneySignals = signals
+    .map((signal, index) => billBoundedMoneySignal(signal, index))
+    .filter((signal): signal is BillBoundedMoneySignal => signal !== null);
+  const unclampedCallMoneyLossUsd = roundUsd(
+    moneySignals.reduce((total, signal) => total + signal.standardLossUsd, 0),
+  );
+  if (unclampedCallMoneyLossUsd <= capUsd) return [...signals];
+
+  const clampedStandardLossByIndex = billBoundedStandardLossAllocation(moneySignals, capUsd);
+  return signals.map((signal, index) => {
+    const standardLossUsd = clampedStandardLossByIndex.get(index);
+    if (standardLossUsd === undefined) return signal;
+
+    const original = moneySignals.find((entry) => entry.index === index);
+    if (!original || standardLossUsd === original.standardLossUsd) return signal;
+
+    const providerRecognizedLossUsd = roundUsd(
+      Math.min(original.providerRecognizedLossUsd, standardLossUsd),
+    );
+    const recognitionGapUsd = roundUsd(standardLossUsd - providerRecognizedLossUsd);
+    return withBillBoundedCap(signal, {
+      callCapUsd: capUsd,
+      unclampedCallMoneyLossUsd,
+      unclampedSignalStandardLossUsd: original.standardLossUsd,
+      standardLossUsd,
+      providerRecognizedLossUsd,
+      recognitionGapUsd,
+    });
+  });
+}
+
+function billBoundedMoneySignal(signal: LossSignal, index: number): BillBoundedMoneySignal | null {
+  if (!isBillBoundedMoneySignal(signal)) return null;
+
+  const standardLossUsd = standardLossUsdForCap(signal);
+  if (standardLossUsd === null || standardLossUsd <= 0) return null;
+
+  return {
+    index,
+    signal,
+    standardLossUsd,
+    providerRecognizedLossUsd: providerRecognizedUsdForCap(signal, standardLossUsd),
+  };
+}
+
+function isBillBoundedMoneySignal(signal: LossSignal): boolean {
+  if (signal.code === "CACHE_DISCOUNT_AT_RISK" || signal.failureClass === "cache_discount_at_risk") {
+    return false;
+  }
+  if (signal.failureClass === "latency" || signal.valueKind === "time_loss") return false;
+  if (signal.valueJson?.timeLossPrimary === true) return false;
+  return true;
+}
+
+function billBoundedStandardLossAllocation(
+  signals: readonly BillBoundedMoneySignal[],
+  capUsd: number,
+): ReadonlyMap<number, number> {
+  const clampedStandardLossByIndex = new Map<number, number>();
+  let remainingRecognizedCap = capUsd;
+
+  for (const signal of billBoundedRecognizedAllocationOrder(signals)) {
+    const recognized = roundUsd(Math.min(signal.providerRecognizedLossUsd, remainingRecognizedCap));
+    clampedStandardLossByIndex.set(signal.index, recognized);
+    remainingRecognizedCap = roundUsd(remainingRecognizedCap - recognized);
+  }
+
+  let remainingStandardCap = roundUsd(
+    capUsd - sumNumbers([...clampedStandardLossByIndex.values()]),
+  );
+  for (const signal of billBoundedAllocationOrder(signals)) {
+    const existing = clampedStandardLossByIndex.get(signal.index) ?? 0;
+    const available = roundUsd(signal.standardLossUsd - existing);
+    const extra = roundUsd(Math.min(available, remainingStandardCap));
+    clampedStandardLossByIndex.set(signal.index, roundUsd(existing + extra));
+    remainingStandardCap = roundUsd(remainingStandardCap - extra);
+  }
+
+  return clampedStandardLossByIndex;
+}
+
+function billBoundedRecognizedAllocationOrder(
+  signals: readonly BillBoundedMoneySignal[],
+): readonly BillBoundedMoneySignal[] {
+  return [...signals].sort((left, right) => {
+    const priorityDelta = providerRecognizedAllocationPriority(right) -
+      providerRecognizedAllocationPriority(left);
+    return priorityDelta === 0 ? left.index - right.index : priorityDelta;
+  });
+}
+
+function providerRecognizedAllocationPriority(signal: BillBoundedMoneySignal): number {
+  if (signal.providerRecognizedLossUsd <= 0) return 0;
+  return signal.signal.standardLossMethod === "call_cost_floor_v1" ? 1 : 2;
+}
+
+function billBoundedAllocationOrder(
+  signals: readonly BillBoundedMoneySignal[],
+): readonly BillBoundedMoneySignal[] {
+  return [...signals].sort((left, right) => {
+    const priorityDelta = billBoundedAllocationPriority(right.signal) -
+      billBoundedAllocationPriority(left.signal);
+    return priorityDelta === 0 ? left.index - right.index : priorityDelta;
+  });
+}
+
+function billBoundedAllocationPriority(signal: LossSignal): number {
+  return signal.standardLossMethod === "call_cost_floor_v1" ? 2 : 1;
+}
+
+function withBillBoundedCap(
+  signal: LossSignal,
+  input: {
+    readonly callCapUsd: number;
+    readonly unclampedCallMoneyLossUsd: number;
+    readonly unclampedSignalStandardLossUsd: number;
+    readonly standardLossUsd: number;
+    readonly providerRecognizedLossUsd: number;
+    readonly recognitionGapUsd: number;
+  },
+): LossSignal {
+  const trace = recordValue(signal.computationTrace) ?? {};
+  const traceInputs = recordValue(trace.inputs) ?? {};
+  const traceFormulas = recordValue(trace.formulas) ?? {};
+  const traceOutputs = recordValue(trace.outputs) ?? {};
+  const billBoundedCap = {
+    callExpectedChargeUsd: input.callCapUsd,
+    unclampedCallMoneyLossUsd: input.unclampedCallMoneyLossUsd,
+    unclampedSignalStandardLossUsd: input.unclampedSignalStandardLossUsd,
+    standardPromise: "oss/public-root/docs/hard-questions.md#q1-can-the-headline-money-loss-exceed-my-provider-bill",
+  };
+
+  return {
+    ...signal,
+    standardLossUsd: input.standardLossUsd,
+    providerRecognizedLossUsd: input.providerRecognizedLossUsd,
+    recognitionGapUsd: input.recognitionGapUsd,
+    computationTrace: {
+      ...trace,
+      inputs: {
+        ...traceInputs,
+        billBoundedCap,
+      },
+      formulas: {
+        ...traceFormulas,
+        billBoundedCapUsd:
+          "per-call bill-bounded money loss: sum(call money-loss signals) <= expectedChargeUsd",
+        providerRecognizedLossUsd: "min(existing provider-recognized dollars, clamped standardLossUsd)",
+        recognitionGapUsd: "clamped standardLossUsd - providerRecognizedLossUsd",
+      },
+      outputs: {
+        ...traceOutputs,
+        standardLossUsd: input.standardLossUsd,
+        providerRecognizedLossUsd: input.providerRecognizedLossUsd,
+        recognitionGapUsd: input.recognitionGapUsd,
+      },
+      oneLine: billBoundedCapOneLine(input),
+    },
+    valueJson: {
+      ...(signal.valueJson ?? {}),
+      standardLossUsd: input.standardLossUsd,
+      providerRecognizedLossUsd: input.providerRecognizedLossUsd,
+      recognitionGapUsd: input.recognitionGapUsd,
+      billBoundedCap,
+    },
+  };
+}
+
+function billBoundedCapOneLine(input: {
+  readonly standardLossUsd: number;
+  readonly providerRecognizedLossUsd: number;
+  readonly recognitionGapUsd: number;
+}): string {
+  return `bill-bounded per-call cap applied: standard loss $${input.standardLossUsd.toFixed(2)}; provider-recognized $${input.providerRecognizedLossUsd.toFixed(2)} -> $${input.recognitionGapUsd.toFixed(2)} recognition gap`;
 }
 
 function withComputedStandardLoss(
@@ -686,6 +887,28 @@ function providerRecognizedUsd(signal: LossSignal, standardLossUsd: number): num
   return roundUsd(Math.min(signal.providerRecoverableLossUsd, standardLossUsd));
 }
 
+function standardLossUsdForCap(signal: LossSignal): number | null {
+  const standardLossUsd = signal.standardLossUsd ??
+    numericValue(signal.valueJson?.standardLossUsd) ??
+    numericValue(traceOutput(signal, "standardLossUsd"));
+  return standardLossUsd === null ? null : roundUsd(standardLossUsd);
+}
+
+function providerRecognizedUsdForCap(signal: LossSignal, standardLossUsd: number): number {
+  const providerRecognizedLossUsd = signal.providerRecognizedLossUsd ??
+    numericValue(signal.valueJson?.providerRecognizedLossUsd) ??
+    numericValue(traceOutput(signal, "providerRecognizedLossUsd")) ??
+    signal.providerRecoverableLossUsd ??
+    0;
+  return roundUsd(Math.min(providerRecognizedLossUsd, standardLossUsd));
+}
+
+function traceOutput(signal: LossSignal, key: string): unknown {
+  const trace = recordValue(signal.computationTrace) ?? recordValue(signal.evidence.computationTrace);
+  const outputs = recordValue(trace?.outputs);
+  return outputs?.[key];
+}
+
 function withoutComputationTrace(evidence: Record<string, unknown>): Record<string, unknown> {
   if (!Object.prototype.hasOwnProperty.call(evidence, "computationTrace")) return evidence;
   const { computationTrace: _computationTrace, ...rest } = evidence;
@@ -717,6 +940,10 @@ function numericValue(value: unknown): number | null {
 
 function positiveOrZero(value: number | null): number | null {
   return value === null ? null : roundUsd(value);
+}
+
+function sumNumbers(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
 }
 
 function isPositive(value: number | null | undefined): value is number {

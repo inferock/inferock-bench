@@ -67,11 +67,17 @@ export function createShareCardModel(receipt: ShareCardReceipt): ShareCardModel 
   const totals = recordValue(normalized.totals);
   const money = recordValue(totals?.money);
   const duration = recordValue(totals?.duration);
-  const standardLoss = numberValue(money?.standardLossUsd);
+  const providerSpend = numberValue(totals?.providerSpendUsd) ?? numberValue(money?.providerSpendUsd);
+  const rawStandardLoss = numberValue(money?.standardLossUsd);
+  const standardLoss = billBoundedStandardLoss(rawStandardLoss, providerSpend);
   const providerRecognized = numberValue(money?.providerRecognizedUsd);
   const explicitRecognitionGap = numberValue(money?.recognitionGapUsd);
-  const recognitionGap = explicitRecognitionGap ?? derivedGap(standardLoss, providerRecognized);
-  const providerSpend = numberValue(totals?.providerSpendUsd) ?? numberValue(money?.providerSpendUsd);
+  const recognitionGap = recognitionGapForBillBoundedStandardLoss({
+    rawStandardLoss,
+    standardLoss,
+    providerRecognized,
+    explicitRecognitionGap,
+  });
   const timeLossMs = numberValue(duration?.timeLossMs);
   const providerRecognizedTimeLossMs = numberValue(duration?.providerRecognizedTimeLossMs);
   const explicitTimeGapMs = numberValue(duration?.recognitionGapTimeMs);
@@ -341,6 +347,28 @@ function standardLossLine(standardLoss: number | null, pricingUnknownCount: numb
     return `${formatShareUsd(standardLoss)} (+${integer(pricingUnknownCount)} unpriced failures)`;
   }
   return formatShareUsd(standardLoss);
+}
+
+function billBoundedStandardLoss(standardLoss: number | null, providerSpend: number | null): number | null {
+  if (standardLoss === null || providerSpend === null) return standardLoss;
+  // Public share cards follow the bill-bounded receipt promise even for old stored receipts.
+  return Math.min(standardLoss, providerSpend);
+}
+
+function recognitionGapForBillBoundedStandardLoss(input: {
+  readonly rawStandardLoss: number | null;
+  readonly standardLoss: number | null;
+  readonly providerRecognized: number | null;
+  readonly explicitRecognitionGap: number | null;
+}): number | null {
+  if (
+    input.rawStandardLoss !== null &&
+    input.standardLoss !== null &&
+    input.standardLoss < input.rawStandardLoss
+  ) {
+    return derivedGap(input.standardLoss, input.providerRecognized);
+  }
+  return input.explicitRecognitionGap ?? derivedGap(input.standardLoss, input.providerRecognized);
 }
 
 function derivedGap(total: number | null, recognized: number | null): number | null {

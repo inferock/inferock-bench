@@ -301,6 +301,13 @@ interface SummarySignalEntry {
   readonly signal: LossSignal;
 }
 
+interface BillBoundedMoneySignalEntry {
+  readonly offset: number;
+  readonly signal: LossSignal;
+  readonly standardLossUsd: number;
+  readonly providerRecognizedUsd: number;
+}
+
 type CountedFailureSignal = LossSignal & { readonly failureClass: string };
 type ChargeObservationMap = ReadonlyMap<string, BenchChargeObservation>;
 
@@ -1370,10 +1377,12 @@ function summarySignalSource(
     entry.signals.map((signal): SummarySignalEntry => ({ event: entry.event, signal }))
   );
   const groupEntries = groupDerivedLossSignalEntries(events);
-  const signalEntries = applyCrossSourceWholeCallFloorSupersession([
-    ...eventEntries,
-    ...groupEntries,
-  ]);
+  const signalEntries = applyCrossSourceBillBoundedMoneyLossCap(
+    applyCrossSourceWholeCallFloorSupersession([
+      ...eventEntries,
+      ...groupEntries,
+    ]),
+  );
   return {
     events,
     suiteTaskIds,
@@ -1381,6 +1390,221 @@ function summarySignalSource(
     signalEntries,
     signals: signalEntries.map((entry) => entry.signal),
   };
+}
+
+function applyCrossSourceBillBoundedMoneyLossCap(
+  entries: readonly SummarySignalEntry[],
+): SummarySignalEntry[] {
+  // Apply the public bill-bounded money-loss promise before rows lose call identity.
+  const groups = new Map<string, {
+    readonly event: CanonicalEventNormalized;
+    readonly indexes: number[];
+    readonly signals: LossSignal[];
+  }>();
+
+  for (const [index, entry] of entries.entries()) {
+    const key = wholeCallStandardFloorKeyForEvent(entry.event);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.indexes.push(index);
+      existing.signals.push(entry.signal);
+    } else {
+      groups.set(key, {
+        event: entry.event,
+        indexes: [index],
+        signals: [entry.signal],
+      });
+    }
+  }
+
+  const cappedSignalByIndex = new Map<number, LossSignal>();
+  for (const group of groups.values()) {
+    const cappedSignals = billBoundedMoneyLossCappedSignals(group.event, group.signals);
+    for (const [offset, signal] of cappedSignals.entries()) {
+      const index = group.indexes[offset];
+      if (index !== undefined) cappedSignalByIndex.set(index, signal);
+    }
+  }
+
+  return entries.map((entry, index) => ({
+    ...entry,
+    signal: cappedSignalByIndex.get(index) ?? entry.signal,
+  }));
+}
+
+function billBoundedMoneyLossCappedSignals(
+  event: CanonicalEventNormalized,
+  signals: readonly LossSignal[],
+): LossSignal[] {
+  const capUsd = roundUsd(estimateCostUsd(event));
+  const moneySignals = signals
+    .map((signal, offset) => billBoundedMoneySignalEntry(signal, offset))
+    .filter((entry): entry is BillBoundedMoneySignalEntry => entry !== null);
+  const unclampedCallMoneyLossUsd = roundUsd(sum(moneySignals.map((entry) => entry.standardLossUsd)));
+  if (unclampedCallMoneyLossUsd <= capUsd) return [...signals];
+
+  const clampedStandardLossByOffset = billBoundedStandardLossAllocation(moneySignals, capUsd);
+  return signals.map((signal, offset) => {
+    const standardLossUsd = clampedStandardLossByOffset.get(offset);
+    if (standardLossUsd === undefined) return signal;
+
+    const original = moneySignals.find((entry) => entry.offset === offset);
+    if (!original || standardLossUsd === original.standardLossUsd) return signal;
+
+    const providerRecognizedUsd = roundUsd(Math.min(original.providerRecognizedUsd, standardLossUsd));
+    const recognitionGapUsd = roundUsd(standardLossUsd - providerRecognizedUsd);
+    return billBoundedCappedSignal(signal, {
+      callCapUsd: capUsd,
+      unclampedCallMoneyLossUsd,
+      unclampedSignalStandardLossUsd: original.standardLossUsd,
+      standardLossUsd,
+      providerRecognizedUsd,
+      recognitionGapUsd,
+    });
+  });
+}
+
+function billBoundedMoneySignalEntry(
+  signal: LossSignal,
+  offset: number,
+): BillBoundedMoneySignalEntry | null {
+  if (!isBillBoundedMoneySignal(signal)) return null;
+
+  const standardLossUsd = standardLossUsdForSignal(signal);
+  if (standardLossUsd <= 0) return null;
+  return {
+    offset,
+    signal,
+    standardLossUsd,
+    providerRecognizedUsd: providerRecognizedUsdForSignal(signal),
+  };
+}
+
+function isBillBoundedMoneySignal(signal: LossSignal): boolean {
+  if (signal.code === "CACHE_DISCOUNT_AT_RISK" || signal.failureClass === "cache_discount_at_risk") {
+    return false;
+  }
+  return primaryValueKindForSignal(signal) === "money";
+}
+
+function billBoundedStandardLossAllocation(
+  signals: readonly BillBoundedMoneySignalEntry[],
+  capUsd: number,
+): ReadonlyMap<number, number> {
+  const clampedStandardLossByOffset = new Map<number, number>();
+  let remainingRecognizedCap = capUsd;
+
+  for (const signal of billBoundedRecognizedAllocationOrder(signals)) {
+    const recognized = roundUsd(Math.min(signal.providerRecognizedUsd, remainingRecognizedCap));
+    clampedStandardLossByOffset.set(signal.offset, recognized);
+    remainingRecognizedCap = roundUsd(remainingRecognizedCap - recognized);
+  }
+
+  let remainingStandardCap = roundUsd(capUsd - sum([...clampedStandardLossByOffset.values()]));
+  for (const signal of billBoundedAllocationOrder(signals)) {
+    const existing = clampedStandardLossByOffset.get(signal.offset) ?? 0;
+    const available = roundUsd(signal.standardLossUsd - existing);
+    const extra = roundUsd(Math.min(available, remainingStandardCap));
+    clampedStandardLossByOffset.set(signal.offset, roundUsd(existing + extra));
+    remainingStandardCap = roundUsd(remainingStandardCap - extra);
+  }
+
+  return clampedStandardLossByOffset;
+}
+
+function billBoundedRecognizedAllocationOrder(
+  signals: readonly BillBoundedMoneySignalEntry[],
+): readonly BillBoundedMoneySignalEntry[] {
+  return [...signals].sort((left, right) => {
+    const priorityDelta = providerRecognizedAllocationPriority(right) -
+      providerRecognizedAllocationPriority(left);
+    return priorityDelta === 0 ? left.offset - right.offset : priorityDelta;
+  });
+}
+
+function providerRecognizedAllocationPriority(signal: BillBoundedMoneySignalEntry): number {
+  if (signal.providerRecognizedUsd <= 0) return 0;
+  return signal.signal.standardLossMethod === "call_cost_floor_v1" ? 1 : 2;
+}
+
+function billBoundedAllocationOrder(
+  signals: readonly BillBoundedMoneySignalEntry[],
+): readonly BillBoundedMoneySignalEntry[] {
+  return [...signals].sort((left, right) => {
+    const priorityDelta = billBoundedAllocationPriority(right.signal) -
+      billBoundedAllocationPriority(left.signal);
+    return priorityDelta === 0 ? left.offset - right.offset : priorityDelta;
+  });
+}
+
+function billBoundedAllocationPriority(signal: LossSignal): number {
+  return signal.standardLossMethod === "call_cost_floor_v1" ? 2 : 1;
+}
+
+function billBoundedCappedSignal(
+  signal: LossSignal,
+  input: {
+    readonly callCapUsd: number;
+    readonly unclampedCallMoneyLossUsd: number;
+    readonly unclampedSignalStandardLossUsd: number;
+    readonly standardLossUsd: number;
+    readonly providerRecognizedUsd: number;
+    readonly recognitionGapUsd: number;
+  },
+): LossSignal {
+  const trace = isRecord(signal.computationTrace) ? signal.computationTrace : {};
+  const traceInputs = isRecord(trace.inputs) ? trace.inputs : {};
+  const traceFormulas = isRecord(trace.formulas) ? trace.formulas : {};
+  const traceOutputs = isRecord(trace.outputs) ? trace.outputs : {};
+  const billBoundedCap = {
+    callExpectedChargeUsd: input.callCapUsd,
+    unclampedCallMoneyLossUsd: input.unclampedCallMoneyLossUsd,
+    unclampedSignalStandardLossUsd: input.unclampedSignalStandardLossUsd,
+    standardPromise: "oss/public-root/docs/hard-questions.md#q1-can-the-headline-money-loss-exceed-my-provider-bill",
+  };
+
+  return {
+    ...signal,
+    standardLossUsd: input.standardLossUsd,
+    providerRecognizedLossUsd: input.providerRecognizedUsd,
+    recognitionGapUsd: input.recognitionGapUsd,
+    computationTrace: {
+      ...trace,
+      inputs: {
+        ...traceInputs,
+        billBoundedCap,
+      },
+      formulas: {
+        ...traceFormulas,
+        billBoundedCapUsd:
+          "per-call bill-bounded money loss: sum(call money-loss signals) <= expectedChargeUsd",
+        providerRecognizedLossUsd: "min(existing provider-recognized dollars, clamped standardLossUsd)",
+        recognitionGapUsd: "clamped standardLossUsd - providerRecognizedLossUsd",
+      },
+      outputs: {
+        ...traceOutputs,
+        standardLossUsd: input.standardLossUsd,
+        providerRecognizedLossUsd: input.providerRecognizedUsd,
+        recognitionGapUsd: input.recognitionGapUsd,
+      },
+      oneLine: billBoundedCapOneLine(input),
+    },
+    valueJson: {
+      ...(signal.valueJson ?? {}),
+      standardLossUsd: input.standardLossUsd,
+      providerRecognizedLossUsd: input.providerRecognizedUsd,
+      recognitionGapUsd: input.recognitionGapUsd,
+      billBoundedCap,
+    },
+  };
+}
+
+function billBoundedCapOneLine(input: {
+  readonly standardLossUsd: number;
+  readonly providerRecognizedUsd: number;
+  readonly recognitionGapUsd: number;
+}): string {
+  return `bill-bounded per-call cap applied: standard loss ${formatUsd(input.standardLossUsd)}; provider-recognized ${formatUsd(input.providerRecognizedUsd)} -> ${formatUsd(input.recognitionGapUsd)} recognition gap`;
 }
 
 function applyCrossSourceWholeCallFloorSupersession(

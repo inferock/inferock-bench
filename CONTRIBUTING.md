@@ -20,14 +20,14 @@ Use this page when you want a public issue or PR to survive the mirror boundary.
 
 ## Tests
 
-Run the narrowest tests that cover your change, and include the command output in the PR body. For export or shared measurement changes, expect maintainers to run the upstream gates:
+Run the narrowest tests that cover your change, and include the command output in the PR body.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm test
-pnpm oss:license-scan
-pnpm oss:public-diff-check
 ```
+
+For export, license, package-parity, or shared measurement changes, maintainers also run upstream-only export and package integrity gates before regenerating the public repo. Those maintainer gates are not required to exist in a generated public checkout.
 
 Measurement fixtures are for tests only. Public examples, screenshots, receipts, GIFs, and index numbers must come from real normal traffic.
 

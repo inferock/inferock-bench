@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import type { NormalizedUsage, NormalizedUsageCategory } from "@inferock/measure/pricing";
 import {
@@ -8,6 +8,7 @@ import {
   loadCoverageSuiteManifest,
 } from "./manifest.js";
 import { stableSha256 } from "./canonical-json.js";
+import { writePrivateTextFile } from "../private-files.js";
 import { BENCH_PACKAGE_VERSION } from "../version.js";
 
 const execFileAsync = promisify(execFile);
@@ -184,7 +185,9 @@ export async function deriveCoverageTokenBaselineFromCovrun(
   };
 
   if (input.outputPath) {
-    await writeFile(input.outputPath, `${JSON.stringify(baseline, null, 2)}\n`, "utf8");
+    await writePrivateTextFile(input.outputPath, `${JSON.stringify(baseline, null, 2)}\n`, {
+      privateParent: false,
+    });
   }
   return baseline;
 }

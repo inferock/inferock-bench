@@ -4,7 +4,7 @@ No assets in this folder may be mocked. Every GIF, screenshot, hosted sample rep
 
 Illustrative explanatory diagrams are allowed only when they do not present numbers as measured data and the asset plus README caption clearly label the diagram as illustrative.
 
-Masking sign-offs live in [PROVENANCE.md](./PROVENANCE.md) and are enforced by `pnpm oss:asset-scan`. No image or GIF ships without a provenance entry and at least `masked-verified: PENDING user sign-off YYYY-MM-DD` or `masked-verified: PENDING conductor`; publish enforcement requires a completed human sign-off.
+Masking sign-offs live in [PROVENANCE.md](./PROVENANCE.md). No image or GIF ships without a provenance entry and at least `masked-verified: PENDING user sign-off YYYY-MM-DD` or `masked-verified: PENDING maintainer`; publish enforcement requires a completed human sign-off.
 
 Read this before adding or replacing a visual. The rule is simple: product proof assets come from real normal traffic; explanatory diagrams must label themselves as illustrative.
 

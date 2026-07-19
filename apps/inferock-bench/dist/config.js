@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { ensurePrivateDir, writePrivateTextFile } from "./private-files.js";
 import { isRecord, stringValue } from "./record.js";
 export const DEFAULT_PORT = 4318;
 export const DEFAULT_HOST = "127.0.0.1";
@@ -25,7 +26,7 @@ export function resolveBenchPaths(env = process.env) {
     };
 }
 export async function ensureBenchHome(paths) {
-    await mkdir(paths.homeDir, { recursive: true });
+    await ensurePrivateDir(paths.homeDir);
 }
 export async function readBenchConfig(paths) {
     try {
@@ -41,11 +42,7 @@ export async function readBenchConfig(paths) {
 }
 export async function writeBenchConfig(paths, config) {
     await ensureBenchHome(paths);
-    await writeFile(paths.configFile, `${JSON.stringify(config, null, 2)}\n`, {
-        encoding: "utf8",
-        mode: 0o600,
-    });
-    await chmod(paths.configFile, 0o600);
+    await writePrivateTextFile(paths.configFile, `${JSON.stringify(config, null, 2)}\n`);
 }
 export function benchKeyFromConfig(config, env = process.env) {
     return env.INFEROCK_BENCH_KEY ?? config.benchKey ?? "";

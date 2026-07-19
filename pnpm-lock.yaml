@@ -15,16 +15,16 @@ importers:
         version: 0.110.0(zod@3.25.76)
       '@hono/node-server':
         specifier: ^1.14.0
-        version: 1.19.14(hono@4.12.30)
+        version: 1.19.14(hono@4.12.31)
       '@inferock/measure':
-        specifier: 0.1.11
+        specifier: 0.2.0
         version: link:../../packages/measure
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
       hono:
         specifier: ^4.7.0
-        version: 4.12.30
+        version: 4.12.31
       openai:
         specifier: ^6.45.0
         version: 6.48.0(zod@3.25.76)
@@ -511,8 +511,8 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
-  hono@4.12.30:
-    resolution: {integrity: sha512-emn+JoJjrN9YTpRDS5it/UI2SO9BAE37T6I3d963RxcZ81G9A4pr2SZTEiiaiKbzx+NKRg5BZ89fCL7gCJCUog==}
+  hono@4.12.31:
+    resolution: {integrity: sha512-zJIHFrl6bq3RDd2YusFNCDlM8qUprxKswyi/OPzPyzKDdyBXDqWx8bZlZ7R+saTdSTatUmb3O7K4SspGPaEOQg==}
     engines: {node: '>=16.9.0'}
 
   js-tiktoken@1.0.21:
@@ -831,9 +831,9 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@hono/node-server@1.19.14(hono@4.12.30)':
+  '@hono/node-server@1.19.14(hono@4.12.31)':
     dependencies:
-      hono: 4.12.30
+      hono: 4.12.31
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
@@ -1057,7 +1057,7 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
-  hono@4.12.30: {}
+  hono@4.12.31: {}
 
   js-tiktoken@1.0.21:
     dependencies:

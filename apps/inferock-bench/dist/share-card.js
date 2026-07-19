@@ -1,9 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { LEGACY_SPEEDTEST_RECEIPT_SCHEMA_VERSION, SPEEDTEST_RECEIPT_SCHEMA_VERSION, } from "./receipt-schema.js";
 import { migrateReceiptBundle, } from "./receipt.js";
 import { migrateSpeedTestReceiptBundle } from "./coverage-suite/runner.js";
+import { ensurePrivateDir, writePrivateTextFile } from "./private-files.js";
 import { formatUsd, moneyLossObservedSpendLine, moneyLossObservedSpendPercentFromLine } from "./summary.js";
 export const SHARE_CARD_FOOTER = "github.com/inferock/inferock-bench";
 const DEFAULT_CARD_WIDTH = 68;
@@ -119,15 +119,14 @@ export function renderShareCard(model, options = {}) {
             : line).join("\n");
 }
 export async function writeShareCard(receiptsDir, receiptGeneratedAt, rendered) {
-    await mkdir(receiptsDir, { recursive: true });
+    await ensurePrivateDir(receiptsDir);
     const filename = `share-card-${receiptGeneratedAt.replace(/[:.]/g, "-")}.txt`;
     const path = join(receiptsDir, filename);
     await writeShareCardFile(path, rendered);
     return path;
 }
 export async function writeShareCardFile(path, rendered) {
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${rendered}\n`, "utf8");
+    await writePrivateTextFile(path, `${rendered}\n`, { privateParent: false });
     return path;
 }
 function normalizeReceipt(receipt) {

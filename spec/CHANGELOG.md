@@ -4,11 +4,24 @@ Use this file to tie any public receipt claim to the standard version and rule s
 
 | Need | Read |
 | --- | --- |
+| Local security hardening and packaging guardrail | [v0.2.0 - 2026-07-19](#v020---2026-07-19) |
 | Money-loss clamp to observed spend | [v0.1.11 - 2026-07-18](#v0111---2026-07-18) |
 | Bill-bounded headline and exposure split | [v0.1.10 - 2026-07-10](#v0110---2026-07-10) |
 | As-built provider-plane documentation correction | [v0.1.8 - 2026-07-08](#v018---2026-07-08) |
 | Current time-loss and receipt-ledger changes | [v0.1.6 - 2026-07-05](#v016---2026-07-05) |
 | Initial public draft scope | [v0.1.0 - 2026-07-02](#v010---2026-07-02) |
+
+## v0.2.0 - 2026-07-19
+
+Security:
+
+- Local dashboard management endpoints are now protected by same-origin dashboard authorization or the local bench key. A bare unauthenticated `GET /api/key` no longer reveals the full local bench key.
+- `inferock-bench start` refuses non-loopback hosts by default, including values supplied through `INFEROCK_BENCH_HOST`. Binding to a network-reachable host now requires `--allow-external-host` and prints a warning that the local proxy and management APIs become reachable from other machines that can connect to that host.
+- New and touched local run artifacts are written owner-only where the benchmark creates them: `0600` files and `0700` directories for event logs, receipts, share cards, conformance outputs, local agent workspaces, coverage baselines, and related run outputs. Existing files keep their previous permissions until rewritten or touched.
+
+Packaging:
+
+- Added a public packaging guardrail that rebuilds package `dist` output, regenerates the public export, and fails if the exported package output or `npm pack` contents drift from the fresh build.
 
 ## v0.1.11 - 2026-07-18
 

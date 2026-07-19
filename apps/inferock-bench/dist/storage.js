@@ -1,6 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile } from "node:fs/promises";
 import { CanonicalEventAny, } from "@inferock/measure/canonical-event";
+import { writePrivateTextFile } from "./private-files.js";
 import { isRecord, stringValue } from "./record.js";
 export class JsonlEventStore {
     filePath;
@@ -8,11 +8,7 @@ export class JsonlEventStore {
         this.filePath = filePath;
     }
     async append(record) {
-        await mkdir(dirname(this.filePath), { recursive: true });
-        await writeFile(this.filePath, `${JSON.stringify(record)}\n`, {
-            encoding: "utf8",
-            flag: "a",
-        });
+        await writePrivateTextFile(this.filePath, `${JSON.stringify(record)}\n`, { flag: "a" });
     }
     async readAll() {
         let raw;

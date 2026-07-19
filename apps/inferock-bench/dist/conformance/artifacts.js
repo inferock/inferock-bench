@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { writePrivateTextFile } from "../private-files.js";
 import { CONFORMANCE_ARTIFACT_SUBTREE, CONFORMANCE_MANIFEST_SCHEMA_VERSION, CONFORMANCE_SUMMARY_SCHEMA_VERSION, } from "./types.js";
 export function createConformanceArtifactWriter(input) {
     const runId = input.runId ?? generateConformanceRunId(new Date(input.createdAt ?? Date.now()));
@@ -32,11 +33,7 @@ export function createConformanceArtifactWriter(input) {
                 throw new Error(`Conformance ledger runId ${entry.runId} does not match writer runId ${runId}.`);
             }
             const ledgerPath = join(runDir, "ledger.jsonl");
-            await mkdir(dirname(ledgerPath), { recursive: true });
-            await writeFile(ledgerPath, `${JSON.stringify(entry)}\n`, {
-                encoding: "utf8",
-                flag: "a",
-            });
+            await writePrivateTextFile(ledgerPath, `${JSON.stringify(entry)}\n`, { flag: "a" });
             return ledgerPath;
         },
         writeSummary: async (summary) => {
@@ -50,8 +47,7 @@ export function createConformanceArtifactWriter(input) {
         },
         writeRawNdjson: async (probeId, rows) => {
             const path = join(rawDir, `${safeProbeFilename(probeId)}.sse.ndjson`);
-            await mkdir(dirname(path), { recursive: true });
-            await writeFile(path, rows.map((row) => JSON.stringify(row)).join("\n") + "\n", "utf8");
+            await writePrivateTextFile(path, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
             return path;
         },
         writeRawJson: async (probeId, suffix, value) => {
@@ -111,8 +107,7 @@ function assertValidationOnlySummary(summary) {
     }
 }
 async function writeJsonFile(path, value) {
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await writePrivateTextFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 function safeProbeFilename(probeId) {
     const safe = basename(probeId).replace(/[^A-Za-z0-9_.-]/g, "_");

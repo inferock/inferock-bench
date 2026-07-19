@@ -29,7 +29,7 @@ import {
   writeShareCard,
   writeShareCardFile,
 } from "./share-card.js";
-import { startServer } from "./server.js";
+import { externalHostWarning, isLoopbackHost, startServer } from "./server.js";
 import { JsonlEventStore } from "./storage.js";
 import { renderReport, summarizeBenchEvents, type TimeWindow } from "./summary.js";
 import { sendReliabilityIndexPayload } from "./telemetry.js";
@@ -202,9 +202,20 @@ export async function runCli(
   }
 
   if (command === "init") {
+    const host = stringArg(args, "--host");
+    const allowExternalHost = booleanArg(args, "--allow-external-host");
+    if (host && !isLoopbackHost(host)) {
+      if (!allowExternalHost) {
+        error(
+          `Refusing non-loopback --host ${host}. Use --allow-external-host only when the local proxy and management APIs should be network-reachable.`,
+        );
+        throw new CliUsageError();
+      }
+      error(externalHostWarning(host));
+    }
     await runInit({
       cwd,
-      host: stringArg(args, "--host"),
+      host,
       port: numberArg(args, "--port"),
       patchFile: stringArg(args, "--patch"),
       yes: booleanArg(args, "--yes"),
@@ -224,6 +235,7 @@ export async function runCli(
       stdinIsTty: runtime.stdinIsTty,
       stdoutIsTty: runtime.stdoutIsTty,
       log,
+      allowExternalHost: booleanArg(args, "--allow-external-host"),
     });
     return;
   }
@@ -1516,8 +1528,8 @@ function helpText(): string {
     "inferock-bench",
     "",
     "Commands:",
-    "  start [--host 127.0.0.1] [--port 4318]",
-    "  init [--patch path/to/client.ts --yes]",
+    "  start [--host 127.0.0.1] [--port 4318] [--allow-external-host]",
+    "  init [--host 127.0.0.1] [--port 4318] [--patch path/to/client.ts --yes] [--allow-external-host]",
     "  setup <openai|anthropic|gemini|openrouter>",
     "  status",
     "  key reveal",

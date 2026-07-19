@@ -1,9 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { readFile } from "node:fs/promises";
 import {
   CanonicalEventAny,
   type CanonicalEventAny as CanonicalEventAnyType,
 } from "@inferock/measure/canonical-event";
+import { writePrivateTextFile } from "./private-files.js";
 import { isRecord, stringValue } from "./record.js";
 
 export interface StoredBenchEvent {
@@ -34,11 +34,7 @@ export class JsonlEventStore implements EventStore {
   constructor(private readonly filePath: string) {}
 
   async append(record: StoredBenchEvent): Promise<void> {
-    await mkdir(dirname(this.filePath), { recursive: true });
-    await writeFile(this.filePath, `${JSON.stringify(record)}\n`, {
-      encoding: "utf8",
-      flag: "a",
-    });
+    await writePrivateTextFile(this.filePath, `${JSON.stringify(record)}\n`, { flag: "a" });
   }
 
   async readAll(): Promise<StoredBenchEvent[]> {

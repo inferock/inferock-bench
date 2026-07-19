@@ -72,7 +72,7 @@ export function receiptPayload(input) {
         compactText: renderReceipt(bundle, true),
     };
 }
-export function renderDashboardHtml() {
+export function renderDashboardHtml(input = {}) {
     return `<!doctype html>
 <html lang="en">
 <head>
@@ -1382,6 +1382,7 @@ export function renderDashboardHtml() {
 
   <script>
     const PROVIDER_NAMES = ${JSON.stringify(PROVIDER_NAMES)};
+    const MANAGEMENT_ACCESS_TOKEN = ${JSON.stringify(input.managementAccessToken ?? "")};
     const state = {
       setup: null,
       summary: null,
@@ -1407,6 +1408,12 @@ export function renderDashboardHtml() {
       coverageEstimateRequestKey: null,
     };
     const $ = (id) => document.getElementById(id);
+
+    function managementFetch(resource, options) {
+      const headers = new Headers(options && options.headers ? options.headers : undefined);
+      if (MANAGEMENT_ACCESS_TOKEN) headers.set("x-inferock-bench-management", MANAGEMENT_ACCESS_TOKEN);
+      return fetch(resource, { ...(options || {}), headers });
+    }
     const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const estimateMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 6 });
     const integer = new Intl.NumberFormat("en-US");
@@ -2501,7 +2508,7 @@ export function renderDashboardHtml() {
       if (!Number.isFinite(acceptableMs) || acceptableMs < 0) throw new Error("Threshold must be a non-negative number.");
       const row = state.rows[index];
       if (!row) return;
-      const response = await fetch("/api/reprice-latency-row", {
+      const response = await managementFetch("/api/reprice-latency-row", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -2521,7 +2528,7 @@ export function renderDashboardHtml() {
       if (!Number.isFinite(rateUsdPerHour) || rateUsdPerHour < 0) throw new Error("Rate must be a non-negative number.");
       const row = state.rows[index];
       if (!row) return;
-      const response = await fetch("/api/reprice-latency-row", {
+      const response = await managementFetch("/api/reprice-latency-row", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -2974,7 +2981,7 @@ export function renderDashboardHtml() {
       if (geminiKey) body.geminiApiKey = geminiKey;
       if (openrouterKey) body.openrouterApiKey = openrouterKey;
       if (Object.keys(body).length === 0) return;
-      const response = await fetch("/api/setup", {
+      const response = await managementFetch("/api/setup", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -2989,7 +2996,7 @@ export function renderDashboardHtml() {
     }
 
     async function removeProvider(provider) {
-      const response = await fetch("/api/setup", {
+      const response = await managementFetch("/api/setup", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(removeProviderPayload(provider)),
@@ -3012,7 +3019,7 @@ export function renderDashboardHtml() {
     }
 
     async function revealAndCopyBenchKey() {
-      const response = await fetch("/api/key", { cache: "no-store" });
+      const response = await managementFetch("/api/key", { cache: "no-store" });
       if (!response.ok) throw new Error("Key reveal failed.");
       const payload = await response.json();
       if (!payload.benchKey) throw new Error("Key reveal missing.");

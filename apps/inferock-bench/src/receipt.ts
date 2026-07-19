@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { WATERMARK_NAME, WATERMARK_URL } from "./config.js";
+import { ensurePrivateDir, writePrivateTextFile } from "./private-files.js";
 import {
   formatCoverageStatus,
   formatUsd,
@@ -409,9 +409,9 @@ export async function writeReceiptBundle(
   receiptsDir: string,
   bundle: ReceiptBundle,
 ): Promise<string> {
-  await mkdir(receiptsDir, { recursive: true });
+  await ensurePrivateDir(receiptsDir);
   const filename = `receipt-${bundle.generatedAt.replace(/[:.]/g, "-")}.json`;
   const path = join(receiptsDir, filename);
-  await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`, "utf8");
+  await writePrivateTextFile(path, `${JSON.stringify(bundle, null, 2)}\n`);
   return path;
 }

@@ -32,6 +32,13 @@ class MemoryStore implements EventStore {
   }
 }
 
+async function dashboardManagementHeaders(app: ReturnType<typeof createBenchApp>): Promise<Record<string, string>> {
+  const html = await (await app.request("/")).text();
+  const token = html.match(/const MANAGEMENT_ACCESS_TOKEN = "([^"]+)";/)?.[1];
+  if (!token) throw new Error("dashboard management authorization token missing");
+  return { "x-inferock-bench-management": token };
+}
+
 describe("dashboard", () => {
   it("serves self-contained HTML and honest-zero JSON endpoint shapes", async () => {
     const home = await mkdtemp(join(tmpdir(), "inferock-bench-dashboard-"));
@@ -460,6 +467,7 @@ describe("dashboard", () => {
     const rawAnthropicKey = ["s", "k", "-", "ant", "-", "benchrender", "-", "abcdefghij"].join("");
     const config = await ensureGeneratedBenchKey({ paths, config: { benchKey: fullBenchKey } });
     const app = createBenchApp({ config, paths, store: new MemoryStore(), env: {}, log: () => {} });
+    const managementHeaders = await dashboardManagementHeaders(app);
 
     const summaryBefore = await (await app.request("/api/summary")).json();
     const summaryBeforeText = JSON.stringify(summaryBefore);
@@ -472,9 +480,30 @@ describe("dashboard", () => {
       },
     });
 
+    const unauthReveal = await app.request("/api/key");
+    expect(unauthReveal.status).toBe(401);
+    expect(await unauthReveal.text()).not.toContain(fullBenchKey);
+
+    const crossOriginReveal = await app.request("http://127.0.0.1/api/key", {
+      headers: {
+        "x-api-key": fullBenchKey,
+        origin: "https://example.invalid",
+      },
+    });
+    expect(crossOriginReveal.status).toBe(403);
+    expect(await crossOriginReveal.text()).not.toContain(fullBenchKey);
+
+    const managementReveal = await (await app.request("/api/key", {
+      headers: managementHeaders,
+    })).json() as { benchKey: string; maskedBenchKey: string };
+    expect(managementReveal).toEqual({
+      benchKey: fullBenchKey,
+      maskedBenchKey: "ibl_...5678",
+    });
+
     const saved = await app.request("/api/setup", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         openaiApiKey: rawOpenAiKey,
         anthropicApiKey: rawAnthropicKey,
@@ -529,7 +558,8 @@ describe("dashboard", () => {
     expect(JSON.stringify(receipt)).not.toContain(rawAnthropicKey);
     expect(JSON.stringify(receipt)).not.toContain(fullBenchKey);
 
-    const reveal = await (await app.request("/api/key")).json() as { benchKey: string; maskedBenchKey: string };
+    const reveal = await (await app.request("/api/key", { headers: { "x-api-key": fullBenchKey } }))
+      .json() as { benchKey: string; maskedBenchKey: string };
     expect(reveal).toEqual({
       benchKey: fullBenchKey,
       maskedBenchKey: "ibl_...5678",
@@ -537,7 +567,7 @@ describe("dashboard", () => {
 
     const removed = await app.request("/api/setup", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({ openaiApiKey: null }),
     });
     const removedBody = await removed.json() as {

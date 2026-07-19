@@ -33,7 +33,7 @@ flowchart LR
 
 ## Provider requests
 
-`inferock-bench` runs a local server on `127.0.0.1:4318` by default. Your app sends OpenAI-compatible chat-completions traffic to `/v1/chat/completions`, OpenAI Responses traffic to `/v1/responses`, Anthropic Messages traffic to `/v1/messages`, Gemini GenerateContent traffic to `/v1beta/models/:model:generateContent`, or pinned OpenRouter OpenAI-compatible chat traffic to `/openrouter/v1/chat/completions`.
+`inferock-bench` runs a local server on `127.0.0.1:4318` by default. It refuses non-loopback hosts such as `0.0.0.0` unless you start it with `--allow-external-host`; that flag prints a warning because the proxy and management APIs become reachable from other machines that can connect to that host. Your app sends OpenAI-compatible chat-completions traffic to `/v1/chat/completions`, OpenAI Responses traffic to `/v1/responses`, Anthropic Messages traffic to `/v1/messages`, Gemini GenerateContent traffic to `/v1beta/models/:model:generateContent`, or pinned OpenRouter OpenAI-compatible chat traffic to `/openrouter/v1/chat/completions`.
 
 For OpenAI traffic, the proxy sends the request to the configured OpenAI base URL and defaults to `https://api.openai.com/v1`. For Anthropic traffic, it sends the request to the configured Anthropic base URL and defaults to `https://api.anthropic.com/v1`. For Gemini traffic, it sends the request to the configured Gemini base URL and defaults to `https://generativelanguage.googleapis.com/v1beta`. For OpenRouter traffic, it sends the request to the configured OpenRouter base URL and defaults to `https://openrouter.ai/api/v1`. Those base URLs can be overridden with local environment variables, including `INFEROCK_BENCH_OPENROUTER_BASE_URL` for OpenRouter.
 
@@ -117,6 +117,8 @@ Measured calls are appended to:
 
 That file is local. It is the evidence behind the dashboard, report, and receipt.
 
+New or touched event files are written with owner-only `0600` permissions, and the bench home is created `0700`. Existing files from older versions keep their old mode until the current version appends to or rewrites them.
+
 The event log does not store provider keys. It can store response text, tool calls, tool schemas, model names, finish reasons, provider usage fields, timing, provider request IDs, selected rate-limit/retry headers, and detector evidence. As built, the canonical event does not store the full request prompt/messages, but tool schemas and response content can still be sensitive.
 
 Treat `events.jsonl` as private.
@@ -130,6 +132,10 @@ The browser dashboard talks to the local `inferock-bench` server with same-origi
 ```
 
 Receipts stay local until you copy, post, attach, or otherwise share them.
+
+Receipt directories created by the bench are `0700`; new or rewritten receipt and share-card files are `0600`. Existing receipt files from older versions keep their previous mode until they are rewritten.
+
+Dashboard setup and full local-bench-key reveal use a local management gate. The request must come from the same dashboard origin and must include either dashboard authorization or the local `ibl_` key; a bare unauthenticated `GET /api/key` returns an error instead of the key.
 
 ## Reliability index
 

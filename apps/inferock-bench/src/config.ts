@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { ensurePrivateDir, writePrivateTextFile } from "./private-files.js";
 import { isRecord, stringValue } from "./record.js";
 import type { ProviderName } from "./provider.js";
 
@@ -84,7 +85,7 @@ export function resolveBenchPaths(env: NodeJS.ProcessEnv = process.env): BenchPa
 }
 
 export async function ensureBenchHome(paths: BenchPaths): Promise<void> {
-  await mkdir(paths.homeDir, { recursive: true });
+  await ensurePrivateDir(paths.homeDir);
 }
 
 export async function readBenchConfig(paths: BenchPaths): Promise<BenchConfig> {
@@ -101,11 +102,7 @@ export async function readBenchConfig(paths: BenchPaths): Promise<BenchConfig> {
 
 export async function writeBenchConfig(paths: BenchPaths, config: BenchConfig): Promise<void> {
   await ensureBenchHome(paths);
-  await writeFile(paths.configFile, `${JSON.stringify(config, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  await chmod(paths.configFile, 0o600);
+  await writePrivateTextFile(paths.configFile, `${JSON.stringify(config, null, 2)}\n`);
 }
 
 export function benchKeyFromConfig(

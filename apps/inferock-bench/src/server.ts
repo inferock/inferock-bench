@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { isIP } from "node:net";
 import {
   benchKeyFromConfig,
   DEFAULT_HOST,
@@ -20,13 +21,36 @@ export interface StartServerInput {
   readonly stdinIsTty?: boolean;
   readonly stdoutIsTty?: boolean;
   readonly log?: (line: string) => void;
+  readonly allowExternalHost?: boolean;
+}
+
+export interface ServerBindOptions {
+  readonly host: string;
+  readonly port: number;
+  readonly externalHost: boolean;
+  readonly warnings: readonly string[];
+}
+
+export class ExternalHostRefusedError extends Error {
+  constructor(host: string) {
+    super(
+      `Refusing to bind inferock-bench to non-loopback host ${host}. ` +
+      "Use --allow-external-host only when you intend to expose the local proxy and management APIs to the network.",
+    );
+    this.name = "ExternalHostRefusedError";
+  }
 }
 
 export async function startServer(input: StartServerInput): Promise<void> {
   const log = input.log ?? console.log;
   const env = input.env ?? process.env;
-  const host = input.host ?? env.INFEROCK_BENCH_HOST ?? DEFAULT_HOST;
-  const port = input.port ?? portFromEnv(env) ?? DEFAULT_PORT;
+  const bind = resolveServerBindOptions({
+    host: input.host,
+    port: input.port,
+    env,
+    allowExternalHost: input.allowExternalHost ?? false,
+  });
+  const { host, port } = bind;
   const store = new JsonlEventStore(input.paths.eventsFile);
   const app = createBenchApp({
     config: input.config,
@@ -34,6 +58,7 @@ export async function startServer(input: StartServerInput): Promise<void> {
     store,
     env,
     log,
+    allowExternalManagementHost: bind.externalHost,
     reliabilityIndexPrompt: {
       paths: input.paths,
       stdinIsTty: input.stdinIsTty,
@@ -43,6 +68,7 @@ export async function startServer(input: StartServerInput): Promise<void> {
 
   const summary = summarizeBenchEvents(await store.readAll(), {}, { config: input.config });
   const dashboardUrl = `http://${host}:${port}/`;
+  for (const warning of bind.warnings) log(warning);
   log(`inferock-bench listening at http://${host}:${port}`);
   log(`Dashboard: ${dashboardUrl}`);
   log(`OpenAI SDK baseURL: http://${host}:${port}/v1`);
@@ -67,6 +93,45 @@ export async function startServer(input: StartServerInput): Promise<void> {
     hostname: host,
     port,
   });
+}
+
+export function resolveServerBindOptions(input: {
+  readonly host?: string;
+  readonly port?: number;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly allowExternalHost?: boolean;
+}): ServerBindOptions {
+  const env = input.env ?? process.env;
+  const host = input.host ?? env.INFEROCK_BENCH_HOST ?? DEFAULT_HOST;
+  const port = input.port ?? portFromEnv(env) ?? DEFAULT_PORT;
+  const externalHost = !isLoopbackHost(host);
+  if (externalHost && !input.allowExternalHost) throw new ExternalHostRefusedError(host);
+  return {
+    host,
+    port,
+    externalHost,
+    warnings: externalHost ? [externalHostWarning(host)] : [],
+  };
+}
+
+export function isLoopbackHost(host: string): boolean {
+  const normalized = normalizeHost(host);
+  if (normalized === "localhost" || normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") return true;
+  if (isIP(normalized) === 4) {
+    const parts = normalized.split(".");
+    return parts.length === 4 && parts[0] === "127";
+  }
+  return false;
+}
+
+export function externalHostWarning(host: string): string {
+  return `WARNING: --allow-external-host is enabled for ${host}. The inferock-bench proxy and management APIs are reachable from other machines that can connect to this host.`;
+}
+
+function normalizeHost(host: string): string {
+  const lower = host.trim().toLowerCase();
+  const unbracketed = lower.startsWith("[") && lower.endsWith("]") ? lower.slice(1, -1) : lower;
+  return unbracketed.endsWith(".") ? unbracketed.slice(0, -1) : unbracketed;
 }
 
 function portFromEnv(env: NodeJS.ProcessEnv): number | undefined {

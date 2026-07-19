@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage } from "node:http";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import playwright, { type Page } from "@playwright/test";
 import { createBenchApp } from "../src/proxy.js";
+import { ensurePrivateDir, writePrivateTextFile } from "../src/private-files.js";
 import { JsonlEventStore } from "../src/storage.js";
 import type { BenchConfig, BenchPaths } from "../src/config.js";
 import {
@@ -175,9 +176,9 @@ async function assembleStore(options: CaptureOptions): Promise<{
   const eventsFile = resolve(homeDir, "events.jsonl");
   const combinedEvents = `${combined.map((record) => record.line).join("\n")}\n`;
   await rm(homeDir, { recursive: true, force: true });
-  await mkdir(resolve(homeDir, "receipts"), { recursive: true });
-  await writeFile(eventsFile, combinedEvents, "utf8");
-  await writeFile(resolve(homeDir, "config"), `${JSON.stringify({ benchKey }, null, 2)}\n`, "utf8");
+  await ensurePrivateDir(resolve(homeDir, "receipts"));
+  await writePrivateTextFile(eventsFile, combinedEvents);
+  await writePrivateTextFile(resolve(homeDir, "config"), `${JSON.stringify({ benchKey }, null, 2)}\n`);
 
   return {
     paths: {

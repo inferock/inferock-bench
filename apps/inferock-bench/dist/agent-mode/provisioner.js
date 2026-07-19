@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { chmod, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { stableSha256 } from "../coverage-suite/canonical-json.js";
+import { ensurePrivateDir, writePrivateTextFile } from "../private-files.js";
 import { BENCH_PACKAGE_VERSION as CURRENT_BENCH_PACKAGE_VERSION } from "../version.js";
 export { BENCH_PACKAGE_VERSION } from "../version.js";
 const execFileAsync = promisify(execFile);
@@ -151,13 +152,13 @@ export async function provisionAgent(input) {
         };
     }
     await rm(input.plan.installRoot, { recursive: true, force: true });
-    await mkdir(input.plan.installRoot, { recursive: true });
+    await ensurePrivateDir(input.plan.installRoot);
     for (const [index, packageSpec] of input.plan.packages.entries()) {
         try {
             const bytes = await (input.fetchTarball ?? fetchTarball)(packageSpec.tarballUrl);
             assertIntegrity(bytes, packageSpec);
             const destination = join(input.plan.installRoot, index === 0 ? "root" : "platform");
-            await mkdir(destination, { recursive: true });
+            await ensurePrivateDir(destination);
             await (input.unpackTarball ?? unpackTarballWithSystemTar)(bytes, destination);
         }
         catch (error) {
@@ -166,7 +167,7 @@ export async function provisionAgent(input) {
     }
     try {
         await (input.markExecutable ?? ((path) => chmod(path, 0o755)))(input.plan.executablePath);
-        await writeFile(manifestPath, `${JSON.stringify({
+        await writePrivateTextFile(manifestPath, `${JSON.stringify({
             schemaVersion: "inferock-agent-install-manifest-v1",
             agent: input.plan.agent,
             benchVersion: input.plan.benchVersion,
@@ -176,7 +177,7 @@ export async function provisionAgent(input) {
             executablePath: input.plan.executablePath,
             packages: input.plan.packages,
             provisioner: "sri-verified-tarball-unpack-v1",
-        }, null, 2)}\n`, "utf8");
+        }, null, 2)}\n`);
     }
     catch (error) {
         throw agentProvisioningFailure(input.plan, input.plan.packages.at(-1) ?? input.plan.packages[0], error);

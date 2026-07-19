@@ -71,6 +71,7 @@ The terminal prints `first call measured ✓` after the first successful proxied
 
 ```sh
 inferock-bench start
+inferock-bench start --host 0.0.0.0 --allow-external-host
 inferock-bench init
 inferock-bench test --providers all
 inferock-bench test --generator agent
@@ -78,6 +79,11 @@ inferock-bench report --last 24h
 inferock-bench receipt --compact
 inferock-bench telemetry enable --reliability-index
 ```
+
+The default server host is `127.0.0.1`. Non-loopback hosts are refused unless
+`--allow-external-host` is present; that mode prints a warning because the
+proxy and management APIs become reachable from other machines that can connect
+to the host.
 
 `inferock-bench test` shows the full-battery estimated price before any
 provider call. Agent mode auto-provisions pinned `opencode-ai@1.17.13` locally

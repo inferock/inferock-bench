@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import {
@@ -109,6 +109,7 @@ export interface BenchProxyOptions {
   readonly coverageTest?: CoverageTestRuntimeOverrides;
   readonly agentProvisioner?: ProviderParallelRunInput["agentProvisioner"];
   readonly agentProcessRunner?: AgentProcessRunner;
+  readonly allowExternalManagementHost?: boolean;
 }
 
 interface ProxyState {
@@ -158,6 +159,7 @@ export function createBenchApp(options: BenchProxyOptions): Hono {
   const app = new Hono();
   const state: ProxyState = { firstSuccessfulCallMeasured: false };
   let activeConfig = options.config;
+  const managementAccessToken = randomBytes(32).toString("base64url");
   const coverageTest = createCoverageTestController({
     config: () => activeConfig,
     env: options.env,
@@ -182,7 +184,7 @@ export function createBenchApp(options: BenchProxyOptions): Hono {
     });
   };
 
-  app.get("/", () => new Response(renderDashboardHtml(), {
+  app.get("/", () => new Response(renderDashboardHtml({ managementAccessToken }), {
     headers: { "content-type": "text/html; charset=utf-8" },
   }));
   app.get("/health", (c) => c.json({ ok: true, service: "inferock-bench" }));
@@ -203,6 +205,13 @@ export function createBenchApp(options: BenchProxyOptions): Hono {
     return c.json({ rows: summary.rows });
   });
   app.post("/api/reprice-latency-row", async (c) => {
+    const management = validManagementRequest(c, {
+      config: activeConfig,
+      env: options.env,
+      managementAccessToken,
+      allowExternalHost: options.allowExternalManagementHost ?? false,
+    });
+    if (!management.ok) return localJsonError(management.status, management.code, management.message);
     const body = parseJsonRecord(await c.req.text());
     if (!body || !isRecord(body.row)) {
       return localJsonError(400, "invalid_json", "Request body must include a row object.");
@@ -237,18 +246,24 @@ export function createBenchApp(options: BenchProxyOptions): Hono {
       calls: recentCallsFromRecords(records, limit, storedEventScopeFromRequest(c, records)),
     });
   });
-  app.get("/api/key", () => new Response(
-    `${JSON.stringify(revealBenchKeyPayload({
+  app.get("/api/key", (c) => {
+    const management = validManagementRequest(c, {
       config: activeConfig,
       env: options.env,
-    }))}\n`,
-    {
+      managementAccessToken,
+      allowExternalHost: options.allowExternalManagementHost ?? false,
+    });
+    if (!management.ok) return localJsonError(management.status, management.code, management.message);
+    return new Response(`${JSON.stringify(revealBenchKeyPayload({
+      config: activeConfig,
+      env: options.env,
+    }))}\n`, {
       headers: {
         "cache-control": "no-store",
         "content-type": "application/json; charset=utf-8",
       },
-    },
-  ));
+    });
+  });
   app.get("/api/receipt", async (c) => {
     const records = await options.store.readAll();
     return c.json(receiptPayload({
@@ -270,6 +285,13 @@ export function createBenchApp(options: BenchProxyOptions): Hono {
   app.get("/api/coverage-test/runs/:runId/receipt", (c) =>
     coverageTest.receiptResponse(c.req.param("runId")));
   app.post("/api/setup", async (c) => {
+    const management = validManagementRequest(c, {
+      config: activeConfig,
+      env: options.env,
+      managementAccessToken,
+      allowExternalHost: options.allowExternalManagementHost ?? false,
+    });
+    if (!management.ok) return localJsonError(management.status, management.code, management.message);
     if (!options.paths) {
       return localJsonError(503, "setup_unavailable", "Local setup persistence is unavailable.");
     }
@@ -682,6 +704,114 @@ async function captureMeasuredCall(
 type LocalBenchKeyValidation =
   | { readonly ok: true; readonly key: string; readonly grant?: AdditionalBenchKeyGrant }
   | { readonly ok: false; readonly status: 401 | 403; readonly code: string; readonly message: string };
+
+type ManagementValidation =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly status: 401 | 403; readonly code: string; readonly message: string };
+
+const MANAGEMENT_ACCESS_HEADER = "x-inferock-bench-management";
+
+function validManagementRequest(
+  c: Context,
+  input: {
+    readonly config: BenchConfig;
+    readonly env?: NodeJS.ProcessEnv;
+    readonly managementAccessToken: string;
+    readonly allowExternalHost: boolean;
+  },
+): ManagementValidation {
+  if (!managementHostAndOriginAllowed(c, input.allowExternalHost)) {
+    return {
+      ok: false,
+      status: 403,
+      code: "invalid_management_origin",
+      message: "Local management API requests must use the same origin as the dashboard.",
+    };
+  }
+
+  const accessToken = optionalHeader(c.req.raw.headers.get(MANAGEMENT_ACCESS_HEADER));
+  if (accessToken && secretEqual(accessToken, input.managementAccessToken)) return { ok: true };
+
+  const key = localBenchKeyFromHeaders(c.req.raw.headers);
+  if (key && acceptedBenchKeysFromConfig(input.config, input.env ?? process.env).some((accepted) => secretEqual(key, accepted))) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    status: 401,
+    code: "invalid_management_auth",
+    message: "Local management API requests require dashboard authorization or the local bench key.",
+  };
+}
+
+function managementHostAndOriginAllowed(c: Context, allowExternalHost: boolean): boolean {
+  const requestUrl = new URL(c.req.url);
+  if (!managementHostnameAllowed(requestUrl.hostname, allowExternalHost)) return false;
+
+  const hostHeader = optionalHeader(c.req.raw.headers.get("host"));
+  if (hostHeader) {
+    const hostHeaderName = hostnameFromHostHeader(hostHeader);
+    if (!hostHeaderName || !managementHostnameAllowed(hostHeaderName, allowExternalHost)) return false;
+  }
+
+  const origin = optionalHeader(c.req.raw.headers.get("origin"));
+  if (origin && !sameOrigin(origin, requestUrl)) return false;
+
+  const referer = optionalHeader(c.req.raw.headers.get("referer"));
+  if (!origin && referer && !sameOrigin(referer, requestUrl)) return false;
+
+  return true;
+}
+
+function managementHostnameAllowed(hostname: string, allowExternalHost: boolean): boolean {
+  return allowExternalHost || loopbackHostname(hostname);
+}
+
+function loopbackHostname(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+  if (normalized === "localhost" || normalized === "::1" || normalized === "0:0:0:0:0:0:0:1") return true;
+  const parts = normalized.split(".");
+  if (parts.length !== 4 || parts[0] !== "127") return false;
+  return parts.every((part) => {
+    const value = Number(part);
+    return Number.isInteger(value) && value >= 0 && value <= 255 && String(value) === part;
+  });
+}
+
+function hostnameFromHostHeader(hostHeader: string): string | undefined {
+  try {
+    return new URL(`http://${hostHeader}`).hostname;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeHostname(hostname: string): string {
+  const lower = hostname.trim().toLowerCase();
+  const unbracketed = lower.startsWith("[") && lower.endsWith("]") ? lower.slice(1, -1) : lower;
+  return unbracketed.endsWith(".") ? unbracketed.slice(0, -1) : unbracketed;
+}
+
+function sameOrigin(candidate: string, requestUrl: URL): boolean {
+  try {
+    return new URL(candidate).origin === requestUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
+function localBenchKeyFromHeaders(headers: Headers): string | undefined {
+  const authorization = headers.get("authorization");
+  const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  return optionalHeader(bearer) ?? optionalHeader(headers.get("x-api-key"));
+}
+
+function secretEqual(left: string, right: string): boolean {
+  const leftBytes = Buffer.from(left);
+  const rightBytes = Buffer.from(right);
+  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
+}
 
 function validLocalBenchKey(
   headers: Headers,

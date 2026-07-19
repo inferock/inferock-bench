@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
 import type { BenchPaths } from "../config.js";
+import { writePrivateTextFile } from "../private-files.js";
 import {
   CONFORMANCE_ARTIFACT_SUBTREE,
   CONFORMANCE_MANIFEST_SCHEMA_VERSION,
@@ -68,11 +69,7 @@ export function createConformanceArtifactWriter(
         throw new Error(`Conformance ledger runId ${entry.runId} does not match writer runId ${runId}.`);
       }
       const ledgerPath = join(runDir, "ledger.jsonl");
-      await mkdir(dirname(ledgerPath), { recursive: true });
-      await writeFile(ledgerPath, `${JSON.stringify(entry)}\n`, {
-        encoding: "utf8",
-        flag: "a",
-      });
+      await writePrivateTextFile(ledgerPath, `${JSON.stringify(entry)}\n`, { flag: "a" });
       return ledgerPath;
     },
     writeSummary: async (summary) => {
@@ -86,8 +83,7 @@ export function createConformanceArtifactWriter(
     },
     writeRawNdjson: async (probeId, rows) => {
       const path = join(rawDir, `${safeProbeFilename(probeId)}.sse.ndjson`);
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, rows.map((row) => JSON.stringify(row)).join("\n") + "\n", "utf8");
+      await writePrivateTextFile(path, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
       return path;
     },
     writeRawJson: async (probeId, suffix, value) => {
@@ -160,8 +156,7 @@ function assertValidationOnlySummary(summary: ConformanceSummary): void {
 }
 
 async function writeJsonFile(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await writePrivateTextFile(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function safeProbeFilename(probeId: string): string {

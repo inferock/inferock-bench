@@ -52,6 +52,7 @@ describe("cli", () => {
     expect(lines.join("\n")).toContain("inferock-bench");
     expect(lines.join("\n")).toContain("receipt --compact");
     expect(lines.join("\n")).toContain("key reveal");
+    expect(lines.join("\n")).toContain("--allow-external-host");
     await expect(readFile(join(home, "config"), "utf8")).rejects.toThrow(/ENOENT/);
   });
 
@@ -381,6 +382,26 @@ describe("cli", () => {
       reliabilityIndex?: unknown;
     };
     expect(config.reliabilityIndex).toBeUndefined();
+  });
+
+  it("refuses external init host without explicit opt-in", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "inferock-bench-cli-project-"));
+    const home = await mkdtemp(join(tmpdir(), "inferock-bench-cli-home-"));
+    const errors: string[] = [];
+    await writeFile(join(cwd, "package.json"), JSON.stringify({
+      dependencies: {
+        openai: "^4.0.0",
+      },
+    }), "utf8");
+
+    await expect(runCli(["init", "--host", "0.0.0.0"], {
+      cwd,
+      env: { INFEROCK_BENCH_HOME: home },
+      error: (line) => errors.push(line),
+    })).rejects.toThrow();
+
+    expect(errors.join("\n")).toContain("Refusing non-loopback --host 0.0.0.0");
+    expect(errors.join("\n")).toContain("--allow-external-host");
   });
 
   it("prints latency assumptions with latency-inclusive report totals", async () => {

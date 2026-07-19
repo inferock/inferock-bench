@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { GEMINI_DEVELOPER_API_PLANE, lookupPrice, lookupPriceForEvent, roundUsd, } from "@inferock/measure/pricing";
 import { normalizeCanonicalEvent } from "@inferock/measure/canonical-event";
 import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { WATERMARK_NAME, WATERMARK_URL, benchKeyFromConfig, } from "../config.js";
 import { LOCAL_RECEIPT_LOCALITY } from "../receipt.js";
 import { createBenchApp } from "../proxy.js";
+import { ensurePrivateDir, writePrivateTextFile } from "../private-files.js";
 import { formatCoverageStatus, formatUsd, isExposureReportRow, renderCoverageSummaryLine, summarizeBenchEvents, coverageSummaryFromSurfaces, } from "../summary.js";
 import { LEGACY_SPEEDTEST_RECEIPT_SCHEMA_VERSION, SPEEDTEST_RECEIPT_SCHEMA_VERSION, } from "../receipt-schema.js";
 import { BENCH_PACKAGE_VERSION } from "../version.js";
@@ -670,10 +670,10 @@ function driftCanaryBudgetState(state) {
     };
 }
 export async function writeSpeedTestReceiptBundle(receiptsDir, bundle) {
-    await mkdir(receiptsDir, { recursive: true });
+    await ensurePrivateDir(receiptsDir);
     const filename = `speedtest-${bundle.run.runId}-${bundle.run.endedAt.replace(/[:.]/g, "-")}.json`;
     const path = join(receiptsDir, filename);
-    await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`, "utf8");
+    await writePrivateTextFile(path, `${JSON.stringify(bundle, null, 2)}\n`);
     return path;
 }
 export async function createMeasuredCoverageTokenBaseline(input) {
@@ -723,8 +723,9 @@ export async function createMeasuredCoverageTokenBaseline(input) {
         tasks,
     };
     if (input.outputPath) {
-        await mkdir(dirname(input.outputPath), { recursive: true });
-        await writeFile(input.outputPath, `${JSON.stringify(baseline, null, 2)}\n`, "utf8");
+        await writePrivateTextFile(input.outputPath, `${JSON.stringify(baseline, null, 2)}\n`, {
+            privateParent: false,
+        });
     }
     return baseline;
 }

@@ -6,10 +6,10 @@ This manifest is the publish gate for README and launch assets. Every shipped im
 ### `asset-file-name.ext`
 - source: how the asset was captured or generated
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead; watermark is `github.com/inferock/inferock-bench`
-- masked-verified: YYYY-MM-DD by <human name or handle> OR PENDING user sign-off YYYY-MM-DD OR PENDING conductor
+- masked-verified: YYYY-MM-DD by <human name or handle> OR PENDING user sign-off YYYY-MM-DD OR PENDING maintainer
 ```
 
-`masked-verified: NO ...` is a blocking state. Do not replace it with a date until a human has inspected the rendered pixels and the asset has also passed `pnpm oss:asset-scan`.
+`masked-verified: NO ...` is a blocking state. Do not replace it with a date until a human has inspected the rendered pixels and the asset has passed the maintainer asset review gate.
 
 Use this manifest as an evidence ledger, not a gallery. Each entry should say whether an asset is measured traffic, illustrative mechanism, or generated text-free SVG decoration, then state the masking/provenance rule that applies.
 
@@ -31,7 +31,7 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead; watermark is `github.com/inferock/inferock-bench`.
 - masking-check: asset strings and rendered pixels were checked for local bench keys, provider keys, host-user paths, sanitized receipt path, four-element headline, and watermark correctness.
 - human-sign-off: pending user sign-off, 2026-07-10.
-- masked-verified: 2026-07-10 by conductor visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
+- masked-verified: 2026-07-10 by maintainer visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
 
 ### `dashboard-real-traffic.png`
 
@@ -44,7 +44,7 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead where paths appear; watermark is `github.com/inferock/inferock-bench`.
 - masking-check: provider-key panel and capture-only interactive controls hidden; rendered pixels checked for local bench keys, provider keys, host-user paths, settled dashboard state, four-element one-line headline labels, clipped 1100px content-column framing, shared-grid previous-results ledger row alignment, previous-results ledger crop, and watermark correctness.
 - human-sign-off: pending user sign-off, 2026-07-10.
-- masked-verified: 2026-07-10 by conductor visual inspection (25th; headline-% + gloss re-render 61b312b @2200x1568, four-criteria + masking + GitHub-width legibility pass; capture invariants CI-asserted)
+- masked-verified: 2026-07-10 by maintainer visual inspection (25th; headline-% + gloss re-render 61b312b @2200x1568, four-criteria + masking + GitHub-width legibility pass; capture invariants CI-asserted)
 
 ### `receipt-real-traffic.png`
 
@@ -56,7 +56,7 @@ Use this manifest as an evidence ledger, not a gallery. Each entry should say wh
 - asset-masking: key panel hidden; no `ibl_`/`sk-` strings; no `/home/*`, `/Users/*`, or `ec2-user`; `~/.inferock-bench` rendered instead; watermark is `github.com/inferock/inferock-bench`.
 - masking-check: rendered receipt checked for local bench keys, provider keys, host-user paths, sanitized receipt path, four-element headline, and watermark correctness.
 - human-sign-off: pending user sign-off, 2026-07-10.
-- masked-verified: 2026-07-10 by conductor visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
+- masked-verified: 2026-07-10 by maintainer visual inspection (24th lineage; 4-element headline, % line, exposure detail, ~ paths, watermark, zero key shapes confirmed per-image)
 
 ### `silent-overcharge-anatomy.svg`
 

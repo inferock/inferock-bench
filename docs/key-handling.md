@@ -36,6 +36,8 @@ The `ibl_` key does not authenticate you to Inferock, OpiusAI, OpenAI, Anthropic
 
 `INFEROCK_BENCH_KEY` can override the key your app sends. When both a generated key and `INFEROCK_BENCH_KEY` exist, the proxy accepts both.
 
+The dashboard shows the local bench key masked by default. Full-key reveal is gated: the same-origin dashboard page or the local bench key must authorize `/api/key`, so a bare unauthenticated request does not return the full value. Provider-key setup through the dashboard uses the same local management gate.
+
 Reliability-index opt-in does not change key handling. Today it records consent locally, shows the aggregate payload, and sends nothing while the public index is pre-launch. When the index goes live, contribution must remain reviewable and revocable, and keys must never be part of the payload.
 
 Real-agent benchmark runs create an additional ephemeral `ibl_` key for each
@@ -52,10 +54,12 @@ must redact usable `ibl_`, `sk-`, `sk-ant-`, and bearer-token values.
 | Material | Storage | Who receives it | Masking | Rotation or revocation |
 | --- | --- | --- | --- | --- |
 | Provider key | Environment variable or `~/.inferock-bench/config` when saved through setup/dashboard; config is written `0600` | Only the local `inferock-bench` process and the selected provider API request; real-agent processes do not receive it | Dashboard/setup/status show masked prefix and last four characters; masking is display-only | Revoke in the provider console, then update the env var or saved local config key |
-| Persistent `ibl_` local bench key | `~/.inferock-bench/config`, generated on first run and written `0600` | Your app/SDK sends it to localhost; the local proxy accepts it for local auth | Dashboard/status mask it; `key reveal` can print the full value by explicit command | Stop the server, edit or remove `benchKey` in config, restart, and update SDK config |
+| Persistent `ibl_` local bench key | `~/.inferock-bench/config`, generated on first run and written `0600` | Your app/SDK sends it to localhost; the local proxy accepts it for local auth; the same-origin dashboard page can reveal/copy it | Dashboard/status mask it; `/api/key` requires dashboard authorization or the local bench key; `key reveal` can print the full value by explicit command | Stop the server, edit or remove `benchKey` in config, restart, and update SDK config |
 | Agent ephemeral `ibl_` key | In-memory run grant for the provider-scoped agent process; not written to config | The local agent process and localhost proxy only; it is scoped to a run, provider, optional model list, expiry, and call budget | Agent command, environment, stdout, stderr, dashboard events, and receipt fields must redact usable values | Revoked when the run ends or the grant is marked revoked; exhausted budgets reject dispatch |
-| Environment variables | Process environment for `inferock-bench` and your shell/session | The local process reads them; provider keys are forwarded only to their provider, and `INFEROCK_BENCH_KEY` is accepted by localhost | Status output shows masked key status; env values are not written back unless you save a key through setup/dashboard | Change or unset the environment variable and restart affected processes |
-| Receipts and event files | `~/.inferock-bench/events.jsonl` and `~/.inferock-bench/receipts/` | Local dashboard, CLI reports, and anyone you later share the files with | Provider keys are not stored; receipts/events can include response text, tool calls, schemas, model IDs, timing, provider IDs, selected headers, and detector evidence | Delete or archive local files; treat shared receipts as already disclosed to the recipient |
+| Environment variables | Process environment for `inferock-bench` and your shell | The local process reads them; provider keys are forwarded only to their provider, and `INFEROCK_BENCH_KEY` is accepted by localhost | Status output shows masked key status; env values are not written back unless you save a key through setup/dashboard | Change or unset the environment variable and restart affected processes |
+| Receipts and event files | `~/.inferock-bench/events.jsonl` and `~/.inferock-bench/receipts/`; new/touched files are written `0600` and internal artifact directories are created `0700` | Local dashboard, CLI reports, and anyone you later share the files with | Provider keys are not stored; receipts/events can include response text, tool calls, schemas, model IDs, timing, provider IDs, selected headers, and detector evidence | Delete or archive local files; treat shared receipts as already disclosed to the recipient |
+
+Files created by older versions keep their existing permissions until the current version rewrites or touches them. If you previously ran the bench on a shared machine, check the mode on old `events.jsonl` and receipt files before treating them as private.
 
 ## Rotate or revoke
 

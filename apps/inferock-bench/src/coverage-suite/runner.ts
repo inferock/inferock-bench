@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import {
   GEMINI_DEVELOPER_API_PLANE,
   lookupPrice,
@@ -18,6 +17,7 @@ import {
 } from "../config.js";
 import { LOCAL_RECEIPT_LOCALITY, type ReceiptLocality } from "../receipt.js";
 import { createBenchApp, type ProviderFetch } from "../proxy.js";
+import { ensurePrivateDir, writePrivateTextFile } from "../private-files.js";
 import type { JsonRecord } from "../record.js";
 import {
   type EventStore,
@@ -986,10 +986,10 @@ export async function writeSpeedTestReceiptBundle(
   receiptsDir: string,
   bundle: SpeedTestReceiptBundle,
 ): Promise<string> {
-  await mkdir(receiptsDir, { recursive: true });
+  await ensurePrivateDir(receiptsDir);
   const filename = `speedtest-${bundle.run.runId}-${bundle.run.endedAt.replace(/[:.]/g, "-")}.json`;
   const path = join(receiptsDir, filename);
-  await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`, "utf8");
+  await writePrivateTextFile(path, `${JSON.stringify(bundle, null, 2)}\n`);
   return path;
 }
 
@@ -1043,8 +1043,9 @@ export async function createMeasuredCoverageTokenBaseline(
   };
 
   if (input.outputPath) {
-    await mkdir(dirname(input.outputPath), { recursive: true });
-    await writeFile(input.outputPath, `${JSON.stringify(baseline, null, 2)}\n`, "utf8");
+    await writePrivateTextFile(input.outputPath, `${JSON.stringify(baseline, null, 2)}\n`, {
+      privateParent: false,
+    });
   }
   return baseline;
 }

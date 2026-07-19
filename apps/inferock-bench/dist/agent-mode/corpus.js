@@ -96,24 +96,24 @@ function task(slug, prompt, files, testFile) {
     };
 }
 export async function writeAgentCorpusWorkspace(input) {
-    const { mkdir, writeFile } = await import("node:fs/promises");
     const { join } = await import("node:path");
+    const { ensurePrivateDir, writePrivateTextFile } = await import("../private-files.js");
     const corpus = input.corpus ?? AGENT_CODING_CORPUS;
-    await mkdir(input.workspace, { recursive: true });
-    await writeFile(join(input.workspace, "package.json"), `${JSON.stringify({
+    await ensurePrivateDir(input.workspace);
+    await writePrivateTextFile(join(input.workspace, "package.json"), `${JSON.stringify({
         type: "module",
         scripts: {
             test: "node --test",
         },
-    }, null, 2)}\n`, "utf8");
-    await writeFile(join(input.workspace, "README.md"), [
+    }, null, 2)}\n`);
+    await writePrivateTextFile(join(input.workspace, "README.md"), [
         "# Inferock Bench Agent Coding Corpus",
         "",
         "Fix the failing JavaScript exercises. Run `npm test` or `node --test` to verify.",
         "This workspace is a local scratch directory created for the benchmark run.",
         "",
-    ].join("\n"), "utf8");
-    await writeFile(join(input.workspace, "ATTRIBUTION.json"), `${JSON.stringify({
+    ].join("\n"));
+    await writePrivateTextFile(join(input.workspace, "ATTRIBUTION.json"), `${JSON.stringify({
         corpusId: corpus.corpusId,
         sourceSummary: corpus.sourceSummary,
         tasks: corpus.tasks.map((task) => ({
@@ -123,15 +123,15 @@ export async function writeAgentCorpusWorkspace(input) {
             canonicalData: task.canonicalData,
             localTestRuntime: task.localTestRuntime,
         })),
-    }, null, 2)}\n`, "utf8");
+    }, null, 2)}\n`);
     for (const taskEntry of corpus.tasks) {
         const taskDir = join(input.workspace, taskEntry.slug);
-        await mkdir(taskDir, { recursive: true });
-        await writeFile(join(taskDir, "README.md"), `${taskEntry.prompt}\n`, "utf8");
+        await ensurePrivateDir(taskDir);
+        await writePrivateTextFile(join(taskDir, "README.md"), `${taskEntry.prompt}\n`);
         for (const [path, content] of Object.entries(taskEntry.files)) {
-            await writeFile(join(taskDir, path), content, "utf8");
+            await writePrivateTextFile(join(taskDir, path), content);
         }
-        await writeFile(join(taskDir, `${taskEntry.slug}.test.js`), taskEntry.testFile, "utf8");
+        await writePrivateTextFile(join(taskDir, `${taskEntry.slug}.test.js`), taskEntry.testFile);
     }
     return {
         taskCount: corpus.tasks.length,

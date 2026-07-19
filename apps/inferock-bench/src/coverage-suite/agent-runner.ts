@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { normalizeCanonicalEvent } from "@inferock/measure/canonical-event";
@@ -9,6 +8,7 @@ import { AGENT_CODING_CORPUS, writeAgentCorpusWorkspace } from "../agent-mode/co
 import { redactAgentLogLine } from "../agent-mode/redaction.js";
 import { runSdkRetryWorker } from "../agent-mode/sdk-retry-worker.js";
 import { benchKeyFromConfig, type BenchConfig } from "../config.js";
+import { ensurePrivateDir } from "../private-files.js";
 import {
   createBenchApp,
   createBenchKeyCallBudget,
@@ -93,7 +93,7 @@ export async function runAgentCoverageSuite(
   const runRoot = join(input.benchHome, "runs", input.runId, input.provider);
   const workspace = join(runRoot, "workspace");
   const home = join(runRoot, "home");
-  await mkdir(home, { recursive: true });
+  await ensurePrivateDir(home);
   const localKey = `ibl_agent_${randomBytes(16).toString("hex")}`;
   const localKeyGrant: AdditionalBenchKeyGrant = {
     key: localKey,

@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { ensurePrivateDir, writePrivateTextFile } from "../private-files.js";
 import type { ProviderName } from "../provider.js";
 
 export interface AgentChildEnvInput {
@@ -43,7 +43,7 @@ export async function writeOpenCodeWorkspaceConfig(input: {
   if (input.provider === "gemini") {
     throw new Error("Agent-mode OpenCode workspace config does not support Gemini provider routing yet.");
   }
-  await mkdir(input.workspace, { recursive: true });
+  await ensurePrivateDir(input.workspace);
   const configPath = join(input.workspace, "opencode.json");
   const baseURL = `${input.proxyBaseUrl.replace(/\/$/, "")}/v1`;
   const otherProvider = input.provider === "openai" ? "anthropic" : "openai";
@@ -79,7 +79,7 @@ export async function writeOpenCodeWorkspaceConfig(input: {
       ignore: ["node_modules/**", ".git/**", "dist/**"],
     },
   };
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+  await writePrivateTextFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
   return configPath;
 }
 

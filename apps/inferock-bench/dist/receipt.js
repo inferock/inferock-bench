@@ -1,7 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { WATERMARK_NAME, WATERMARK_URL } from "./config.js";
+import { ensurePrivateDir, writePrivateTextFile } from "./private-files.js";
 import { formatCoverageStatus, formatUsd, isExposureReportRow, moneyLossObservedSpendPercentFromLine, moneyLossObservedSpendLine, renderCoverageSummaryLine, } from "./summary.js";
 import { BENCH_RECEIPT_SCHEMA_VERSION, BENCH_RECEIPT_VERSION, } from "./receipt-schema.js";
 export const LOCAL_RECEIPT_LOCALITY = {
@@ -319,10 +319,10 @@ function formatReceiptUsd(value) {
     return formatUsd(value);
 }
 export async function writeReceiptBundle(receiptsDir, bundle) {
-    await mkdir(receiptsDir, { recursive: true });
+    await ensurePrivateDir(receiptsDir);
     const filename = `receipt-${bundle.generatedAt.replace(/[:.]/g, "-")}.json`;
     const path = join(receiptsDir, filename);
-    await writeFile(path, `${JSON.stringify(bundle, null, 2)}\n`, "utf8");
+    await writePrivateTextFile(path, `${JSON.stringify(bundle, null, 2)}\n`);
     return path;
 }
 //# sourceMappingURL=receipt.js.map

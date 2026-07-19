@@ -4,7 +4,7 @@
 
 This public run is a sanitized aggregate receipt, not raw prompts or raw responses.
 
-Historical note: this card remains the published proof record for the 2026-07-06 visuals and old receipt format; current README visuals and headline facts are refreshed from the 2026-07-09 `inferock-bench` 0.1.10 run.
+Historical note: this card remains the published proof record for the 2026-07-06 visuals and old receipt format; current README visuals and headline facts are refreshed from the 2026-07-10 cumulative `inferock-bench` public run.
 
 | First question | Where to look |
 | --- | --- |
@@ -30,6 +30,7 @@ Historical note: this card remains the published proof record for the 2026-07-06
 ## Source Artifacts
 
 - Public asset provenance: [`../assets/PROVENANCE.md`](../assets/PROVENANCE.md).
+- Component paths below are private maintainer worktree artifacts, not public-verifiable raw logs; this card publishes sanitized aggregate facts and hashes only.
 - Aggregate receipt used for totals: `memory/benchtest-017-harvest-2026-07-06/aggregate-receipt.json`.
 - Event records used for provider aggregates: `memory/benchtest-017-harvest-2026-07-06/events.jsonl`.
 - Compact receipt rendered in the public asset: `memory/benchtest-017-harvest-2026-07-06/receipt-compact.txt`.

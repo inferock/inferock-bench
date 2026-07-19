@@ -61,11 +61,23 @@ export function createBenchApp(options) {
             log: options.log,
         });
     };
+    const managementInput = () => ({
+        config: activeConfig,
+        env: options.env,
+        managementAccessToken,
+        allowExternalHost: options.allowExternalManagementHost ?? false,
+    });
+    const readInput = () => ({
+        allowExternalHost: options.allowExternalManagementHost ?? false,
+    });
     app.get("/", () => new Response(renderDashboardHtml({ managementAccessToken }), {
         headers: { "content-type": "text/html; charset=utf-8" },
     }));
     app.get("/health", (c) => c.json({ ok: true, service: "inferock-bench" }));
     app.get("/api/summary", async (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
         const records = await options.store.readAll();
         const scope = storedEventScopeFromRequest(c, records);
         return c.json(summaryPayload({
@@ -77,6 +89,9 @@ export function createBenchApp(options) {
         }));
     });
     app.get("/api/rows", async (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
         const records = await options.store.readAll();
         const summary = summarizeBenchEvents(records, storedEventScopeFromRequest(c, records), { config: activeConfig });
         return c.json({ rows: summary.rows });
@@ -115,6 +130,9 @@ export function createBenchApp(options) {
         });
     });
     app.get("/api/calls", async (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
         const limit = callLimit(c.req.query("limit"));
         const records = await options.store.readAll();
         return c.json({
@@ -123,12 +141,7 @@ export function createBenchApp(options) {
         });
     });
     app.get("/api/key", (c) => {
-        const management = validManagementRequest(c, {
-            config: activeConfig,
-            env: options.env,
-            managementAccessToken,
-            allowExternalHost: options.allowExternalManagementHost ?? false,
-        });
+        const management = validManagementRequest(c, managementInput());
         if (!management.ok)
             return localJsonError(management.status, management.code, management.message);
         return new Response(`${JSON.stringify(revealBenchKeyPayload({
@@ -142,6 +155,9 @@ export function createBenchApp(options) {
         });
     });
     app.get("/api/receipt", async (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
         const records = await options.store.readAll();
         return c.json(receiptPayload({
             records,
@@ -149,14 +165,54 @@ export function createBenchApp(options) {
             scope: storedEventScopeFromRequest(c, records),
         }));
     });
-    app.get("/api/coverage-test/options", () => coverageTest.optionsResponse());
-    app.post("/api/coverage-test/estimate", (c) => coverageTest.estimateResponse(c.req.raw));
-    app.post("/api/coverage-test/start", (c) => coverageTest.startResponse(c.req.raw));
-    app.get("/api/coverage-test/runs", () => coverageTest.runsResponse());
-    app.get("/api/coverage-test/runs/:runId/events", (c) => coverageTest.eventsResponse(c.req.param("runId")));
-    app.get("/api/coverage-test/runs/:runId", (c) => coverageTest.runResponse(c.req.param("runId")));
-    app.post("/api/coverage-test/runs/:runId/abort", (c) => coverageTest.abortResponse(c.req.param("runId")));
-    app.get("/api/coverage-test/runs/:runId/receipt", (c) => coverageTest.receiptResponse(c.req.param("runId")));
+    app.get("/api/coverage-test/options", (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
+        return coverageTest.optionsResponse();
+    });
+    app.post("/api/coverage-test/estimate", (c) => {
+        const management = validManagementRequest(c, managementInput());
+        if (!management.ok)
+            return localJsonError(management.status, management.code, management.message);
+        return coverageTest.estimateResponse(c.req.raw);
+    });
+    app.post("/api/coverage-test/start", (c) => {
+        const management = validManagementRequest(c, managementInput());
+        if (!management.ok)
+            return localJsonError(management.status, management.code, management.message);
+        return coverageTest.startResponse(c.req.raw);
+    });
+    app.get("/api/coverage-test/runs", (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
+        return coverageTest.runsResponse();
+    });
+    app.get("/api/coverage-test/runs/:runId/events", (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
+        return coverageTest.eventsResponse(c.req.param("runId"));
+    });
+    app.get("/api/coverage-test/runs/:runId", (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
+        return coverageTest.runResponse(c.req.param("runId"));
+    });
+    app.post("/api/coverage-test/runs/:runId/abort", (c) => {
+        const management = validManagementRequest(c, managementInput());
+        if (!management.ok)
+            return localJsonError(management.status, management.code, management.message);
+        return coverageTest.abortResponse(c.req.param("runId"));
+    });
+    app.get("/api/coverage-test/runs/:runId/receipt", (c) => {
+        const read = validLocalReadRequest(c, readInput());
+        if (!read.ok)
+            return localJsonError(read.status, read.code, read.message);
+        return coverageTest.receiptResponse(c.req.param("runId"));
+    });
     app.post("/api/setup", async (c) => {
         const management = validManagementRequest(c, {
             config: activeConfig,
@@ -380,7 +436,37 @@ async function handleProviderRoute(c, route, options, state) {
             headers: responseHeaders,
         });
     }
-    const responseBody = await response.text();
+    let responseBody;
+    try {
+        responseBody = await response.text();
+    }
+    catch {
+        const endedAt = new Date();
+        budgetLease.release();
+        const result = route.adapter.toCanonicalEvent({
+            tenantId: "local",
+            requestId,
+            requestModel,
+            requestBody: measuredRequestBody,
+            apiKeyHash,
+            expectCompletion: true,
+            ...canonicalAnnotationFields(annotation, operationId.value),
+            route: route.canonicalRoute,
+            statusCode: 502,
+            requestHeaders: c.req.raw.headers,
+            headers: response.headers,
+            responseBody: providerTransportErrorBody(route.provider),
+            baseUrl,
+            startedAt,
+            endedAt,
+            providerRequestStartedAt,
+            providerResponseEndedAt: endedAt,
+            attemptIndex: 0,
+            ...(providerEvidence ? { providerEvidence } : {}),
+        });
+        await captureMeasuredCall(result, options, state, false, log, annotation);
+        return localJsonError(502, "provider_body_read_error", "Provider response body could not be read.");
+    }
     const endedAt = new Date();
     const canonicalInput = {
         tenantId: "local",
@@ -527,6 +613,17 @@ function validManagementRequest(c, input) {
         message: "Local management API requests require dashboard authorization or the local bench key.",
     };
 }
+function validLocalReadRequest(c, input) {
+    if (!managementHostAndOriginAllowed(c, input.allowExternalHost)) {
+        return {
+            ok: false,
+            status: 403,
+            code: "invalid_local_api_origin",
+            message: "Local API requests must use the same origin as the dashboard.",
+        };
+    }
+    return { ok: true };
+}
 function managementHostAndOriginAllowed(c, allowExternalHost) {
     const requestUrl = new URL(c.req.url);
     if (!managementHostnameAllowed(requestUrl.hostname, allowExternalHost))
@@ -603,7 +700,7 @@ function validLocalBenchKey(headers, configuredKeys, additionalKeys, routeProvid
             message: invalidLocalBenchKeyMessage(configFile),
         };
     }
-    const grant = additionalKeys.find((entry) => entry.key === key);
+    const grant = additionalKeys.find((entry) => secretEqual(entry.key, key));
     if (grant) {
         if (grant.revokedAt) {
             return {
@@ -632,7 +729,7 @@ function validLocalBenchKey(headers, configuredKeys, additionalKeys, routeProvid
         }
         return { ok: true, key, grant };
     }
-    if (configuredKeys.includes(key))
+    if (configuredKeys.some((configuredKey) => secretEqual(configuredKey, key)))
         return { ok: true, key };
     return {
         ok: false,

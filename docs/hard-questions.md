@@ -7,23 +7,23 @@ Read this if you are checking the benchmark method, receipt math, claim boundari
 | If you are checking | Start with |
 | --- | --- |
 | The receipt headline and invoice-check exposure detail line | [Q1](#q1-can-the-headline-money-loss-exceed-my-provider-bill), [Q5](#q5-why-count-a-whole-call-as-loss-if-the-provider-returned-some-tokens), [Q6](#q6-are-you-accusing-providers-of-overbilling), [Q12](#q12-how-are-cache-discounts-and-duplicate-request-ids-reported) |
-| Standard authorship and versioning | [Q2](#q2-why-should-anyone-accept-a-standard-written-by-the-company-that-built-the-benchmark), [Q3](#q3-what-does-v010-draft-mean-for-receipt-math), [Q10](#q10-how-are-standard-changes-versioned) |
+| Standard authorship and versioning | [Q2](#q2-why-should-anyone-accept-a-standard-written-by-the-company-that-built-the-benchmark), [Q3](#q3-what-does-v021-draft-mean-for-receipt-math), [Q10](#q10-how-are-standard-changes-versioned) |
 | Public-run and provider coverage | [Q4](#q4-what-does-a-public-run-show), [Q8](#q8-which-provider-surfaces-are-measured-today), [Q13](#q13-what-does-the-public-mirror-represent) |
 | Trust and sharing boundaries | [Q7](#q7-how-should-readers-treat-third-party-statistics-cited-for-context), [Q9](#q9-is-inferock-bench-open-source), [Q14](#q14-what-should-i-share-instead-of-raw-event-logs) |
 
 ## Q1. Can the headline money loss exceed my provider bill?
 
-No. From the exposure-split presentation forward, the receipt headline is `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`, and headline money loss is bill-bounded. Counterfactual or verify-against-invoice amounts get their own fused-label invoice-check exposure element and detail line instead of being summed into standard-loss or recognition gap.
+From the exposure-split presentation forward, the receipt headline is `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`, and headline money loss is bill-bounded. Counterfactual or verify-against-invoice amounts get their own fused-label invoice-check exposure element and detail line instead of being summed into standard-loss or recognition gap.
 
 For the exact formulas, see [Paid-loss arithmetic](loss-arithmetic.md).
 
-The public 2026-07-09 card shows the current read: `$1.71` spent, `$0.00` headline money loss (stored exact `$0.000371`), `~0s` time loss, and `$2.51` cache-discount invoice-check exposure labeled "verify your invoice." The older 2026-07-06 card remains published as a historical pre-split artifact.
+The public 2026-07-10 cumulative card shows the current read: `$7.15` spent, `$0.07` headline money loss (stored exact `$0.073875`), `~2.9 min` time loss, and `$16.80` cache-discount invoice-check exposure labeled "verify your invoice." The older 2026-07-06 card remains published as a historical pre-split artifact.
 
 ## Q2. Why should anyone accept a standard written by the company that built the benchmark?
 
 You should not accept it by authority. The defense is the published [rulebook](../spec/standard.md#purpose), [versioned changelog](../spec/CHANGELOG.md), inspectable detector code, evidence grades, and run-scoped receipts that separate provider-recognized recovery from Inferock-standard loss. Providers still define what they currently credit; Inferock defines the customer-loss ledger it applies to local evidence.
 
-## Q3. What does `v0.1.0 Draft` mean for receipt math?
+## Q3. What does `v0.2.1 Draft` mean for receipt math?
 
 Draft means pre-ratification and open to evidence-backed issue reports. It does not mean a receipt can silently change rules. Public claims should cite the exact [standard version](../spec/standard.md#versioning) and changelog entry that produced them, and later rule changes should not rewrite old receipts.
 
@@ -57,11 +57,11 @@ The license stack is mixed. The local CLI app is FSL-1.1-Apache-2.0 with two-yea
 
 ## Q10. How are standard changes versioned?
 
-The right behavior is versioned evolution, not silent edits. Standard changes require changelog entries; old receipts should remain tied to the standard version and method version that produced them. The public v0.1.0 standard also does not dollarize broad quality, style, or generic hallucination. Only customer-provided known-answer contradictions, Anthropic cited-text contradictions, and exact leaked-secret real-loss rows are launch-safe, and provider-recognized remains no by default. See [Versioning](../spec/standard.md#versioning) and the [Launch-Safe Signal Index](../spec/signals.md#launch-safe-signal-index).
+The right behavior is versioned evolution, not silent edits. Standard changes require changelog entries; old receipts should remain tied to the standard version and method version that produced them. The public v0.2.1 standard also does not dollarize broad quality, style, or generic hallucination. Only customer-provided known-answer contradictions, Anthropic cited-text contradictions, and exact leaked-secret real-loss rows are launch-safe, and provider-recognized remains no by default. See [Versioning](../spec/standard.md#versioning) and the [Launch-Safe Signal Index](../spec/signals.md#launch-safe-signal-index).
 
 ## Q11. What evidence backs the Anthropic token recount?
 
-No. Anthropic does not publish a current local tokenizer for Claude 3+ or an independent billed-output recount API. The current method is provider-assisted grade B: it uses Anthropic `messages/count_tokens` on delivered assistant output with runtime calibration, tolerance bands, and provider-recognized `$0` unless separate provider or invoice evidence accepts it. See the Anthropic token caveat in [signals.md](../spec/signals.md#anthropic_token_crosscheck).
+Anthropic does not publish a current local tokenizer for Claude 3+ or an independent billed-output recount API. The current method is provider-assisted grade B: it uses Anthropic `messages/count_tokens` on delivered assistant output with runtime calibration, tolerance bands, and provider-recognized `$0` unless separate provider or invoice evidence accepts it. See the Anthropic token caveat in [signals.md](../spec/signals.md#anthropic_token_crosscheck).
 
 ## Q12. How are cache discounts and duplicate request IDs reported?
 
@@ -77,7 +77,7 @@ Do not post raw `events.jsonl`. Share compact receipts or sanitized run facts; e
 
 ## What to read next
 
-- [Public run card](public-run-2026-07-09.md) for the current aggregate rows behind the public screenshots.
+- [Public run card](public-run-2026-07-10.md) for the current aggregate rows behind the public screenshots.
 - [Historical public run card](public-run-2026-07-06.md) for the 2026-07-06 pre-exposure-split aggregate rows.
 - [The Inferock Standard](../spec/standard.md) for the rulebook that defines spent, bill-bounded money loss, exposure, provider-recognized recovery, recognition gap, and time loss.
 - [What leaves your machine](what-leaves-your-machine.md) before sharing receipts or event-derived evidence.

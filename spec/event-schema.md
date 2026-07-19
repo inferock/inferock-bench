@@ -1,10 +1,10 @@
 # Canonical Event Schema
 
-Version: v0.1.0
+Version: v0.2.1
 
 Schema source: `packages/measure/src/canonical-event.ts`
 
-This document records the as-built canonical event schema used by The Inferock Standard v0.1.0. Where this document and older prose differ, the TypeScript schema is authoritative.
+This document records the as-built canonical event schema used by The Inferock Standard v0.2.1. Where this document and older prose differ, the TypeScript schema is authoritative.
 
 Use this page when you need to reproduce or integrate receipt evidence. It is the field-level contract behind detector rows; the TypeScript schema remains authoritative when prose and code differ.
 
@@ -49,6 +49,10 @@ Canonical event v1 has no required top-level `schemaVersion`. The parser accepts
 | `timing` | `startedAt` | Yes | Date-time string with offset |
 | `timing` | `endedAt` | Yes | Date-time string with offset |
 | `timing` | `latencyMs` | Yes | Non-negative number |
+| `timing` | `providerRequestStartedAt` | No | Date-time string with offset |
+| `timing` | `providerResponseEndedAt` | No | Date-time string with offset |
+| `timing` | `providerElapsedMs` | No | Non-negative number |
+| `timing` | `gatewayOverheadMs` | No | Non-negative number |
 | `meta` | `attemptIndex` | Yes | Non-negative integer |
 | `meta` | `schemaVersion` | Yes | `v1` |
 | `meta` | `outputSchemaVersion` | No | Non-empty string |
@@ -56,7 +60,7 @@ Canonical event v1 has no required top-level `schemaVersion`. The parser accepts
 
 The v1 normalizer sets `request.requestedModel` to `request.model`, `response.servedModel` to `request.model`, creates usage categories from input, output, cached, and cache-creation tokens, sets `usageSource` to `missing`, and creates one attempt from the v1 event.
 
-The `drift_replay` source exists in the schema for internal replay records. Drift is not part of the v0.1.0 public signal set.
+The `drift_replay` source exists in the schema for internal replay records. Drift is not part of the v0.2.1 public signal set.
 
 ## Canonical Event v2
 
@@ -73,17 +77,30 @@ Canonical event v2 requires `schemaVersion: "v2"` at the top level.
 | `attemptIndex` | Yes | Non-negative integer |
 | `providerRequestId` | No | Non-empty string |
 | `model` | No | Non-empty string |
+| `apiKeyHash` | No | `sha256:` digest |
+| `operationId` | No | Printable operation identifier |
+| `bodyHash` | No | `sha256:` digest |
+| `bodyHashAlgorithm` | No | `sha256` |
+| `bodyHashCanonicalization` | No | `normalized_json_v1` |
 | `retryCorrelationId` | No | Non-empty string |
 | `expectCompletion` | No | Boolean |
 | `route` | No | Non-empty string |
 | `workloadClass` | No | Non-empty string |
 | `outputSchemaVersion` | No | Non-empty string |
+| `providerPlane` | No | Non-empty string |
+| `baseUrlHost` | No | Non-empty string |
+| `authClass` | No | Non-empty string |
+| `endpointSupportStatus` | No | `supported`, `procurement_gated`, or `unsupported` |
+| `endpointSupportReason` | No | Non-empty string |
 | `generation` | No | JSON record |
 | `factualityContract` | No | JSON record |
 | `toolDeclarations` | No | Array of tool declarations |
+| `securityContext` | No | Request security context |
 | `sanitizedHeaders` | No | Record of string values |
 
 Tool declarations require `providerSurface`, `name`, and `schemaHash`. They may include `schema`, `schemaPointer`, `strict`, `toolChoice`, and `parallelToolCalls`.
+
+Request security context records include `captureVersion: "request_secret_digest_v1"`, a digest key id, up to 32 request-secret digest records, `captureComplete`, and `truncated`. Each digest record carries kind, category, field path, match length, HMAC digest, digest algorithm, digest key id, digest scope, and pattern version.
 
 ### Response
 
@@ -100,6 +117,7 @@ Tool declarations require `providerSurface`, `name`, and `schemaHash`. They may 
 | `rawObjectId` | No | Non-empty string |
 | `systemFingerprint` | No | Non-empty string |
 | `serviceTier` | No | Non-empty string |
+| `servedModelSource` | No | `provider_response` or `adapter_fallback` |
 | `sanitizedHeaders` | No | Record of string values |
 | `rawErrorType` | No | Non-empty string |
 | `rawErrorCode` | No | Non-empty string |
@@ -136,6 +154,10 @@ Usage category records require `category` and `tokens`. They may include `source
 | `startedAt` | Yes | Date-time string with offset |
 | `endedAt` | Yes | Date-time string with offset |
 | `latencyMs` | Yes | Non-negative number |
+| `providerRequestStartedAt` | No | Date-time string with offset |
+| `providerResponseEndedAt` | No | Date-time string with offset |
+| `providerElapsedMs` | No | Non-negative number |
+| `gatewayOverheadMs` | No | Non-negative number |
 | `chunkCount` | Yes | Non-negative integer |
 | `terminalStatus` | Yes | `complete`, `error`, `aborted`, or `unknown` |
 | `firstEventAt` | No | Date-time string with offset |
@@ -166,14 +188,17 @@ The v2 normalizer treats `firstByteAt` as `firstEventAt` when the latter is abse
 | `finalSelected` | Yes | Boolean |
 | `errorClass` | No | Non-empty string |
 | `retryReason` | No | Non-empty string |
+| `statusCode` | No | Integer from 100 through 599 |
+| `providerRequestId` | No | Non-empty string |
+| `sanitizedHeaders` | No | Record of string values |
 
-Attempt timing requires `startedAt`, `endedAt`, and `latencyMs`. It may include `firstByteAt`, `firstTokenAt`, `lastChunkAt`, `timeToFirstByteMs`, and `timeToFirstTokenMs`.
+Attempt timing requires `startedAt`, `endedAt`, and `latencyMs`. It may include `providerRequestStartedAt`, `providerResponseEndedAt`, `providerElapsedMs`, `gatewayOverheadMs`, `firstByteAt`, `firstTokenAt`, `lastChunkAt`, `timeToFirstByteMs`, and `timeToFirstTokenMs`.
 
 ### Retrieval
 
 `retrieval` is optional. When present, it contains `context`, an array of JSON records.
 
-Retrieval, citations, grounding, log probabilities, and factuality contracts are canonical evidence surfaces. Their presence in the event schema does not make broad factuality judging a public v0.1.0 launch signal; only the evidence-gated known-answer and Anthropic citation-support rows defined in [signals.md](signals.md) are launch-safe public signals.
+Retrieval, citations, grounding, log probabilities, and factuality contracts are canonical evidence surfaces. Their presence in the event schema does not make broad factuality judging a public v0.2.1 launch signal; only the evidence-gated known-answer and Anthropic citation-support rows defined in [signals.md](signals.md) are launch-safe public signals.
 
 ## Provider Mapping
 

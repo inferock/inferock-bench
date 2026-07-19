@@ -123,6 +123,16 @@ export function buildAnthropicTokenCrossCheckSignal(event, crossCheck) {
         providerRecoverableLossUsd: null,
         pricingVersion: null,
         pricingStatus: "not_priced",
+        valueJson: {
+            mode: crossCheck.mode,
+            billedVisibleOutputTokens: crossCheck.billedVisibleOutputTokens,
+            outputTokenUpperBound: crossCheck.outputTokenUpperBound,
+            boundMultiplier: crossCheck.boundMultiplier,
+            overBoundTokens: crossCheck.overBoundTokens,
+            fallbackOverheadTokens: crossCheck.fallbackOverheadTokens,
+            fallbackReason: crossCheck.fallbackReason,
+            pricingStatus: crossCheck.pricingStatus,
+        },
         evidence: crossCheckEvidence(crossCheck),
     });
 }

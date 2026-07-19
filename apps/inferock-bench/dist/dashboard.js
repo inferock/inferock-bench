@@ -1816,7 +1816,7 @@ export function renderDashboardHtml(input = {}) {
       const body = coverageRequestBody();
       if (!body.selectedModels || body.selectedModels.length === 0) return;
       const requestKey = JSON.stringify(body);
-      const response = await fetch("/api/coverage-test/estimate", {
+      const response = await managementFetch("/api/coverage-test/estimate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -1936,7 +1936,7 @@ export function renderDashboardHtml(input = {}) {
         }
         body.agentInstallConsentHash = state.agentInstallAcknowledgedHash;
       }
-      const response = await fetch("/api/coverage-test/start", {
+      const response = await managementFetch("/api/coverage-test/start", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -2055,7 +2055,7 @@ export function renderDashboardHtml(input = {}) {
 
     async function abortCoverageRun() {
       if (!state.coverageRun) return;
-      const response = await fetch("/api/coverage-test/runs/" + encodeURIComponent(state.coverageRun.runId) + "/abort", { method: "POST" });
+      const response = await managementFetch("/api/coverage-test/runs/" + encodeURIComponent(state.coverageRun.runId) + "/abort", { method: "POST" });
       if (!response.ok) throw new Error(await errorMessageFromResponse(response));
       renderCoverageRun(await response.json());
     }

@@ -1,6 +1,6 @@
 # Provider Disclosure Requirements Annex
 
-Version: v0.1.0
+Version: v0.2.1
 
 Source record: maintained internal measurement-data-integrity notes. The public annex below is the exported disclosure-requirements view; it does not depend on a private path being present in this repository.
 
@@ -190,7 +190,7 @@ The benchmark requires provider-attributed safety receipts to distinguish legiti
 
 ## Factuality And Confidence
 
-Broad factuality judging is not part of the v0.1.0 public signal set. The public launch-safe set is limited to customer-provided known-answer contradictions and built-in Anthropic cited-text contradiction checks; broader factuality and confidence disclosures remain future benchmark requirements.
+Broad factuality judging is not part of the v0.2.1 public signal set. The public launch-safe set is limited to customer-provided known-answer contradictions and built-in Anthropic cited-text contradiction checks; broader factuality and confidence disclosures remain future benchmark requirements.
 
 ### Deployed-Snapshot Factuality And Confidence Surfaces
 

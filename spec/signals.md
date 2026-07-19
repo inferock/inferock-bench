@@ -1,12 +1,12 @@
 # Public Signal Semantics
 
-Version: v0.1.0
+Version: v0.2.1
 
 Schema source: `packages/measure/src/types.ts`
 
 Implementation sources: detector files in `packages/measure/src/`, including `broken-output.ts`, `billing-integrity.ts`, `latency.ts`, `availability.ts`, `refusals.ts`, `pricing-signal.ts`, `tool-call-validity.ts`, `security.ts`, `factuality.ts`, `model-identity.ts`, and `standard-loss.ts`.
 
-This file defines the launch-safe public signal set for The Inferock Standard v0.1.0. It uses the as-built `LossSignal` shape, but it does not expose every signal code present in the implementation enum as a public v0.1.0 standard signal.
+This file defines the launch-safe public signal set for The Inferock Standard v0.2.1. It uses the as-built `LossSignal` shape, but it does not expose every signal code present in the implementation enum as a public v0.2.1 standard signal.
 
 The shipped public bench provider planes are OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter OpenAI-compatible traffic. OpenRouter support is measured only when requested pinning, served endpoint metadata, and cited pricing evidence match the current pinned endpoint set. Provider-specific checks remain provider-specific: OpenAI visible-output recount is OpenAI-only, Anthropic output-token cross-check and citation-support checks are Anthropic-only, Gemini countTokens evidence is input-recount evidence only, and OpenRouter pinned-endpoint evidence does not turn all router models into measured support.
 
@@ -33,7 +33,7 @@ Every signal uses this as-built shape:
 | `provider` | Yes | Public bench providers are `openai`, `anthropic`, `gemini`, and pinned `openrouter`; the as-built schema also accepts the broader canonical provider enum for compatible records. |
 | `model` | Yes | Model string used by the event. |
 | `domain` | Yes | Signal domain. |
-| `failureClass` | Yes | Stable failure class string. |
+| `failureClass` | Yes | Stable failure class string, or null for evidence-only rows. |
 | `status` | Yes | Signal status. |
 | `evidenceGrade` | Yes | Evidence grade. |
 | `severity` | Yes | `loss` or `warning`. |
@@ -48,6 +48,13 @@ Every signal uses this as-built shape:
 | `observedChargeUsd` | No | Provider-origin or supplied observed charge when available. |
 | `expectedChargeUsd` | No | Expected charge when price or rule evidence supports it. |
 | `providerRecoverableLossUsd` | No | Provider-recognized recoverable dollars when the signal qualifies. |
+| `standardLossUsd` | No | Inferock-standard money loss after standard-loss enrichment; null when pricing is unknown or not applicable. |
+| `providerRecognizedLossUsd` | No | Provider-recognized portion of enriched standard loss. |
+| `recognitionGapUsd` | No | Difference between standard loss and provider-recognized loss; null when pricing is unknown or not applicable. |
+| `standardLossStatus` | No | `computed`, `pricing_unknown`, `not_applicable`, or `legacy_pre_dollarcore`. |
+| `standardLossMethod` | No | Standard-loss method identifier or null. |
+| `standardLossGrade` | No | Enriched evidence grade or null. |
+| `computationTrace` | No | Machine-readable computation trace for standard-loss enrichment. |
 | `pricingVersion` | No | Pricing source version when known. |
 | `pricingStatus` | Yes | Pricing status. |
 | `valueJson` | No | Structured value payload for rollups and reports. |
@@ -57,7 +64,7 @@ Every signal uses this as-built shape:
 
 Detector names are `broken-output`, `billing-integrity`, `latency`, `availability`, `refusal`, `pricing`, `model-identity`, `tool-call-validity`, `security-governance`, `factuality-known-answer`, and `factuality-citation-support`.
 
-Signal domains are `loss`, `usage`, `latency`, `drift`, `security`, and `factuality`. The public v0.1.0 launch set uses `loss`, `usage`, `latency`, plus evidence-gated security and factuality rows where a real-loss signal fires. Drift remains a deferred/triage public class.
+Signal domains are `loss`, `usage`, `latency`, `drift`, `security`, and `factuality`. The public v0.2.1 launch set uses `loss`, `usage`, `latency`, plus evidence-gated security and factuality rows where a real-loss signal fires. Drift remains a deferred/triage public class.
 
 Signal statuses are `candidate`, `accepted`, `superseded`, `informational`, `triage_only`, and `pricing_unknown`.
 
@@ -88,7 +95,7 @@ Each public signal carries an `evidenceGrade`, `status`, and ledger placement. L
 | `LATENCY_BILLED` | `latency` | `time_loss` | `refundable_candidate` only with disclosed `creditBasis: "billed_wait"` and known pricing; otherwise `triage_only` | Conditional |
 | `DUPLICATE_REQUEST_ID` | `duplicate_request_id` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No until provider billing evidence proves duplicate charge |
 | `CACHE_RATE_ANOMALY` | `cache_rate_anomaly` | `money` | `triage_only` by default; `refundable_candidate` only with dashboard-eligible provider-origin observed charge evidence | Conditional |
-| `CACHE_DISCOUNT_AT_RISK` | `cache_discount_at_risk` | `exposure` | Invoice-check exposure when cache-read usage and pricing are known; `pricing_unknown` when missing or partial | No; verify against invoice; never summed into money loss or recognition gap |
+| `CACHE_DISCOUNT_AT_RISK` | `cache_discount_at_risk` | `money` when priced; `triage` when pricing is unknown | Invoice-check exposure when cache-read usage and pricing are known; `pricing_unknown` when missing or partial | No; verify against invoice; never summed into headline money loss or recognition gap |
 | `SECURITY_SECRET_EXACT_MATCH` | `security_secret_leak` when real-loss; otherwise null | `money` for real-loss; `security` for evidence-only context | `unrecognized_standard_loss` on priced real-loss calls; `triage_only` for carried-in-request/evidence-only context | No |
 | `FACTUALITY_KNOWN_ANSWER_FAIL` | `factuality_contradiction` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No |
 | `ANTHROPIC_CITATION_CONTRADICTS_CITED_TEXT` | `factuality_contradiction` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No; Anthropic-specific |
@@ -202,7 +209,7 @@ Anthropic cited-text evidence contradicts the cited text under the built citatio
 
 Detector: `pricing`.
 
-Pricing lookup is missing or partial. The signal preserves the evidence and prevents silent zero-dollar treatment; the report labels `pricing_unknown -- add model price` instead of showing `$0` loss.
+Pricing lookup is missing or partial. The signal preserves the evidence and prevents silent zero-dollar treatment; the report carries status `pricing_unknown` and labels the limitation `pricing unknown — add model price` instead of showing `$0` loss.
 
 ## Required Ledger Handling
 
@@ -216,18 +223,18 @@ Pricing-unknown candidates preserve evidence but contribute no provider-recogniz
 
 ## Deferred Public Classes
 
-The as-built enum contains additional codes that are not part of the public v0.1.0 launch-safe signal set in this Track D draft.
+The as-built enum contains additional codes that are not part of the public v0.2.1 launch-safe signal set in this Track D draft.
 
-| Code or domain | Public v0.1.0 status |
+| Code or domain | Public v0.2.1 status |
 | --- | --- |
 | `MALFORMED_TOOL_CALL` | Deferred from the public launch set, although the as-built enum and detector exist. |
 | `TOOL_CALL_SCHEMA_VIOLATION` | Deferred from the public launch set, although the as-built enum and detector exist. |
 | `UNDECLARED_TOOL_CALL` | Deferred from the public launch set, although the as-built enum and detector exist. |
 | `TOOL_CHOICE_VIOLATION` | Deferred from the public launch set, although the as-built enum contains the code. |
 | `TOOL_CALL_STOP_REASON_MISMATCH` | Deferred from the public launch set, although the as-built enum and detector exist. |
-| Drift domain | Deferred public class. It must not create refundable drift dollars in v0.1.0. |
-| Security domain | Deferred public class except for the evidence-gated real-loss row listed above. Broader security signals must remain outside the v0.1.0 public signal set. |
-| Factuality domain | Deferred public class except for the evidence-gated known-answer and Anthropic citation-support rows listed above. Broader factuality judging must remain outside the v0.1.0 public signal set. |
+| Drift domain | Deferred public class. It must not create refundable drift dollars in v0.2.1. |
+| Security domain | Deferred public class except for the evidence-gated real-loss row listed above. Broader security signals must remain outside the v0.2.1 public signal set. |
+| Factuality domain | Deferred public class except for the evidence-gated known-answer and Anthropic citation-support rows listed above. Broader factuality judging must remain outside the v0.2.1 public signal set. |
 
 ## What to read next
 

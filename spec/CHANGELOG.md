@@ -4,12 +4,21 @@ Use this file to tie any public receipt claim to the standard version and rule s
 
 | Need | Read |
 | --- | --- |
+| License text, refusal regex tightening, and measurement-honesty context | [v0.2.1 - 2026-07-19](#v021---2026-07-19) |
 | Local security hardening and packaging guardrail | [v0.2.0 - 2026-07-19](#v020---2026-07-19) |
 | Money-loss clamp to observed spend | [v0.1.11 - 2026-07-18](#v0111---2026-07-18) |
 | Bill-bounded headline and exposure split | [v0.1.10 - 2026-07-10](#v0110---2026-07-10) |
 | As-built provider-plane documentation correction | [v0.1.8 - 2026-07-08](#v018---2026-07-08) |
 | Current time-loss and receipt-ledger changes | [v0.1.6 - 2026-07-05](#v016---2026-07-05) |
 | Initial public draft scope | [v0.1.0 - 2026-07-02](#v010---2026-07-02) |
+
+## v0.2.1 - 2026-07-19
+
+Updated:
+
+- Replaced the short `apps/inferock-bench/LICENSE` pointer with the full Functional Source License 1.1 text for the app, keeping the FSL-1.1-Apache-2.0 SPDX identifier.
+- Tightened regex refusal detection to reduce false positives from quoted examples, translation/explanation text, code string literals, and ordinary "I cannot ..." statements that are not answer refusals. Provider-native refusal evidence and classifier verdict handling are unchanged.
+- Recorded the README "Why this exists" section and `MEASUREMENT-PHILOSOPHY.md` measurement-honesty addition in this release line. The distinction between observations and interpretations remains explicit, and detector-limit language stays truthful.
 
 ## v0.2.0 - 2026-07-19
 

@@ -2,12 +2,20 @@ import { observedChargeUsdForEvent } from "./billing-integrity.js";
 import { hasOutputSchema } from "./output-schemas.js";
 import { roundUsd, tokensBilledForEvent } from "./pricing.js";
 import { buildLossSignal, eventKey, providerSafetyForEvent, refundableCandidateEconomics, } from "./signal.js";
+const REFUSAL_ACTION_PATTERN = "(?:assist|help|provide|complete|comply|fulfill|answer|continue|support)";
+const OPTIONAL_REFUSAL_OPENING_PATTERN = String.raw `(?:(?:sorry|i(?:'|’)m sorry|i am sorry|apologies|no|unfortunately)[\s,.!-]*(?:but\s+)?)?`;
+const AS_AI_PREFIX_PATTERN = String.raw `(?:as an ai(?: language model)?[\s,]+)?`;
+const FIRST_PERSON_REFUSAL_PATTERN = [
+    String.raw `i\s+(?:cannot|can't|can’t|won't|will not)\s+${REFUSAL_ACTION_PATTERN}\b`,
+    String.raw `i\s+am\s+unable\s+to\s+${REFUSAL_ACTION_PATTERN}\b`,
+    String.raw `i(?:'|’)?m\s+unable\s+to\s+${REFUSAL_ACTION_PATTERN}\b`,
+].join("|");
+const IMPERSONAL_REFUSAL_PATTERN = String.raw `(?:(?:cannot|can't|can’t)\s+(?:assist|help|provide|complete|comply|fulfill)\b|i\s+must\s+refuse\b)`;
+// Regex-tier refusal matching stays deliberately narrow: answer-opening refusal
+// shapes only. Provider-native safety fields and classifier verdicts are stronger tiers.
 const REFUSAL_PATTERNS = [
-    /\bi (?:cannot|can't|can’t|am unable|won't|will not)\b/i,
-    /\bi'?m unable\b/i,
-    /\bas an ai(?: language model)?\b/i,
-    /\b(?:cannot|can't|can’t) assist\b/i,
-    /\bi must refuse\b/i,
+    new RegExp(String.raw `^\s*${OPTIONAL_REFUSAL_OPENING_PATTERN}` +
+        String.raw `${AS_AI_PREFIX_PATTERN}(?:${FIRST_PERSON_REFUSAL_PATTERN}|${IMPERSONAL_REFUSAL_PATTERN})`, "i"),
 ];
 const classifierVerdicts = new Map();
 const PROVIDER_REFUSAL_KINDS = new Set(["content_filter", "refusal"]);

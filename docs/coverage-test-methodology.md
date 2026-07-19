@@ -111,7 +111,7 @@ The manifest loader enforces those rules before a suite can run: it validates ro
 
 `signal` means the surface was open and real provider traffic emitted one or more signals. The count is actual signal evidence, not a fixture count.
 
-When a priced call emits a signal for a standard-defined bill-bounded failure, the money-loss floor is the call's own priced cost. Provider-recognized loss can still be `$0` until the provider admits the category; the recognition gap is bill-bounded money loss minus provider-recognized. Exposure-only rows such as cache discount at risk are labeled separately with invoice-verification guidance and are not summed. If pricing is missing, the run must label the limitation as `pricing_unknown -- add model price` rather than treating the loss as zero.
+When a priced call emits a signal for a standard-defined bill-bounded failure, the money-loss floor is the call's own priced cost. Provider-recognized loss can still be `$0` until the provider admits the category; the recognition gap is bill-bounded money loss minus provider-recognized. Exposure-only rows such as cache discount at risk are labeled separately with invoice-verification guidance and are not summed. If pricing is missing, the run must carry status `pricing_unknown` and label the limitation as `pricing unknown — add model price` rather than treating the loss as zero.
 
 `not-openable` means the run lacked something required to judge that surface: the selected provider, a supported route or model capability, a configured contract, charge observation, SDK/native retry evidence, or enough completed task calls. That is coverage debt for the run, not evidence that the provider was clean.
 
@@ -141,7 +141,7 @@ If the baseline file is missing, stale, zero-usage, or marked `bootstrap_require
 
 ## Thresholds and rates
 
-The coverage test opens surfaces and records evidence. The public thresholds, rates, and loss math live in [The Inferock Standard page](https://inferock.opiusai.com/standard/) and go live with the standard's public launch.
+The coverage test opens surfaces and records evidence. The public thresholds, rates, and loss math live in [The Inferock Standard](../spec/standard.md), [Public Signal Semantics](../spec/signals.md), and [SLA Defaults](../spec/sla-defaults.md).
 
 ## What to read next
 

@@ -277,6 +277,13 @@ describe("Anthropic token cross-check", () => {
         overBoundTokens: 200 - outputTokenUpperBound,
         note: ANTHROPIC_TOKEN_CROSSCHECK_NOTE,
       },
+      valueJson: {
+        mode: "fallback_safe_bound",
+        billedVisibleOutputTokens: 200,
+        outputTokenUpperBound,
+        overBoundTokens: 200 - outputTokenUpperBound,
+        pricingStatus: "not_priced",
+      },
     });
   });
 
@@ -353,6 +360,16 @@ describe("Anthropic token cross-check", () => {
         fallbackReason: "count_tokens_disabled",
         overBoundTokens: 200 - outputTokenUpperBound,
         note: ANTHROPIC_TOKEN_CROSSCHECK_NOTE,
+      },
+      valueJson: {
+        mode: "fallback_safe_bound",
+        billedVisibleOutputTokens: 200,
+        outputTokenUpperBound,
+        boundMultiplier: ANTHROPIC_OUTPUT_TOKEN_FALLBACK_CHAR_BOUND_MULTIPLIER,
+        overBoundTokens: 200 - outputTokenUpperBound,
+        fallbackOverheadTokens: ANTHROPIC_OUTPUT_TOKEN_FALLBACK_OVERHEAD_TOKENS,
+        fallbackReason: "count_tokens_disabled",
+        pricingStatus: "not_priced",
       },
     });
   });

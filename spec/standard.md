@@ -1,6 +1,6 @@
 # The Inferock Standard
 
-Version: v0.1.0
+Version: v0.2.1
 
 Status: Draft
 
@@ -70,7 +70,7 @@ A provider call is one request to a supported provider surface. The public bench
 
 A canonical event is the measured record for a provider call. It carries request identity, response identity, usage, timing, attempts, and optional evidence surfaces. `spec/event-schema.md` defines the as-built v1 and v2 event fields.
 
-A signal is a detector output that describes a possible failure or evidence condition. A signal carries a code, detector name, evidence grade, status, value kind, liability party, pricing status, and evidence object. `spec/signals.md` defines the public v0.1.0 signal set.
+A signal is a detector output that describes a possible failure or evidence condition. A signal carries a code, detector name, evidence grade, status, value kind, liability party, pricing status, and evidence object. `spec/signals.md` defines the public v0.2.1 signal set.
 
 A failure is a provider-call outcome that can be tied to a failure class under this standard. A failure can be provider-recognized recoverable, unrecognized loss, triage-only evidence, or a provider-recognized `$0` evidence overlay.
 
@@ -78,7 +78,7 @@ Provider-recognized recoverable loss is a dollar amount or creditable downtime d
 
 Unrecognized loss is measured customer loss under The Inferock Standard that providers do not currently recognize as refundable or creditable. Latency time loss, downtime duration without a creditable provider SLA, retry amplification without per-request billing reconciliation, and other not-yet-recognized classes belong here unless a provider credit rule applies.
 
-For every priced non-delivering call, Inferock-standard loss includes at least the call's own priced cost. Measure-specific charge-evidenced overcharge deltas and induced retry spend can increase or refine that amount, but headline money-native standard-loss is bill-bounded by observed provider spend for the run. If model pricing is missing, the receipt must label `pricing_unknown — add model price` rather than treating the loss as zero.
+For every priced non-delivering call, Inferock-standard loss includes at least the call's own priced cost. Measure-specific charge-evidenced overcharge deltas and induced retry spend can increase or refine that amount, but headline money-native standard-loss is bill-bounded by observed provider spend for the run. If model pricing is missing, the receipt must carry status `pricing_unknown` and label the limitation as `pricing unknown — add model price` rather than treating the loss as zero.
 
 The recognition gap is the difference between total customer loss under The Inferock Standard and provider-recognized recoverable loss within the same unit. The gap is a first-class metric and must not be hidden by collapsing recognized and unrecognized values.
 
@@ -88,7 +88,7 @@ The receipt is the shareable artifact for an individual benchmark run or report.
 
 ## Failure Taxonomy
 
-The v0.1.0 public taxonomy includes these launch-safe classes:
+The v0.2.1 public taxonomy includes these launch-safe classes:
 
 | Class | Public scope |
 | --- | --- |
@@ -109,11 +109,11 @@ Each signal must carry a public evidence posture:
 | Posture | Meaning |
 | --- | --- |
 | `refundable_candidate` | Objective evidence exists for a provider-recognized category. It contributes provider-recognized recoverable dollars only when the signal status is `candidate` or `accepted`, `creditCandidate` is true, pricing is known, and `providerRecoverableLossUsd` is present. |
-| `triage_only` | Evidence exists for review, support, investigation, or future reconciliation, but the signal does not contribute provider-recognized recoverable dollars in v0.1.0. |
+| `triage_only` | Evidence exists for review, support, investigation, or future reconciliation, but the signal does not contribute provider-recognized recoverable dollars in v0.2.1. |
 | `provider_recognized_0_evidence_only` | The row is evidence overlay or impact context with no provider-recognized recoverable dollars. It must not add to provider-recognized recoverable dollars or measured-call denominators for failure rows. The as-built signal grade is usually `triage_only`; Inferock-standard loss still uses the priced call-cost floor when the call fails the standard. |
 | `pricing_unknown` | The evidence is preserved, but price lookup is missing or partial. The status is `pricing_unknown`, the signal contributes no dollar figure until the model price is added, and the report must show the pricing limitation instead of silently treating unknown price as zero loss. |
 
-The implementation enum also contains `not_applicable`. It is reserved by the as-built signal model and is not a launch evidence posture for v0.1.0 public loss claims.
+The implementation enum also contains `not_applicable`. It is reserved by the as-built signal model and is not a launch evidence posture for v0.2.1 public loss claims.
 
 ## Liability Attribution
 
@@ -175,7 +175,7 @@ Time loss remains real loss even when it is not provider-recognized recoverable.
 
 ## Versioning
 
-This file defines The Inferock Standard v0.1.0. Changes to evidence posture, ledger placement, denominator rules, or time-loss rules require a new changelog entry in `spec/CHANGELOG.md`.
+This file defines The Inferock Standard v0.2.1. Changes to evidence posture, ledger placement, denominator rules, or time-loss rules require a new changelog entry in `spec/CHANGELOG.md`.
 
 ## What to read next
 

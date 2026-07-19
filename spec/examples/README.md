@@ -12,7 +12,7 @@ Use these files to understand shape, not incidence. They are intentionally isola
 
 Every identifier, timestamp, token count, latency value, and dollar value in these files is illustrative fixture data. These files must never be imported into a live dashboard, benchmark report, loss report, or receipt as measured traffic.
 
-The fixtures exist only to show the shape of canonical events and signals described by The Inferock Standard v0.1.0.
+The fixtures exist only to show the shape of canonical events and signals described by The Inferock Standard v0.2.1.
 
 ## What to read next
 

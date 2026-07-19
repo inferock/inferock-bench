@@ -50,7 +50,7 @@ Default rate: `$92/hour`.
 
 Source note: This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-recognized. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.
 
-Label: `Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default -- override)`.
+Label: `Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)`.
 
 ## Why time is dollarized — the founder rationale (recorded 2026-07)
 

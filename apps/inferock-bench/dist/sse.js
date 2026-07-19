@@ -34,15 +34,18 @@ function parseFrame(frame) {
         if (line.startsWith(":"))
             continue;
         if (line.startsWith("event:")) {
-            event = line.slice("event:".length).trimStart();
+            event = stripOptionalFieldSpace(line.slice("event:".length));
             continue;
         }
         if (line.startsWith("data:")) {
-            data.push(line.slice("data:".length).trimStart());
+            data.push(stripOptionalFieldSpace(line.slice("data:".length)));
         }
     }
     if (data.length === 0)
         return undefined;
     return { ...(event ? { event } : {}), data: data.join("\n") };
+}
+function stripOptionalFieldSpace(value) {
+    return value.startsWith(" ") ? value.slice(1) : value;
 }
 //# sourceMappingURL=sse.js.map

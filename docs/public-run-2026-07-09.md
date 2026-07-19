@@ -31,6 +31,7 @@ Use this as the proof card for the first 0.1.10 public component in the cumulati
 ## Source Artifacts
 
 - Public asset provenance: [`../assets/PROVENANCE.md`](../assets/PROVENANCE.md).
+- Component paths below are private maintainer worktree artifacts, not public-verifiable raw logs; this card publishes sanitized aggregate facts and hashes only.
 - Harvested event records used for the re-render: `scratchpad/newrun/newrun/events.jsonl`.
 - Re-render method: copied the harvested event store into an isolated `INFEROCK_BENCH_HOME`, scrubbed provider-key environment variables, and ran `inferock-bench` 0.1.10 receipt commands against the event store.
 - Re-rendered aggregate receipt hash: `sha256:1a043d5673ec02599ce2bff22918173a2ed5f93f5727789ccaccd3a368db1c06` (`aggregate-receipt.json`, 36,445 bytes).

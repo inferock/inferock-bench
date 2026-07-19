@@ -177,10 +177,10 @@ describe("billing integrity Wave 2 overcharge economics", () => {
 
     expect(detectOpenAiTokenRecount(event)).toMatchObject({
       code: "OPENAI_TOKEN_RECOUNT_MISMATCH",
-      status: "candidate",
-      evidenceGrade: "refundable_candidate",
-      creditCandidate: true,
-      providerRecoverableLossUsd: 0.000099,
+      status: "triage_only",
+      evidenceGrade: "triage_only",
+      creditCandidate: false,
+      providerRecoverableLossUsd: null,
       evidence: {
         billedOutputTokens: 80,
         billedVisibleOutputTokens: 80,
@@ -188,7 +188,8 @@ describe("billing integrity Wave 2 overcharge economics", () => {
         framingAllowanceTokens: 3,
         overBilledOutputTokens: 22,
         outputRateUsdPerMillion: 4.5,
-        overchargeUsd: 0.000099,
+        overchargeUsd: null,
+        tokenizerFallbackEstimatedOverchargeUsd: 0.000099,
         tokenizerEncoding: "o200k_base",
         encodingVerified: false,
       },
@@ -232,10 +233,10 @@ describe("billing integrity Wave 2 overcharge economics", () => {
     expect(detectOpenAiTokenRecount(overbilledEvent)).toMatchObject({
       code: "OPENAI_TOKEN_RECOUNT_MISMATCH",
       failureClass: "token_recount_mismatch",
-      status: "candidate",
-      evidenceGrade: "refundable_candidate",
-      creditCandidate: true,
-      providerRecoverableLossUsd: 0.000212,
+      status: "triage_only",
+      evidenceGrade: "triage_only",
+      creditCandidate: false,
+      providerRecoverableLossUsd: null,
       pricingStatus: "priced",
       evidence: {
         billedOutputTokens: recounted + overBilledTokens,
@@ -244,7 +245,8 @@ describe("billing integrity Wave 2 overcharge economics", () => {
         framingAllowanceTokens: 3,
         overBilledOutputTokens: residualOverBilledTokens,
         outputRateUsdPerMillion: 4.5,
-        overchargeUsd: 0.000212,
+        overchargeUsd: null,
+        tokenizerFallbackEstimatedOverchargeUsd: 0.000212,
         tokenizerEncoding: "o200k_base",
         encodingVerified: false,
       },
@@ -267,7 +269,7 @@ describe("billing integrity Wave 2 overcharge economics", () => {
     };
 
     expect(detectOpenAiTokenRecount(overbilledEvent)).toMatchObject({
-      providerRecoverableLossUsd: 0.000018,
+      providerRecoverableLossUsd: null,
       evidence: {
         billedOutputTokens: output,
         knownHiddenOutputTokens: reasoningTokens,
@@ -275,7 +277,8 @@ describe("billing integrity Wave 2 overcharge economics", () => {
         recountedVisibleOutputTokens: recounted,
         framingAllowanceTokens: 3,
         overBilledOutputTokens: visibleOverBilledTokens - 3,
-        overchargeUsd: 0.000018,
+        overchargeUsd: null,
+        tokenizerFallbackEstimatedOverchargeUsd: 0.000018,
       },
     });
   });
@@ -406,13 +409,14 @@ describe("billing integrity Wave 2 overcharge economics", () => {
 
     expect(signal).toMatchObject({
       observedChargeUsd,
-      expectedChargeUsd: roundUsd(observedChargeUsd - overchargeUsd),
-      providerRecoverableLossUsd: overchargeUsd,
+      expectedChargeUsd: null,
+      providerRecoverableLossUsd: null,
       evidence: {
         framingAllowanceTokens: 3,
         overBilledOutputTokens: residualOverBilledTokens,
         outputRateUsdPerMillion: GPT_54_MINI_OUTPUT_RATE_USD_PER_MILLION,
-        overchargeUsd,
+        overchargeUsd: null,
+        tokenizerFallbackEstimatedOverchargeUsd: overchargeUsd,
       },
     });
     expect(signal?.providerRecoverableLossUsd).not.toBe(signal?.observedChargeUsd);

@@ -29,6 +29,36 @@ Use it when you need to audit an AI/LLM bill, measure Claude or GPT token usage 
 
 Common cases it can help you inspect: a failed or timed-out request that still has usage, token counts that do not match the visible output, retries that may have amplified cost, and latency or model-version changes that need a trail. It cannot cap provider spend across calls it never sees, and it cannot explain traffic that bypassed the local proxy.
 
+## Why this exists
+
+Your AI bill counts what the model consumed. It has never once counted
+whether you got anything for it.
+
+Every other layer of infrastructure has accountability plumbing: SLAs,
+uptime pages, invoices you can audit. Model inference has almost none. A
+refusal costs the same as an answer. A model can get quietly worse under
+the same name. When something goes wrong, the burden of noticing falls
+entirely on you.
+
+inferock-bench is a measurement instrument for that gap. It watches real
+traffic against real provider APIs and quantifies what mostly goes
+unquantified today: reliability, latency, and the money that failure
+quietly consumes.
+
+Two kinds of numbers appear in its receipts, and they are labeled as what
+they are:
+
+- **Observations** — things that happened: status codes, measured latency,
+  provider-reported token counts, detector-flagged calls.
+- **Interpretations** — dollar figures computed from observations under
+  published assumptions (thresholds, hourly rates, whole-call floors).
+  They are our arithmetic applied to real events, not a provider's
+  admission.
+
+The project's direction of travel is to move as much as possible from the
+second column into the first. The limits that remain are documented, not
+hidden: see [MEASUREMENT-PHILOSOPHY.md](./MEASUREMENT-PHILOSOPHY.md).
+
 ## The receipt headline
 
 | Receipt word | Plain-English meaning |
@@ -42,7 +72,7 @@ Common cases it can help you inspect: a failed or timed-out request that still h
 
 Run facts: [sanitized public run card for 2026-07-09](./docs/public-run-2026-07-09.md) and [run15 public run card for 2026-07-10](./docs/public-run-2026-07-10.md).
 
-The 2026-07-06 0.1.7 card remains published as a historical artifact; the current public receipt presentation ships with 0.1.10.
+The 2026-07-06 0.1.7 card remains published as a historical artifact; the current public receipt presentation was introduced in 0.1.10 and remains current for this 0.2.1 release candidate.
 
 > [!IMPORTANT]
 > The receipt is spend-anchored. The headline is `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`; bill-bounded money loss and recognition gap never include invoice-check exposure. `CACHE_DISCOUNT_AT_RISK` is still visible below the headline as a separate detail line that says "verify your invoice" rather than as money loss or a refund claim.

@@ -1,7 +1,7 @@
 {
   "fixtureNotice": "Spec fixture, not measured claims. All values are illustrative placeholders.",
   "artifact": "the receipt",
-  "standardVersion": "v0.1.0",
+  "standardVersion": "v0.2.1",
   "denominators": {
     "totalCalls": 1,
     "totalSpendUsd": 0,
@@ -10,7 +10,8 @@
   "headline": {
     "spentUsd": 0,
     "moneyLossUsd": 0,
-    "timeLossMs": 0
+    "timeLossMs": 0,
+    "invoiceCheckExposureUsd": 0
   },
   "ledgers": {
     "providerRecognizedRecoverableUsd": 0,

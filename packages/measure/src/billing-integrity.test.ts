@@ -173,11 +173,53 @@ describe("billing integrity pure helpers", () => {
     expect(detectOpenAiTokenRecount(event)).toMatchObject({
       code: "OPENAI_TOKEN_RECOUNT_MISMATCH",
       failureClass: "token_recount_mismatch",
+      status: "candidate",
+      evidenceGrade: "refundable_candidate",
+      creditCandidate: true,
       evidence: {
         billedOutputTokens: recounted + 5,
         recountedOutputTokens: recounted,
+        encodingVerified: true,
       },
     });
+  });
+
+  it("keeps OpenAI token recounts triage-only when the tokenizer mapping is inferred", () => {
+    const model = "gpt-5.4-mini";
+    const content = "hello world";
+    const recounted = countOpenAiOutputTokens(model, content);
+    const event = buildCanonicalEvent({
+      request: {
+        tenantId: "tenant-billing-helper",
+        provider: "openai",
+        model,
+        requestId: "req-recount-inferred-tokenizer",
+      },
+      response: { content },
+      usage: {
+        input: 1,
+        output: recounted + 5,
+      },
+    });
+
+    expect(detectOpenAiTokenRecount(event)).toMatchObject({
+      code: "OPENAI_TOKEN_RECOUNT_MISMATCH",
+      failureClass: "token_recount_mismatch",
+      status: "triage_only",
+      evidenceGrade: "triage_only",
+      creditCandidate: false,
+      providerRecoverableLossUsd: null,
+      pricingStatus: "priced",
+      evidence: {
+        billedOutputTokens: recounted + 5,
+        recountedOutputTokens: recounted,
+        overchargeUsd: null,
+        encodingVerified: false,
+        tokenizerFallbackReason: "model encoding inferred; refundable dollars suppressed",
+      },
+    });
+    expect(detectOpenAiTokenRecount(event)?.evidence.tokenizerFallbackEstimatedOverchargeUsd)
+      .toBeGreaterThan(0);
   });
 
   it("converts gross Anthropic cross-check overages into non-dispute loss signals", () => {
@@ -214,6 +256,13 @@ describe("billing integrity pure helpers", () => {
         fallbackOverheadTokens: ANTHROPIC_OUTPUT_TOKEN_FALLBACK_OVERHEAD_TOKENS,
         overBoundTokens: 200 - outputTokenUpperBound,
         note: ANTHROPIC_TOKEN_CROSSCHECK_NOTE,
+      },
+      valueJson: {
+        mode: "fallback_safe_bound",
+        billedVisibleOutputTokens: 200,
+        outputTokenUpperBound,
+        overBoundTokens: 200 - outputTokenUpperBound,
+        pricingStatus: "not_priced",
       },
     });
   });

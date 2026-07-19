@@ -82,7 +82,7 @@ Before pasting a provider key:
 
 After the public publish flip, use npm provenance when it is available. The intended public path is a CI-published package with npm provenance/attestation. If provenance is missing, or the package source does not line up with the generated public repo, treat that as a reason to slow down before entering a key.
 
-Open source helps here because the request path and storage path can be audited. It does not protect you if you choose to run changed code.
+Source availability helps here because the request path and storage path can be audited. It does not protect you if you choose to run changed code.
 
 ## What to read next
 

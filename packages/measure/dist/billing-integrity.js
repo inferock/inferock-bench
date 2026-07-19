@@ -445,9 +445,12 @@ export function detectOpenAiTokenRecount(event) {
     }
     const priceLookup = lookupPriceForEvent(event);
     const outputRate = pricedOutputRate(priceLookup);
-    const overchargeUsd = outputRate
+    const tokenizerVerified = encoding.encodingVerified;
+    const estimatedOverchargeUsd = outputRate
         ? roundUsd((overBilledOutputTokens * outputRate.rateUsdPerMillion) / 1_000_000)
         : null;
+    const verifiedCandidate = tokenizerVerified && estimatedOverchargeUsd !== null;
+    const overchargeUsd = verifiedCandidate ? estimatedOverchargeUsd : null;
     const observedUsd = priceLookup.ok ? priceLookup.expectedChargeUsd : null;
     const expectedUsd = observedUsd !== null && overchargeUsd !== null
         ? roundUsd(Math.max(0, observedUsd - overchargeUsd))
@@ -457,9 +460,9 @@ export function detectOpenAiTokenRecount(event) {
         detector: "billing-integrity",
         event,
         failureClass: "token_recount_mismatch",
-        status: outputRate ? "candidate" : "pricing_unknown",
-        evidenceGrade: outputRate ? "refundable_candidate" : "triage_only",
-        creditCandidate: outputRate !== null,
+        status: verifiedCandidate ? "candidate" : outputRate ? "triage_only" : "pricing_unknown",
+        evidenceGrade: verifiedCandidate ? "refundable_candidate" : "triage_only",
+        creditCandidate: verifiedCandidate,
         observedChargeUsd: observedUsd,
         expectedChargeUsd: expectedUsd,
         providerRecoverableLossUsd: overchargeUsd,
@@ -477,10 +480,16 @@ export function detectOpenAiTokenRecount(event) {
             overBilledOutputTokens,
             outputRateUsdPerMillion: outputRate?.rateUsdPerMillion ?? null,
             overchargeUsd,
+            ...(estimatedOverchargeUsd !== null && !tokenizerVerified
+                ? {
+                    tokenizerFallbackEstimatedOverchargeUsd: estimatedOverchargeUsd,
+                    tokenizerFallbackReason: "model encoding inferred; refundable dollars suppressed",
+                }
+                : {}),
             tolerance: TOKEN_RECOUNT_TOLERANCE,
             tokenizer: encoding.encodingName,
             tokenizerEncoding: encoding.encodingName,
-            encodingVerified: encoding.encodingVerified,
+            encodingVerified: tokenizerVerified,
             servedModel: model,
         },
     });

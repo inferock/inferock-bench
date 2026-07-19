@@ -306,6 +306,7 @@ describe("dashboard", () => {
       },
       log: () => undefined,
     });
+    const managementHeaders = await dashboardManagementHeaders(app);
     const startBody = {
       selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
       generator: "agent",
@@ -314,7 +315,7 @@ describe("dashboard", () => {
 
     const estimate = await (await app.request("/api/coverage-test/estimate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify(startBody),
     })).json() as {
       consentHash: string;
@@ -342,7 +343,7 @@ describe("dashboard", () => {
 
     const rejected = await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({ ...startBody, consentHash: estimate.consentHash }),
     });
 
@@ -360,7 +361,7 @@ describe("dashboard", () => {
     expect(staleWhyHash).not.toBe(estimate.agentInstall.consentHash);
     const staleWhy = await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         ...startBody,
         consentHash: estimate.consentHash,
@@ -381,7 +382,7 @@ describe("dashboard", () => {
     expect(staleBenchVersionHash).not.toBe(estimate.agentInstall.consentHash);
     const staleBenchVersion = await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         ...startBody,
         consentHash: estimate.consentHash,
@@ -422,6 +423,7 @@ describe("dashboard", () => {
       },
       log: () => undefined,
     });
+    const managementHeaders = await dashboardManagementHeaders(app);
     const startBody = {
       selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
       generator: "agent",
@@ -429,13 +431,13 @@ describe("dashboard", () => {
     };
     const estimate = await (await app.request("/api/coverage-test/estimate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify(startBody),
     })).json() as { consentHash: string; agentInstall: { consentHash: string } };
 
     const start = await (await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         ...startBody,
         consentHash: estimate.consentHash,
@@ -479,6 +481,12 @@ describe("dashboard", () => {
         canRevealBenchKey: true,
       },
     });
+
+    const crossOriginSummary = await app.request("http://127.0.0.1/api/summary", {
+      headers: { origin: "https://example.invalid" },
+    });
+    expect(crossOriginSummary.status).toBe(403);
+    expect(await crossOriginSummary.text()).not.toContain(fullBenchKey);
 
     const unauthReveal = await app.request("/api/key");
     expect(unauthReveal.status).toBe(401);
@@ -643,10 +651,11 @@ describe("dashboard", () => {
     expect(bootstrapOptions.disabledReason).toBe("baseline_not_measured");
     expect(bootstrapOptions.disabledMessage).toMatch(/baseline not measured yet/i);
     expect(bootstrapOptions.baseline.status).toBe("bootstrap_required");
+    const bootstrapManagementHeaders = await dashboardManagementHeaders(bootstrapApp);
 
     const estimateResponse = await bootstrapApp.request("/api/coverage-test/estimate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...bootstrapManagementHeaders },
       body: JSON.stringify({ provider: "openai", model: "gpt-4o-mini-2024-07-18", generator: "built-in" }),
     });
     expect(estimateResponse.status).toBe(409);
@@ -666,6 +675,7 @@ describe("dashboard", () => {
       log: () => undefined,
       coverageTest: { suite, baseline },
     });
+    const managementHeaders = await dashboardManagementHeaders(app);
 
     const options = await (await app.request("/api/coverage-test/options")).json() as {
       runnable: boolean;
@@ -686,7 +696,7 @@ describe("dashboard", () => {
 
     const estimateResponse = await app.request("/api/coverage-test/estimate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         selectedModels: [
           { provider: "openai", model: "gpt-5.5" },
@@ -729,6 +739,7 @@ describe("dashboard", () => {
       providerFetch: mockCoverageProviderFetch(providerCalls),
       log: () => undefined,
     });
+    const managementHeaders = await dashboardManagementHeaders(app);
 
     const options = await (await app.request("/api/coverage-test/options")).json() as {
       runnable: boolean;
@@ -740,9 +751,23 @@ describe("dashboard", () => {
       model: "gpt-4o-mini-2024-07-18",
     }]);
 
-    const estimate = await (await app.request("/api/coverage-test/estimate", {
+    const unauthEstimate = await app.request("/api/coverage-test/estimate", {
       method: "POST",
       headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
+        generator: "built-in",
+        spendCapUsd: 1,
+      }),
+    });
+    expect(unauthEstimate.status).toBe(401);
+    await expect(unauthEstimate.json()).resolves.toMatchObject({
+      error: { type: "invalid_management_auth" },
+    });
+
+    const estimate = await (await app.request("/api/coverage-test/estimate", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
         generator: "built-in",
@@ -767,7 +792,7 @@ describe("dashboard", () => {
 
     const badStart = await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
         generator: "built-in",
@@ -781,7 +806,7 @@ describe("dashboard", () => {
 
     const start = await (await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({
         selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
         generator: "built-in",
@@ -817,6 +842,7 @@ describe("dashboard", () => {
 
     const abortAfterComplete = await (await app.request(`/api/coverage-test/runs/${start.run.runId}/abort`, {
       method: "POST",
+      headers: managementHeaders,
     })).json() as { status: string };
     expect(abortAfterComplete.status).toBe("completed");
 
@@ -867,6 +893,7 @@ describe("dashboard", () => {
       },
       log: () => undefined,
     });
+    const managementHeaders = await dashboardManagementHeaders(app);
     const startBody = {
       selectedModels: [{ provider: "openai", model: "gpt-4o-mini-2024-07-18" }],
       generator: "built-in",
@@ -874,19 +901,20 @@ describe("dashboard", () => {
     };
     const estimate = await (await app.request("/api/coverage-test/estimate", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify(startBody),
     })).json() as { consentHash: string };
 
     const start = await (await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({ ...startBody, consentHash: estimate.consentHash }),
     })).json() as { run: { runId: string } };
     await waitUntil(() => inFlight === 1, "provider call did not enter flight");
 
     const abort = await (await app.request(`/api/coverage-test/runs/${start.run.runId}/abort`, {
       method: "POST",
+      headers: managementHeaders,
     })).json() as { status: string; receiptReady: boolean; drained: boolean };
     expect(abort).toMatchObject({
       status: "draining",
@@ -897,7 +925,7 @@ describe("dashboard", () => {
     const inFlightAtSecondStart = inFlight;
     const secondStart = await app.request("/api/coverage-test/start", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...managementHeaders },
       body: JSON.stringify({ ...startBody, consentHash: estimate.consentHash }),
     });
     expect(secondStart.status).toBe(409);

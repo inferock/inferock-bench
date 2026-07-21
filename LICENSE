@@ -4,7 +4,7 @@ This repository contains three separately licensed components. Each component
 directory carries its full license text; the identifiers below are SPDX.
 
 - apps/inferock-bench — the benchmark CLI and local measurement proxy:
-  FSL-1.1-Apache-2.0 (Functional Source License, converting to Apache-2.0).
+  FSL-1.1-ALv2 (Functional Source License, converting to Apache-2.0).
   See apps/inferock-bench/LICENSE.
 
 - packages/measure — the @inferock/measure library:

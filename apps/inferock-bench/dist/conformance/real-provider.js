@@ -4,6 +4,7 @@ import { providerApiKey, providerBaseUrl, } from "../config.js";
 import { joinUrl, parseJsonRecord, stringValue } from "../record.js";
 import { SseAccumulator } from "../sse.js";
 import { ANTHROPIC_VERSION } from "../adapters/anthropic.js";
+import { captureMonotonicTimestamp } from "../adapters/canonical-v2.js";
 import { stableSha256 } from "../coverage-suite/canonical-json.js";
 import { createConformanceArtifactWriter, } from "./artifacts.js";
 import { hiddenTokenLedgerEntry, hiddenTokenProbes, } from "./hidden-token.js";
@@ -199,19 +200,47 @@ function perProbeBudget(moduleBudgetUsd, probeCount) {
         return 0;
     return roundUsd(moduleBudgetUsd / probeCount);
 }
+function conformanceMonotonicTiming(startedAt, endedAt) {
+    const monotonicElapsedMs = monotonicElapsedMsBetween(startedAt, endedAt);
+    const wallClockElapsedMs = endedAt.wallTime.getTime() - startedAt.wallTime.getTime();
+    const driftMs = wallClockElapsedMs - monotonicElapsedMs;
+    const driftKind = wallClockElapsedMs < 0
+        ? "negative_wall_clock_elapsed"
+        : Math.abs(driftMs) > 1_000
+            ? "implausible_wall_clock_drift"
+            : undefined;
+    return {
+        monotonicElapsedMs,
+        monotonicClockSource: endedAt.monotonicClockSource,
+        ...(driftKind
+            ? {
+                wallClockDrift: {
+                    kind: driftKind,
+                    wallClockElapsedMs,
+                    monotonicElapsedMs,
+                    driftMs,
+                },
+            }
+            : {}),
+    };
+}
+function monotonicElapsedMsBetween(startedAt, endedAt) {
+    return Math.max(0, Number(endedAt.monotonicNs - startedAt.monotonicNs) / 1_000_000);
+}
 async function callStreamSseProvider(input) {
     const requestId = randomUUID();
-    const startedAt = new Date();
+    const startedAt = captureMonotonicTimestamp();
     let response;
     try {
         response = await input.providerFetch(...providerRequest(input.probe, input.config, input.env));
     }
     catch {
-        const endedAt = new Date().toISOString();
+        const endedAt = captureMonotonicTimestamp();
         return {
             requestId,
-            startedAt: startedAt.toISOString(),
-            endedAt,
+            startedAt: startedAt.wallTime.toISOString(),
+            endedAt: endedAt.wallTime.toISOString(),
+            ...conformanceMonotonicTiming(startedAt, endedAt),
             statusCode: 502,
             headers: {},
             frames: [],
@@ -220,11 +249,12 @@ async function callStreamSseProvider(input) {
     }
     if (response.status >= 400) {
         const errorBody = sanitizedProviderErrorBody(await response.text());
-        const endedAt = new Date().toISOString();
+        const endedAt = captureMonotonicTimestamp();
         return {
             requestId,
-            startedAt: startedAt.toISOString(),
-            endedAt,
+            startedAt: startedAt.wallTime.toISOString(),
+            endedAt: endedAt.wallTime.toISOString(),
+            ...conformanceMonotonicTiming(startedAt, endedAt),
             statusCode: response.status,
             headers: headersRecord(response.headers),
             frames: [],
@@ -232,12 +262,16 @@ async function callStreamSseProvider(input) {
             errorClass: `http_${response.status}:provider_error`,
         };
     }
-    const frames = await readSseFrames(response);
-    const endedAt = new Date().toISOString();
+    const streamRead = await readSseFrames(response, startedAt);
+    const frames = streamRead.frames;
+    const endedAt = captureMonotonicTimestamp();
     return {
         requestId,
-        startedAt: startedAt.toISOString(),
-        endedAt,
+        startedAt: startedAt.wallTime.toISOString(),
+        endedAt: endedAt.wallTime.toISOString(),
+        ...conformanceMonotonicTiming(startedAt, endedAt),
+        ...(streamRead.firstByteAt ? { firstByteAt: streamRead.firstByteAt } : {}),
+        ...(streamRead.timeToFirstByteMs !== undefined ? { timeToFirstByteMs: streamRead.timeToFirstByteMs } : {}),
         statusCode: response.status,
         headers: headersRecord(response.headers),
         frames,
@@ -249,17 +283,18 @@ async function callStreamSseProvider(input) {
 }
 async function callHiddenTokenProvider(input) {
     const requestId = randomUUID();
-    const startedAt = new Date();
+    const startedAt = captureMonotonicTimestamp();
     let response;
     try {
         response = await input.providerFetch(...providerRequest(input.probe, input.config, input.env));
     }
     catch {
-        const endedAt = new Date().toISOString();
+        const endedAt = captureMonotonicTimestamp();
         return {
             requestId,
-            startedAt: startedAt.toISOString(),
-            endedAt,
+            startedAt: startedAt.wallTime.toISOString(),
+            endedAt: endedAt.wallTime.toISOString(),
+            ...conformanceMonotonicTiming(startedAt, endedAt),
             statusCode: 502,
             rawUsage: {},
             content: "",
@@ -271,10 +306,12 @@ async function callHiddenTokenProvider(input) {
         ? sanitizedProviderErrorBody(text)
         : undefined;
     const parsed = parseJsonRecord(text) ?? {};
+    const endedAt = captureMonotonicTimestamp();
     return {
         requestId,
-        startedAt: startedAt.toISOString(),
-        endedAt: new Date().toISOString(),
+        startedAt: startedAt.wallTime.toISOString(),
+        endedAt: endedAt.wallTime.toISOString(),
+        ...conformanceMonotonicTiming(startedAt, endedAt),
         statusCode: response.status,
         rawUsage: usageFromJson(input.probe.providerSurface, parsed),
         content: contentFromJson(input.probe.providerSurface, parsed),
@@ -329,41 +366,58 @@ function providerRequest(probe, config, env) {
         },
     ];
 }
-async function readSseFrames(response) {
+async function readSseFrames(response, startedAt) {
     if (!response.body) {
-        return parseSseText(await response.text(), new Date().toISOString());
+        const observedAt = captureMonotonicTimestamp();
+        return {
+            frames: parseSseText(await response.text(), observedAt.wallTime.toISOString(), monotonicElapsedMsBetween(startedAt, observedAt)),
+            firstByteAt: observedAt.wallTime.toISOString(),
+            timeToFirstByteMs: monotonicElapsedMsBetween(startedAt, observedAt),
+        };
     }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     const accumulator = new SseAccumulator();
     const frames = [];
+    let firstByteAt;
     while (true) {
         const chunk = await reader.read();
         if (chunk.done)
             break;
-        const observedAt = new Date().toISOString();
+        const observedAt = captureMonotonicTimestamp();
+        if (!firstByteAt && chunk.value.byteLength > 0)
+            firstByteAt = observedAt;
+        const observedElapsedMs = monotonicElapsedMsBetween(startedAt, observedAt);
         for (const message of accumulator.push(decoder.decode(chunk.value, { stream: true }))) {
             frames.push({
-                observedAt,
+                observedAt: observedAt.wallTime.toISOString(),
+                observedMonotonicElapsedMs: observedElapsedMs,
                 ...(message.event ? { event: message.event } : {}),
                 data: message.data,
             });
         }
     }
-    const observedAt = new Date().toISOString();
+    const observedAt = captureMonotonicTimestamp();
+    const observedElapsedMs = monotonicElapsedMsBetween(startedAt, observedAt);
     for (const message of [...accumulator.push(decoder.decode()), ...accumulator.end()]) {
         frames.push({
-            observedAt,
+            observedAt: observedAt.wallTime.toISOString(),
+            observedMonotonicElapsedMs: observedElapsedMs,
             ...(message.event ? { event: message.event } : {}),
             data: message.data,
         });
     }
-    return frames;
+    return {
+        frames,
+        ...(firstByteAt ? { firstByteAt: firstByteAt.wallTime.toISOString() } : {}),
+        ...(firstByteAt ? { timeToFirstByteMs: monotonicElapsedMsBetween(startedAt, firstByteAt) } : {}),
+    };
 }
-function parseSseText(raw, observedAt) {
+function parseSseText(raw, observedAt, observedMonotonicElapsedMs) {
     const accumulator = new SseAccumulator();
     return [...accumulator.push(raw), ...accumulator.end()].map((message) => ({
         observedAt,
+        observedMonotonicElapsedMs,
         ...(message.event ? { event: message.event } : {}),
         data: message.data,
     }));

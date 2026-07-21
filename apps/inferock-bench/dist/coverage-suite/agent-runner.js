@@ -267,6 +267,9 @@ export async function runAgentProcessWithBudget(input) {
             concurrencyLimit: input.callBudget?.concurrencyLimit ?? AGENT_ORGANIC_CALL_CONCURRENCY_LIMIT,
             elapsedMs: Math.max(0, now() - startedAt),
             ...(budgetBoundedReason ? { budgetBoundedReason } : {}),
+            ...(budgetBoundedReason
+                ? { abortOrigin: "local_harness", abortReason: budgetBoundedReason }
+                : {}),
         };
     }
     finally {

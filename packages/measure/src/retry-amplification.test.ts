@@ -3,6 +3,7 @@ import type { CanonicalEventV1 } from "./canonical-event.js";
 import {
   buildRetryAmplificationChainSignal,
   providerFaultStatusForRetryDollarization,
+  runRetryAmplificationDetectors,
 } from "./retry-amplification.js";
 
 describe("retry amplification provider-fault classification", () => {
@@ -41,13 +42,38 @@ describe("retry amplification provider-fault classification", () => {
     expect(providerFaultStatusForRetryDollarization(capacity429)).toEqual({
       providerFault: true,
       status: 429,
-      reason: "provider_fault_status_429_capacity_evidence",
+      reason: "gemini_provider_capacity_429",
     });
     expect(providerFaultStatusForRetryDollarization(ambiguous504)).toBeNull();
     expect(providerFaultStatusForRetryDollarization(provider504)).toEqual({
       providerFault: true,
       status: 504,
-      reason: "provider_fault_status_504_provider_evidence",
+      reason: "gemini_provider_timeout_504",
+    });
+  });
+
+  it("retry-amplification-availability-classifier: refuses generic 429 and unreceipted 5xx dollarization", () => {
+    expect(providerFaultStatusForRetryDollarization(openAiEvent({
+      statusCode: 429,
+      errorClass: "http_429:rate_limit_exceeded",
+      content: "Rate limit exceeded.",
+    }))).toBeNull();
+
+    expect(providerFaultStatusForRetryDollarization(openAiEvent({
+      statusCode: 503,
+      errorClass: "http_503:unavailable",
+      content: "Service unavailable.",
+    }))).toBeNull();
+
+    expect(providerFaultStatusForRetryDollarization(openAiEvent({
+      statusCode: 500,
+      errorClass: "http_500:server_error",
+      content: "server_error",
+      providerRequestId: "req-provider-fault",
+    }))).toEqual({
+      providerFault: true,
+      status: 500,
+      reason: "provider_status_5xx",
     });
   });
 
@@ -100,7 +126,56 @@ describe("retry amplification provider-fault classification", () => {
 
     expect(providerFaultStatusForRetryDollarization(event)).toBeNull();
   });
+
+  it("retry-amplification-local-origin-denominator: ignores local synthetic retry evidence", () => {
+    const event = localOriginRetryEvent() as unknown as CanonicalEventV1;
+
+    expect(providerFaultStatusForRetryDollarization(event)).toBeNull();
+    expect(runRetryAmplificationDetectors(event)).toEqual([]);
+  });
 });
+
+function openAiEvent(input: {
+  readonly statusCode: number;
+  readonly errorClass: string;
+  readonly content?: string;
+  readonly providerRequestId?: string;
+}): CanonicalEventV1 & {
+  readonly response: CanonicalEventV1["response"] & {
+    readonly errorClass: string;
+    readonly providerRequestId?: string;
+  };
+} {
+  return {
+    request: {
+      tenantId: "tenant-retry",
+      provider: "openai",
+      model: "gpt-4o-mini",
+      requestId: "req-retry",
+      expectCompletion: true,
+    },
+    response: {
+      statusCode: input.statusCode,
+      finishReason: "error",
+      content: input.content ?? "",
+      errorClass: input.errorClass,
+      ...(input.providerRequestId ? { providerRequestId: input.providerRequestId } : {}),
+    },
+    usage: {
+      input: 0,
+      output: 0,
+    },
+    timing: {
+      startedAt: "2026-07-06T12:00:00.000Z",
+      endedAt: "2026-07-06T12:00:01.000Z",
+      latencyMs: 1_000,
+    },
+    meta: {
+      attemptIndex: 0,
+      schemaVersion: "v1",
+    },
+  };
+}
 
 function geminiEvent(input: {
   readonly statusCode: number;
@@ -144,5 +219,73 @@ function geminiEvent(input: {
       attemptIndex: 0,
       schemaVersion: "v1",
     },
+  };
+}
+
+function localOriginRetryEvent() {
+  return {
+    schemaVersion: "v2",
+    request: {
+      tenantId: "tenant-retry",
+      provider: "openai",
+      requestId: "req-local-retry",
+      requestedModel: "gpt-4o-mini",
+      model: "gpt-4o-mini",
+      attemptIndex: 1,
+      expectCompletion: true,
+    },
+    response: {
+      statusCode: 429,
+      finishReason: "error",
+      content: "Agent call budget exhausted before provider dispatch.",
+      servedModel: "gpt-4o-mini",
+      errorClass: "http_429:agent_call_budget_exhausted",
+      errorOrigin: "local",
+    },
+    usage: {
+      input: 0,
+      output: 0,
+      usageSource: "missing",
+      categories: [],
+    },
+    timing: {
+      startedAt: "2026-07-06T12:00:00.000Z",
+      endedAt: "2026-07-06T12:00:01.000Z",
+      latencyMs: 1_000,
+      chunkCount: 0,
+      terminalStatus: "error",
+    },
+    attempts: [
+      {
+        attemptNumber: 0,
+        provider: "openai",
+        model: "gpt-4o-mini",
+        status: "retry",
+        timing: {
+          startedAt: "2026-07-06T12:00:00.000Z",
+          endedAt: "2026-07-06T12:00:00.500Z",
+          latencyMs: 500,
+        },
+        retryReason: "local_budget_probe",
+        statusCode: 429,
+        errorOrigin: "local",
+        finalSelected: false,
+      },
+      {
+        attemptNumber: 1,
+        provider: "openai",
+        model: "gpt-4o-mini",
+        status: "error",
+        timing: {
+          startedAt: "2026-07-06T12:00:00.500Z",
+          endedAt: "2026-07-06T12:00:01.000Z",
+          latencyMs: 500,
+        },
+        errorClass: "http_429:agent_call_budget_exhausted",
+        statusCode: 429,
+        errorOrigin: "local",
+        finalSelected: true,
+      },
+    ],
   };
 }

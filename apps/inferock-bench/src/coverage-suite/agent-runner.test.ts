@@ -33,6 +33,38 @@ describe("agent organic task budget enforcement", () => {
       concurrencyLimit: 1,
       inFlightAtBound: 1,
       budgetBoundedReason: "max_calls",
+      abortOrigin: "local_harness",
+      abortReason: "max_calls",
+      result: { exitCode: 143 },
+    });
+  });
+
+  it("marks wall-time budget aborts as local-harness origin", async () => {
+    const result = await runAgentProcessWithBudget({
+      launch: {
+        command: "/tmp/opencode",
+        args: [],
+        cwd: "/tmp/workspace",
+        env: {},
+      },
+      taskId: "wall-clock",
+      maxCalls: 10,
+      maxWallTimeMs: 1,
+      pollIntervalMs: 50,
+      countOrganicCalls: async () => 0,
+      runner: async (_launch, controls) => {
+        await new Promise<void>((resolve) => {
+          controls?.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return { exitCode: 143, stderr: "terminated" };
+      },
+    });
+
+    expect(result).toMatchObject({
+      status: "budget_bounded",
+      budgetBoundedReason: "max_wall_time",
+      abortOrigin: "local_harness",
+      abortReason: "max_wall_time",
       result: { exitCode: 143 },
     });
   });

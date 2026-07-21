@@ -29,6 +29,7 @@ import {
   isExposureReportRow,
   renderCoverageSummaryLine,
   summarizeBenchEvents,
+  timeValueRateUseLabel,
   type BenchSlaAssumptions,
   type BenchSummary,
   type CoverageSummary,
@@ -282,6 +283,20 @@ interface BudgetState {
   readonly statusReason?: string;
 }
 
+function createRunCachedEventStore(store: EventStore): EventStore {
+  let cache: StoredBenchEvent[] | undefined;
+  return {
+    async append(record): Promise<void> {
+      await store.append(record);
+      if (cache) cache = [...cache, record];
+    },
+    async readAll(): Promise<StoredBenchEvent[]> {
+      cache ??= await store.readAll();
+      return cache;
+    },
+  };
+}
+
 export async function runBuiltInCoverageSuite(
   input: BuiltInCoverageSuiteRunInput,
 ): Promise<BuiltInCoverageSuiteRunResult> {
@@ -289,11 +304,13 @@ export async function runBuiltInCoverageSuite(
   const startedAt = input.startedAt ?? new Date().toISOString();
   const consentedAt = input.consentedAt ?? startedAt;
   const log = input.log ?? console.log;
+  const store = createRunCachedEventStore(input.store);
+  const runInput: BuiltInCoverageSuiteRunInput = { ...input, store };
   const registry = new BenchRequestAnnotationRegistry();
   registerCoverageSuiteOutputSchemas(input.suite, { tenantId: "local" });
   const app = createBenchApp({
     config: input.config,
-    store: input.store,
+    store,
     env: input.env,
     providerFetch: input.providerFetch,
     requestAnnotations: registry,
@@ -343,7 +360,7 @@ export async function runBuiltInCoverageSuite(
           entry.selectedModel.provider === call.selectedModel.provider
         )
       : [call];
-    const budget = await enforcePreLaunchBudget(input, runId, wave);
+    const budget = await enforcePreLaunchBudget(runInput, runId, wave);
     if (budget.status !== "completed") {
       status = budget.status;
       statusReason = budget.statusReason;
@@ -388,7 +405,7 @@ export async function runBuiltInCoverageSuite(
       break;
     }
 
-    const postCall = await postCallBudgetState(input, runId);
+    const postCall = await postCallBudgetState(runInput, runId);
     if (postCall.status !== "completed") {
       status = postCall.status;
       statusReason = postCall.statusReason;
@@ -412,13 +429,13 @@ export async function runBuiltInCoverageSuite(
         registry,
         benchKey,
         selectedModels: input.estimate.selectedModels,
-        store: input.store,
+        store,
         eventTime: consentedAt,
         summaryOptions: { config: input.config },
         abortSignal: input.abortSignal,
         budget: {
-          preLaunch: async (calls) => driftCanaryBudgetState(await enforcePreLaunchBudget(input, runId, calls)),
-          postCall: async () => driftCanaryBudgetState(await postCallBudgetState(input, runId)),
+          preLaunch: async (calls) => driftCanaryBudgetState(await enforcePreLaunchBudget(runInput, runId, calls)),
+          postCall: async () => driftCanaryBudgetState(await postCallBudgetState(runInput, runId)),
         },
       });
       if (driftCanary.status === "completed") {
@@ -461,7 +478,7 @@ export async function runBuiltInCoverageSuite(
   });
 
   const endedAt = new Date().toISOString();
-  const records = await input.store.readAll();
+  const records = await store.readAll();
   const summary = summarizeBenchEvents(records, { runId }, { config: input.config });
   const receipt = createSpeedTestReceiptBundle({
     runId,
@@ -858,12 +875,12 @@ export function renderSpeedTestReceipt(bundle: SpeedTestReceiptBundle): string {
       `speed-test status: ${bundle.run.status}${bundle.run.statusReason ? ` (${bundle.run.statusReason})` : ""}`,
       `run: ${bundle.run.runId}`,
       `generator: ${bundle.run.generator}`,
-      `provider scope: ${bundle.providerScope?.selectedProviders.join(", ") ?? "unknown"} (${bundle.providerScope?.parallelProviderCount ?? bundle.providerReceipts.length} parallel)`,
+      providerScopeLine(bundle, bundle.providerReceipts.length),
       ...(bundle.trafficMix ? [
         `traffic mix total: organic-agent ${bundle.trafficMix.organicAgentTasks} | harness-fill ${bundle.trafficMix.harnessPreconditionTasks} | drift-canary ${bundle.trafficMix.driftCanaryCalls} | sdk-retry ${bundle.trafficMix.sdkRetryWorkerCalls}`,
       ] : []),
       speedTestHeadline(bundle),
-      `provider-recognized ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
+      `estimated recoverable (our arithmetic) ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
       ...speedTestExposureLines(bundle),
       ...(bundle.totals.legacyCombinedStandardLossUsd !== undefined
         ? [`legacy combined standard loss: ${formatUsd(bundle.totals.legacyCombinedStandardLossUsd)} (legacy dollarized latency/downtime not included in v3 money loss)`]
@@ -884,11 +901,12 @@ export function renderSpeedTestReceipt(bundle: SpeedTestReceiptBundle): string {
     `speed-test status: ${bundle.run.status}${bundle.run.statusReason ? ` (${bundle.run.statusReason})` : ""}`,
     `run: ${bundle.run.runId}`,
     `generator: ${bundle.run.generator}${bundle.agent ? ` (${bundle.agent.name}@${bundle.agent.version}, ${bundle.agent.source})` : ""}`,
+    providerScopeLine(bundle),
     ...(bundle.trafficMix ? [
       `traffic mix: organic-agent ${bundle.trafficMix.organicAgentTasks} | harness-fill ${bundle.trafficMix.harnessPreconditionTasks} | drift-canary ${bundle.trafficMix.driftCanaryCalls} | sdk-retry ${bundle.trafficMix.sdkRetryWorkerCalls}`,
     ] : []),
     speedTestHeadline(bundle),
-    `provider-recognized ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
+    `estimated recoverable (our arithmetic) ${formatUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatUsd(bundle.totals.money.recognitionGapUsd)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
     ...speedTestExposureLines(bundle),
     ...(bundle.totals.legacyCombinedStandardLossUsd !== undefined
       ? [`legacy combined standard loss: ${formatUsd(bundle.totals.legacyCombinedStandardLossUsd)} (legacy dollarized latency/downtime not included in v3 money loss)`]
@@ -909,8 +927,15 @@ export function renderSpeedTestReceipt(bundle: SpeedTestReceiptBundle): string {
 
 function providerLedgerLines(bundle: SpeedTestReceiptBundle): string[] {
   return (bundle.providerLedgers ?? []).map((ledger) =>
-    `provider ${ledger.provider} ledger: money loss ${formatUsd(ledger.standardLossUsd)} | provider-recognized ${formatUsd(ledger.providerRecognizedUsd)} | money gap ${formatUsd(ledger.recognitionGapUsd)} | time lost ${formatApproxTimeLost(ledger.durationTimeLossMs)} | approx ${formatUsd(ledger.durationDollarTranslationUsd)} at your rate`
+    `provider ${ledger.provider} ledger: money loss ${formatUsd(ledger.standardLossUsd)} | estimated recoverable (our arithmetic) ${formatUsd(ledger.providerRecognizedUsd)} | money gap ${formatUsd(ledger.recognitionGapUsd)} | time lost ${formatApproxTimeLost(ledger.durationTimeLossMs)} | approx ${formatUsd(ledger.durationDollarTranslationUsd)} ${timeValueRateUseLabel(bundle.totals.duration.rate ?? bundle.assumptions.timeValueRate)}`
   );
+}
+
+function providerScopeLine(bundle: SpeedTestReceiptBundle, fallbackParallelCount = 1): string {
+  const selectedProviders = bundle.providerScope?.selectedProviders.join(", ") ?? "unknown";
+  const parallelProviderCount = bundle.providerScope?.parallelProviderCount ?? fallbackParallelCount;
+  const contention = bundle.providerScope?.localContentionPossible ?? parallelProviderCount > 1;
+  return `provider scope: ${selectedProviders} (${parallelProviderCount} parallel; ${contention ? "local contention possible" : "no local contention"})`;
 }
 
 function speedTestHeadline(bundle: SpeedTestReceiptBundle): string {
@@ -1091,8 +1116,9 @@ async function postCallBudgetState(
   input: BuiltInCoverageSuiteRunInput,
   runId: string,
 ): Promise<BudgetState> {
-  const summary = summarizeBenchEvents(await input.store.readAll(), { runId }, { config: input.config });
-  if (actualRunPricingUnknown(await input.store.readAll(), runId)) {
+  const records = await input.store.readAll();
+  const summary = summarizeBenchEvents(records, { runId }, { config: input.config });
+  if (actualRunPricingUnknown(records, runId)) {
     return {
       status: "failed",
       statusReason: "pricing_unknown_after_provider_call",

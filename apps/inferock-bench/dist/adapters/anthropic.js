@@ -1,6 +1,5 @@
 // Copied from apps/proxy/src/adapters/anthropic.ts for inferock-bench Track C.
-// Reuse approved by .claude/plans/oss-wave-2026-07.md "Track C Reuse Boundary".
-import { canonicalAttempts, canonicalRequest, canonicalTiming, createStreamTimingCapture, providerRequestIdFromHeaders, recordStreamChunk, recordStreamToken, sanitizedProviderHeaders, streamTiming, } from "./canonical-v2.js";
+import { canonicalAttempts, canonicalRequest, canonicalTiming, captureMonotonicTimestamp, createStreamTimingCapture, providerRequestIdFromHeaders, recordParsedSseEvent, recordStreamByte, recordStreamContentDelta, sanitizedProviderHeaders, streamTiming, } from "./canonical-v2.js";
 import { asRecord, collectRateLimitHeaders, compactRecord, isRecord, joinUrl, numberValue, parseJsonRecord, stringValue, textFromContent, } from "../record.js";
 import { SseAccumulator } from "../sse.js";
 const DEFAULT_MAX_TOKENS = 1024;
@@ -118,21 +117,24 @@ function observeAnthropicStream(input) {
     };
     return input.body.pipeThrough(new TransformStream({
         transform(chunk, controller) {
-            const observedAt = new Date();
+            const observedAt = captureMonotonicTimestamp();
+            recordStreamByte(state.timing, observedAt);
             let observedContentDelta = false;
             for (const message of parser.push(decoder.decode(chunk, { stream: true }))) {
-                observedContentDelta = applyAnthropicStreamMessage(state, message.data, input.statusCode, observedAt) || observedContentDelta;
+                recordParsedSseEvent(state.timing, observedAt);
+                observedContentDelta = applyAnthropicStreamMessage(state, message.data, input.statusCode) || observedContentDelta;
             }
             if (observedContentDelta)
-                recordStreamToken(state.timing, observedAt);
+                recordStreamContentDelta(state.timing, observedAt);
             controller.enqueue(chunk);
         },
         flush() {
-            const observedAt = new Date();
+            const observedAt = captureMonotonicTimestamp();
             const tail = decoder.decode();
             for (const message of [...parser.push(tail), ...parser.end()]) {
-                if (applyAnthropicStreamMessage(state, message.data, input.statusCode, observedAt)) {
-                    recordStreamToken(state.timing, observedAt);
+                recordParsedSseEvent(state.timing, observedAt);
+                if (applyAnthropicStreamMessage(state, message.data, input.statusCode)) {
+                    recordStreamContentDelta(state.timing, observedAt);
                 }
             }
             if (state.timing.terminalStatus === "unknown") {
@@ -147,13 +149,12 @@ function observeAnthropicStream(input) {
         },
     }));
 }
-function applyAnthropicStreamMessage(state, data, statusCode, observedAt) {
+function applyAnthropicStreamMessage(state, data, statusCode) {
     const parsed = parseJsonRecord(data);
     if (!parsed)
         return false;
     if (parsed.type === "ping")
         return false;
-    recordStreamChunk(state.timing, observedAt);
     if (isRecord(parsed.error)) {
         const errorType = stringValue(parsed.error.type) ?? "provider_error";
         const errorCode = stringValue(parsed.error.code);
@@ -200,7 +201,13 @@ function applyAnthropicStreamMessage(state, data, statusCode, observedAt) {
     return observedTextDelta;
 }
 function finalizeAnthropicStream(input, state) {
-    const endedAt = new Date();
+    const endedAt = captureMonotonicTimestamp();
+    const terminalInput = {
+        ...input,
+        endedAtMonotonicNs: endedAt.monotonicNs,
+        providerResponseEndedAt: endedAt.wallTime,
+        providerResponseEndedAtMonotonicNs: endedAt.monotonicNs,
+    };
     const servedModel = state.model ?? input.requestModel;
     const servedModelSource = state.model ? "provider_response" : "adapter_fallback";
     const providerRequestId = providerRequestIdFromHeaders(input.headers);
@@ -231,8 +238,8 @@ function finalizeAnthropicStream(input, state) {
             request: canonicalRequest(input, "anthropic", "anthropic_messages"),
             response,
             usage: anthropicUsageToCanonical(state.usage),
-            timing: streamTiming(input.startedAt, endedAt, state.timing, { ...input, providerResponseEndedAt: endedAt }),
-            attempts: canonicalAttempts({ ...input, providerResponseEndedAt: endedAt }, "anthropic", servedModel, endedAt, terminalStatus, state.errorClass),
+            timing: streamTiming(input.startedAt, endedAt.wallTime, state.timing, terminalInput),
+            attempts: canonicalAttempts(terminalInput, "anthropic", servedModel, endedAt.wallTime, terminalStatus, state.errorClass),
         },
     };
 }

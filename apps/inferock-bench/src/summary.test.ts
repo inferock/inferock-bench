@@ -21,6 +21,8 @@ import {
   repriceLatencyRow,
   renderReport,
   summarizeBenchEvents,
+  unionTimeLossDurationMs,
+  unionTimeLossIntervals,
   type BenchSummary,
 } from "./summary.js";
 import type { StoredBenchEvent } from "./storage.js";
@@ -34,17 +36,180 @@ describe("summary and receipt", () => {
     expect(summary.totalLostUsd).toBe(0);
     expect(summary.measuredCalls).toBe(0);
     expect(summary.rows).toEqual([]);
-    expect(renderReport(summary)).toContain("measured 0 calls, 0 failures");
+    expect(summary.moneyTotals.providerRecognizedLabel).toBe("estimated recoverable (our arithmetic)");
+    expect(summary.durationTotals.providerRecognizedTimeLossLabel)
+      .toBe("estimated recoverable time (our arithmetic)");
+    expect(summary.failureCountLabel).toBe("failure signals");
+    expect(renderReport(summary)).toContain("measured 0 calls, 0 failure signals");
 
     const receipt = createReceiptBundle(summary);
     const rendered = renderReceipt(receipt, true);
-    expect(rendered.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
-    expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
+    expect(rendered.split("\n")[0]).toBe("priced spend $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
+    expect(rendered.split("\n")[1]).toBe("estimated recoverable (our arithmetic) $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
     expect(rendered).not.toContain("cache discount at risk — verify your invoice:");
-    expect(rendered).toContain("failures observed are calls with problems");
-    expect(rendered).toContain("loss signals are the rows below");
-    expect(rendered).toContain("provider-recognized is what your provider already reported or credited");
+    expect(rendered).toContain("failure signals are measurement findings");
+    expect(rendered).toContain("a call can produce more than one signal");
+    expect(rendered).toContain("Estimated recoverable is Inferock arithmetic from observed events");
     expect(rendered).toContain("Inferock Bench - https://inferock.opiusai.com");
+  });
+
+  it("renders receipt split addends that sum to the displayed money and time totals", () => {
+    const base = createReceiptBundle(summarizeBenchEvents([]));
+    const receipt = {
+      ...base,
+      totals: {
+        ...base.totals,
+        money: {
+          ...base.totals.money,
+          standardLossUsd: 2263.196135,
+          providerRecognizedUsd: 1813.172824,
+          recognitionGapUsd: 450.023311,
+          unrecognizedUsd: 450.023311,
+        },
+        duration: {
+          ...base.totals.duration,
+          timeLossMs: 64_500,
+          providerRecognizedTimeLossMs: 37_000,
+          recognitionGapTimeMs: 27_500,
+        },
+      },
+    };
+
+    const rendered = renderReceipt(receipt, true);
+
+    expect(rendered).toContain(
+      "estimated recoverable (our arithmetic) $1,813.17 · recognition gap $450.03",
+    );
+    expect(rendered).toContain(
+      "money-native standard loss $2,263.20 | estimated recoverable (our arithmetic) $1,813.17 | money recognition gap $450.03",
+    );
+    expect(cents("$1,813.17") + cents("$450.03")).toBe(cents("$2,263.20"));
+    expect(rendered).toContain(
+      "duration loss ~1.1 min | estimated recoverable time (our arithmetic) ~0.6 min | time recognition gap ~0.5 min",
+    );
+    expect(tenthsOfMinute("~0.6 min") + tenthsOfMinute("~0.5 min")).toBe(tenthsOfMinute("~1.1 min"));
+  });
+
+  it("local-origin-error-denominators: excludes harness rejections from provider measured calls and retry surfaces", () => {
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: {
+          requestId: "req-provider-ok",
+          expectCompletion: false,
+        },
+        response: {
+          content: "",
+        },
+        usage: {
+          input: 0,
+          output: 0,
+          categories: [],
+          usageSource: "missing",
+        },
+      })),
+      stored(v2Event({
+        request: {
+          requestId: "req-local-budget-rejection",
+        },
+        response: {
+          statusCode: 429,
+          finishReason: "error",
+          content: JSON.stringify({ error: { type: "agent_call_budget_exhausted" } }),
+          errorClass: "http_429:agent_call_budget_exhausted",
+          errorOrigin: "local",
+        },
+        timing: {
+          latencyMs: 120_000,
+          terminalStatus: "error",
+        },
+        attempts: [
+          {
+            attemptNumber: 0,
+            provider: "openai",
+            model: "gpt-4o-mini",
+            status: "retry",
+            timing: {
+              startedAt: "2026-06-14T12:00:00.000Z",
+              endedAt: "2026-06-14T12:01:00.000Z",
+              latencyMs: 60_000,
+            },
+            retryReason: "local_budget_retry_probe",
+            statusCode: 429,
+            errorOrigin: "local",
+            finalSelected: false,
+          },
+          {
+            attemptNumber: 1,
+            provider: "openai",
+            model: "gpt-4o-mini",
+            status: "error",
+            timing: {
+              startedAt: "2026-06-14T12:01:00.000Z",
+              endedAt: "2026-06-14T12:02:00.000Z",
+              latencyMs: 60_000,
+            },
+            errorClass: "http_429:agent_call_budget_exhausted",
+            statusCode: 429,
+            errorOrigin: "local",
+            finalSelected: true,
+          },
+        ],
+      })),
+    ]);
+
+    expect(summary.measuredCalls).toBe(1);
+    expect(summary.localOriginErrorCount).toBe(1);
+    expect(summary.failureCount).toBe(0);
+    expect(summary.rows).toEqual([]);
+    expect(summary.measures.find((entry) => entry.rowKey === "latency")?.count ?? 0).toBe(0);
+    expect(summary.measures.find((entry) => entry.rowKey === "retry_amplification")?.count ?? 0).toBe(0);
+    expect(renderReport(summary)).toContain("measured 1 calls, 0 failure signals");
+    expect(renderReport(summary)).toContain("local-origin errors excluded 1");
+  });
+
+  it("stream-termination-local-abort-summary: labels local-harness aborts separately from provider evidence", () => {
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: {
+          requestId: "req-local-stream-abort",
+          generation: { stream: true },
+          workloadClass: "coding_agent",
+        },
+        response: {
+          finishReason: "client_abort",
+          content: "partial",
+          stopDetails: {
+            clientAbort: {
+              origin: "local_harness",
+              reason: "agent_wall_time_budget",
+            },
+          },
+        },
+        timing: {
+          firstEventAt: "2026-06-14T12:00:00.100Z",
+          firstContentDeltaAt: "2026-06-14T12:00:00.200Z",
+          lastChunkAt: "2026-06-14T12:00:00.900Z",
+          chunkCount: 2,
+          terminalStatus: "aborted",
+          clientConsumptionEndedAt: "2026-06-14T12:00:01.050Z",
+        },
+        usage: {
+          input: 0,
+          output: 0,
+          categories: [],
+          usageSource: "missing",
+        },
+      })),
+    ]);
+
+    expect(measure(summary, "stream_termination_evidence")).toMatchObject({
+      status: "signal",
+      verdict: "signal",
+      count: 1,
+      evidenceGrade: "triage_only",
+      label: "1 evidence-only overlay emitted; 1 local-harness abort",
+    });
+    expect(summary.rows).toEqual([]);
   });
 
   it("standard-loss-summary-invariant: has no silent Math.max cost fallback", () => {
@@ -74,7 +239,7 @@ describe("summary and receipt", () => {
     expect(report).not.toContain("BROKEN_OUTPUT/broken_output | refundable_candidate | 1 | $0.00");
 
     const rendered = renderReceipt(createReceiptBundle(summary), true);
-    expect(rendered.split("\n")[0]).toBe("spent $0.00 · money loss pricing unknown · time loss ~0s · invoice-check exposure $0.00");
+    expect(rendered.split("\n")[0]).toBe("priced spend $0.00 · money loss pricing unknown · time loss ~0s · invoice-check exposure $0.00");
     expect(rendered.split("\n")[0]).not.toContain("(");
     expect(rendered).not.toContain("money loss =");
   });
@@ -109,8 +274,8 @@ describe("summary and receipt", () => {
 
     const rendered = renderReceipt(receipt, true);
 
-    expect(rendered.split("\n")[0]).toBe("spent $100.00 · money loss $10.00 (10.0%) · time loss ~1.0 min · invoice-check exposure $50.00");
-    expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $10.00 · money loss = 10.0% of observed spend");
+    expect(rendered.split("\n")[0]).toBe("priced spend $100.00 · money loss $10.00 (10.0%) · time loss ~1.0 min · invoice-check exposure $50.00");
+    expect(rendered.split("\n")[1]).toBe("estimated recoverable (our arithmetic) $0.00 · recognition gap $10.00 · money loss = 10.0% of observed spend (priced calls only)");
     expect(rendered).not.toContain("money loss = 50.0% of observed spend");
     expect(rendered).not.toContain("money loss = 60.0% of observed spend");
   });
@@ -146,6 +311,9 @@ describe("summary and receipt", () => {
 
     expect(brokenOutput?.standardLossUsd).toBeGreaterThan(0);
     expect(tokenRecount?.standardLossUsd).toBeGreaterThan(0);
+    expect(brokenOutput?.howComputed).toEqual(expect.arrayContaining([
+      expect.stringContaining("bill-bounded ex-post clamp applied"),
+    ]));
     expect(perCallMoneyLossUsd).toBe(summary.moneyTotals.standardLossUsd);
     expect(perCallMoneyLossUsd).toBeLessThanOrEqual(summary.providerSpendUsd);
     expect(summary.moneyTotals.standardLossUsd).toBeLessThanOrEqual(summary.moneyTotals.providerSpendUsd);
@@ -162,17 +330,17 @@ describe("summary and receipt", () => {
     expect(moneyLossObservedSpendLine({
       standardLossUsd: 0.00435,
       providerSpendUsd: 0.05,
-    })).toBe("money loss = 8.7% of observed spend (small sample: $0.05 measured)");
+    })).toBe("money loss = 8.7% of observed spend (priced calls only; small sample: $0.05 measured)");
 
     expect(moneyLossObservedSpendLine({
       standardLossUsd: 0.08613,
       providerSpendUsd: 0.99,
-    })).toBe("money loss = 8.7% of observed spend (small sample: $0.99 measured)");
+    })).toBe("money loss = 8.7% of observed spend (priced calls only; small sample: $0.99 measured)");
 
     expect(moneyLossObservedSpendLine({
       standardLossUsd: 0.087,
       providerSpendUsd: 1,
-    })).toBe("money loss = 8.7% of observed spend");
+    })).toBe("money loss = 8.7% of observed spend (priced calls only)");
 
     expect(moneyLossObservedSpendLine({
       standardLossUsd: 0.000531,
@@ -185,6 +353,41 @@ describe("summary and receipt", () => {
       standardLossUsd: 0,
       providerSpendUsd: 0,
     })).toBe("money loss = no priced spend measured");
+  });
+
+  it("time-loss-union: handles empty, disjoint, nested, and partially overlapping intervals", () => {
+    expect(unionTimeLossIntervals([])).toEqual([]);
+    expect(unionTimeLossDurationMs([])).toBe(0);
+
+    expect(unionTimeLossIntervals([
+      { startMs: 0, endMs: 10 },
+      { startMs: 20, endMs: 30 },
+    ])).toEqual([
+      { startMs: 0, endMs: 10 },
+      { startMs: 20, endMs: 30 },
+    ]);
+    expect(unionTimeLossDurationMs([
+      { startMs: 0, endMs: 10 },
+      { startMs: 20, endMs: 30 },
+    ])).toBe(20);
+
+    expect(unionTimeLossIntervals([
+      { startMs: 0, endMs: 100 },
+      { startMs: 20, endMs: 30 },
+    ])).toEqual([{ startMs: 0, endMs: 100 }]);
+    expect(unionTimeLossDurationMs([
+      { startMs: 0, endMs: 100 },
+      { startMs: 20, endMs: 30 },
+    ])).toBe(100);
+
+    expect(unionTimeLossIntervals([
+      { startMs: 0, endMs: 60 },
+      { startMs: 30, endMs: 90 },
+    ])).toEqual([{ startMs: 0, endMs: 90 }]);
+    expect(unionTimeLossDurationMs([
+      { startMs: 0, endMs: 60 },
+      { startMs: 30, endMs: 90 },
+    ])).toBe(90);
   });
 
   it("legacy receipts keep their compact render shape without the new secondary line", () => {
@@ -216,8 +419,8 @@ describe("summary and receipt", () => {
       }],
     }, true);
 
-    expect(rendered.split("\n")[0]).toBe("spent $1.00 · money loss $0.25 · time loss ~0s · invoice-check exposure $0.00");
-    expect(rendered.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.25");
+    expect(rendered.split("\n")[0]).toBe("priced spend $1.00 · money loss $0.25 · time loss ~0s · invoice-check exposure $0.00");
+    expect(rendered.split("\n")[1]).toBe("estimated recoverable (our arithmetic) $0.00 · recognition gap $0.25");
     expect(rendered).not.toContain("money loss = 25.0% of observed spend");
   });
 
@@ -339,6 +542,9 @@ describe("summary and receipt", () => {
     const duplicate = reportRow(summary, "DUPLICATE_REQUEST_ID");
 
     expect(brokenOutput?.standardLossUsd).toBeGreaterThan(0);
+    expect(brokenOutput?.howComputed).toEqual(expect.arrayContaining([
+      expect.stringContaining("full-call floor standard loss"),
+    ]));
     expect(duplicate?.count).toBe(2);
     expect(duplicate?.standardLossUsd).toBe(brokenOutput?.standardLossUsd);
     expect(duplicate?.recognitionGapUsd).toBe(duplicate?.standardLossUsd);
@@ -410,7 +616,7 @@ describe("summary and receipt", () => {
       recognitionGapUsd: expect.any(Number),
     });
     expect(row?.howComputed[0]).toContain("observed");
-    expect(row?.howComputed[0]).toContain("provider-recognized $0.00");
+    expect(row?.howComputed[0]).toContain("estimated recoverable $0.00");
     expect(row?.dollarTranslationUsd).toBeCloseTo(1.985667, 6);
     expect(row?.standardLossUsd).toBeCloseTo(1.985667, 6);
     expect(row?.recognitionGapUsd).toBeCloseTo(1.985667, 6);
@@ -455,15 +661,96 @@ describe("summary and receipt", () => {
     expect(report).toContain("money loss so far");
     expect(report).toContain("time lost so far");
     expect(report).toContain("how computed: observed");
+    expect(report).toContain("at default rate $92/hr, not customer-confirmed (edit to yours)");
     expect(report).toContain(SLA_DEFAULTS.timeValueRate.oneLineWhy);
     expect(report).toContain(latencyDefaults.oneLineWhy);
 
     const renderedReceipt = renderReceipt(createReceiptBundle(summary), true);
     expect(renderedReceipt).toContain("duration loss");
+    expect(renderedReceipt).toContain("at default rate $92/hr, not customer-confirmed (edit to yours)");
     expect(renderedReceipt).toContain("surfaces watched");
     expect(renderedReceipt).toContain("surface | status | count | label");
     expect(renderedReceipt).toContain("Impact assumptions:");
     expect(renderedReceipt).toContain(latencyDefaults.overrideKey);
+  });
+
+  it("latency-clock-provider-elapsed: uses provider-clock timing when provider elapsed evidence exists", () => {
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: { requestId: "req-provider-clock-latency" },
+        response: { content: "completed" },
+        usage: {
+          input: 100,
+          output: 0,
+          categories: [
+            { category: "input", tokens: 100, provider: "openai" },
+            { category: "output", tokens: 0, provider: "openai" },
+          ],
+        },
+        timing: {
+          startedAt: "2026-06-14T12:00:00.000Z",
+          endedAt: "2026-06-14T12:01:30.000Z",
+          latencyMs: 90_000,
+          providerRequestStartedAt: "2026-06-14T12:00:30.000Z",
+          providerResponseEndedAt: "2026-06-14T12:00:50.000Z",
+          providerElapsedMs: 20_000,
+        },
+      })),
+    ]);
+
+    const latency = reportRow(summary, "LATENCY_BILLED");
+
+    expect(latency).toMatchObject({
+      primaryValueKind: "time_loss",
+      timeLossMs: 10_000,
+      recognitionGapTimeMs: 10_000,
+      timeLossClockLabel: "provider-clock",
+      thresholdSnapshot: {
+        observedMs: 20_000,
+        timingAttribution: "provider_elapsed",
+        clockLabel: "provider-clock",
+      },
+      timeLossTrace: {
+        aggregation: {
+          unionIntervals: [{
+            start: "2026-06-14T12:00:40.000Z",
+            end: "2026-06-14T12:00:50.000Z",
+            durationMs: 10_000,
+          }],
+        },
+      },
+    });
+    expect(summary.durationTotals.timeLossMs).toBe(10_000);
+    expect(renderReport(summary)).toContain("~10s (provider-clock)");
+    expect(renderReceipt(createReceiptBundle(summary), true)).toContain("~10s (provider-clock)");
+  });
+
+  it("latency-clock-provider-elapsed: gateway delay alone does not create a latency signal", () => {
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: { requestId: "req-provider-clock-no-latency" },
+        response: { content: "completed" },
+        usage: {
+          input: 100,
+          output: 0,
+          categories: [
+            { category: "input", tokens: 100, provider: "openai" },
+            { category: "output", tokens: 0, provider: "openai" },
+          ],
+        },
+        timing: {
+          startedAt: "2026-06-14T12:00:00.000Z",
+          endedAt: "2026-06-14T12:01:30.000Z",
+          latencyMs: 90_000,
+          providerRequestStartedAt: "2026-06-14T12:00:30.000Z",
+          providerResponseEndedAt: "2026-06-14T12:00:35.000Z",
+          providerElapsedMs: 5_000,
+        },
+      })),
+    ]);
+
+    expect(reportRow(summary, "LATENCY_BILLED")).toBeUndefined();
+    expect(summary.durationTotals.timeLossMs).toBe(0);
   });
 
   it("timequant-dual-ledger: keeps latency time out of money headline and renders dollar translation separately", () => {
@@ -508,7 +795,7 @@ describe("summary and receipt", () => {
       recognitionGapTimeMs: 80_000,
       dollarTranslationUsd: expect.any(Number),
       providerRecognitionLine:
-        "Provider-recognized: no configured provider latency credit basis for this receipt",
+        "Estimated recoverable (our arithmetic): no configured provider latency credit basis for this receipt",
       thresholdSnapshot: {
         acceptableStartMs: 10_000,
         acceptableMsPerOutputToken: 23,
@@ -552,10 +839,72 @@ describe("summary and receipt", () => {
     const moneyLossPercent = moneyLossObservedSpendPercentFromLine(summary.moneyLossObservedSpendLine);
     if (!moneyLossPercent) throw new Error("fixture should expose a money-loss observed-spend percent");
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss ${formatUsd(summary.moneyTotals.standardLossUsd)} (${moneyLossPercent}) · time loss ~1.3 min · invoice-check exposure $0.00`,
+      `priced spend ${formatUsd(summary.providerSpendUsd)} · money loss ${formatUsd(summary.moneyTotals.standardLossUsd)} (${moneyLossPercent}) · time loss ~1.3 min · invoice-check exposure $0.00`,
     );
     expect(rendered).toContain("approx $");
+    expect(rendered).toContain("at default rate $92/hr, not customer-confirmed (edit to yours)");
     expect(rendered).not.toMatch(/total\s*=\s*money\s*\+\s*time/i);
+  });
+
+  it("timequant-latency-concurrent-runs: unions overlapping time-loss intervals", () => {
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: { requestId: "req-latency-concurrent-a" },
+        response: { content: "completed" },
+        usage: {
+          input: 100,
+          output: 0,
+          categories: [
+            { category: "input", tokens: 100, provider: "openai" },
+            { category: "output", tokens: 0, provider: "openai" },
+          ],
+        },
+        timing: {
+          startedAt: "2026-06-14T12:00:00.000Z",
+          endedAt: "2026-06-14T12:01:30.000Z",
+          latencyMs: 90_000,
+        },
+      })),
+      stored(v2Event({
+        request: { requestId: "req-latency-concurrent-b" },
+        response: { content: "completed" },
+        usage: {
+          input: 100,
+          output: 0,
+          categories: [
+            { category: "input", tokens: 100, provider: "openai" },
+            { category: "output", tokens: 0, provider: "openai" },
+          ],
+        },
+        timing: {
+          startedAt: "2026-06-14T12:00:00.000Z",
+          endedAt: "2026-06-14T12:01:30.000Z",
+          latencyMs: 90_000,
+        },
+      })),
+    ]);
+
+    const latency = reportRow(summary, "LATENCY_BILLED");
+
+    expect(latency).toMatchObject({
+      count: 2,
+      primaryValueKind: "time_loss",
+      timeLossMs: 80_000,
+      recognitionGapTimeMs: 80_000,
+      timeLossTrace: {
+        aggregation: {
+          formula: "union_duration(time_loss_intervals)",
+          unionIntervals: [{
+            start: "2026-06-14T12:00:10.000Z",
+            end: "2026-06-14T12:01:30.000Z",
+            durationMs: 80_000,
+          }],
+        },
+      },
+    });
+    expect(summary.failureCount).toBe(2);
+    expect(summary.durationTotals.timeLossMs).toBe(80_000);
+    expect(summary.durationTotals.recognitionGapTimeMs).toBe(80_000);
   });
 
   it("timequant-downtime-cluster: reports clustered downtime duration and not single-call elapsed sums", () => {
@@ -652,7 +1001,7 @@ describe("summary and receipt", () => {
       providerRecognizedTimeLossMs: 0,
       recognitionGapTimeMs: 63_000,
       dollarTranslationUsd: expect.any(Number),
-      providerRecognitionLine: "Provider-recognized: $0 / 0s - first-party credit terms unverified",
+      providerRecognitionLine: "Estimated recoverable (our arithmetic): $0 / 0s - first-party credit terms unverified",
       thresholdSnapshot: {
         threshold: 0.05,
         thresholdSource: "inferock-default-provider-fault-rate-gemini-aligned",
@@ -713,6 +1062,68 @@ describe("summary and receipt", () => {
     expect(summary.durationTotals.timeLossMs).toBe(181_000);
   });
 
+  it("timequant-logical-operation-retry-overlap: unions same-operation request-time before public totals", () => {
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: {
+          requestId: "req-logical-retry-latency-1",
+          operationId: "op-logical-retry-latency",
+        },
+        response: {
+          content: "completed",
+        },
+        usage: {
+          input: 100,
+          output: 0,
+          categories: [
+            { category: "input", tokens: 100, provider: "openai" },
+            { category: "output", tokens: 0, provider: "openai" },
+          ],
+        },
+        timing: {
+          startedAt: "2026-06-14T12:00:00.000Z",
+          endedAt: "2026-06-14T12:02:10.000Z",
+          latencyMs: 130_000,
+        },
+      })),
+      stored(v2Event({
+        request: {
+          requestId: "req-logical-retry-latency-2",
+          operationId: "op-logical-retry-latency",
+        },
+        response: {
+          content: "completed",
+        },
+        usage: {
+          input: 100,
+          output: 0,
+          categories: [
+            { category: "input", tokens: 100, provider: "openai" },
+            { category: "output", tokens: 0, provider: "openai" },
+          ],
+        },
+        timing: {
+          startedAt: "2026-06-14T12:00:30.000Z",
+          endedAt: "2026-06-14T12:02:30.000Z",
+          latencyMs: 120_000,
+        },
+      })),
+    ]);
+
+    const row = reportRow(summary, "LATENCY_BILLED");
+    expect(row).toMatchObject({
+      count: 2,
+      timeLossMs: 230_000,
+      recognitionGapTimeMs: 230_000,
+    });
+    expect(summary.durationTotals.timeLossMs).toBe(140_000);
+    expect(summary.durationTotals.recognitionGapTimeMs).toBe(140_000);
+    expect(summary.durationTotals.dollarTranslationUsd).toBeCloseTo(
+      roundUsd(140_000 / 3_600_000 * SLA_DEFAULTS.timeValueRate.usdPerHour),
+      6,
+    );
+  });
+
   it("timequant-threshold-and-rate-edit-contract: threshold changes time and translation; rate changes translation only", () => {
     const row = {
       code: "LATENCY_BILLED",
@@ -740,7 +1151,7 @@ describe("summary and receipt", () => {
         usdPerHour: 92,
       },
       timeLossTrace: {},
-      providerRecognitionLine: "Provider-recognized: no configured provider latency credit basis for this receipt",
+      providerRecognitionLine: "Estimated recoverable (our arithmetic): no configured provider latency credit basis for this receipt",
     };
 
     const thresholdEdited = repriceLatencyRow(row, {
@@ -1087,7 +1498,7 @@ describe("summary and receipt", () => {
       status: "signal",
       verdict: "signal",
       count: 1,
-      evidenceGrade: "unrecognized_standard_loss",
+      evidenceGrade: "triage_only",
       signalCodes: expect.arrayContaining(["CACHE_DISCOUNT_AT_RISK"]),
     });
     expect(measure(watched, "drift_regression")).toMatchObject({
@@ -1698,7 +2109,7 @@ describe("summary and receipt", () => {
       status: "signal",
       verdict: "signal",
       count: 1,
-      evidenceGrade: "unrecognized_standard_loss",
+      evidenceGrade: "triage_only",
       watchedEvidence: {
         sharedPrefixCallCount: 2,
         requiredSharedPrefixCallCount: 2,
@@ -1716,9 +2127,10 @@ describe("summary and receipt", () => {
     const receipt = createReceiptBundle(summary);
     expect(receipt.exposures).toEqual(summary.exposures);
     expect(receipt.rows.some((entry) => entry.code === "CACHE_DISCOUNT_AT_RISK")).toBe(false);
+    expect(summary.exposures[0]?.amount).toBe(0.0015);
     const rendered = renderReceipt(receipt, true);
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 (0.0%) · time loss ~0s · invoice-check exposure $0.001500`,
+      `priced spend ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 (0.0%) · time loss ~0s · invoice-check exposure $0.001500`,
     );
     expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
     expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
@@ -1893,7 +2305,7 @@ describe("summary and receipt", () => {
     expect(rendered).toContain("cache discount at risk — verify your invoice: 1 invoice exposure, $0.001500");
     expect(rendered).not.toContain("CACHE_DISCOUNT_AT_RISK/cache_discount_at_risk");
     expect(rendered.split("\n")[0]).toBe(
-      `spent ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 (0.0%) · time loss ~0s · invoice-check exposure $0.001500`,
+      `priced spend ${formatUsd(summary.providerSpendUsd)} · money loss $0.00 (0.0%) · time loss ~0s · invoice-check exposure $0.001500`,
     );
   });
 
@@ -1976,7 +2388,7 @@ describe("summary and receipt", () => {
       status: "signal",
       verdict: "signal",
       signalCount: 1,
-      evidenceGrade: "unrecognized_standard_loss",
+      evidenceGrade: "triage_only",
       watchedEvidence: {
         sharedPrefixCallCount: 2,
         requiredSharedPrefixCallCount: 2,
@@ -1986,6 +2398,49 @@ describe("summary and receipt", () => {
         chargeObservationConfigured: true,
       },
     });
+  });
+
+  it("keeps ineligible cache charge observations as recognition-gap money loss", async () => {
+    resetBillingIntegrityState();
+    const home = await mkdtemp(join(tmpdir(), "inferock-bench-charge-observation-gap-"));
+    const chargeObservationFile = join(home, "charges.jsonl");
+    await writeFile(chargeObservationFile, `${JSON.stringify({
+      provider: "openai",
+      requestId: "req-cache-observed-gap",
+      chargedUsd: 0.002,
+      source: "imported_invoice_export",
+      observedAt: "2026-07-04T12:00:00.000Z",
+      dashboardEligible: false,
+    })}\n`, "utf8");
+
+    const summary = summarizeBenchEvents([
+      stored(v2Event({
+        request: { requestId: "req-cache-observed-gap-prefix" },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+      stored(v2Event({
+        request: { requestId: "req-cache-observed-gap" },
+        usage: {
+          input: 0,
+          output: 0,
+          cache: { read: 20_000, creation: 0 },
+          categories: [
+            { category: "cached", tokens: 20_000, provider: "openai" },
+          ],
+        },
+      }), { suiteTaskId: "shared_prefix_cache" }),
+    ], {}, {
+      coverageTest: { chargeObservationFile },
+    });
+
+    const row = reportRow(summary, "CACHE_RATE_ANOMALY");
+    expect(row).toMatchObject({
+      providerRecognizedUsd: 0,
+      evidenceGrade: "unrecognized_standard_loss",
+    });
+    expect(row?.standardLossUsd).toBeGreaterThan(0);
+    expect(row?.recognitionGapUsd).toBe(row?.standardLossUsd);
+    expect(summary.moneyTotals.standardLossUsd).toBeGreaterThanOrEqual(row?.standardLossUsd ?? 0);
+    expect(summary.moneyTotals.recognitionGapUsd).toBeGreaterThanOrEqual(row?.recognitionGapUsd ?? 0);
   });
 
   it("fails cache reconciliation loudly for malformed charge observation files", async () => {
@@ -2017,7 +2472,7 @@ describe("summary and receipt", () => {
       status: "signal",
       verdict: "signal",
       signalCount: 1,
-      evidenceGrade: "unrecognized_standard_loss",
+      evidenceGrade: "triage_only",
       watchedEvidence: {
         sharedPrefixCallCount: 2,
         requiredSharedPrefixCallCount: 2,
@@ -2286,6 +2741,16 @@ function sum(values: readonly number[]): number {
 
 function roundUsd(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function cents(value: string): number {
+  return Math.round(Number(value.replace(/[$,]/gu, "")) * 100);
+}
+
+function tenthsOfMinute(value: string): number {
+  const match = value.match(/^~([0-9.]+) min$/u);
+  if (!match?.[1]) throw new Error(`expected minute display, got ${value}`);
+  return Math.round(Number(match[1]) * 10);
 }
 
 function measure(summary: BenchSummary, rowKey: string) {

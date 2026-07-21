@@ -2,6 +2,20 @@ import { readFile } from "node:fs/promises";
 import { CanonicalEventAny, } from "@inferock/measure/canonical-event";
 import { writePrivateTextFile } from "./private-files.js";
 import { isRecord, stringValue } from "./record.js";
+const ADDITIVE_TIMING_EXTENSION_FIELDS = [
+    "monotonicElapsedMs",
+    "monotonicClockSource",
+    "wallClockDrift",
+    "providerMonotonicElapsedMs",
+    "providerWallClockDrift",
+    "clientConsumptionEndedAt",
+];
+const ADDITIVE_RESPONSE_EXTENSION_FIELDS = [
+    "errorOrigin",
+];
+const ADDITIVE_ATTEMPT_EXTENSION_FIELDS = [
+    "errorOrigin",
+];
 export class JsonlEventStore {
     filePath;
     constructor(filePath) {
@@ -84,8 +98,8 @@ function parseStoredBenchEvent(line) {
     const capturedAt = stringValue(parsed.capturedAt);
     if (!capturedAt)
         return undefined;
-    const event = CanonicalEventAny.safeParse(parsed.event);
-    if (!event.success)
+    const event = parseCanonicalStoredEvent(parsed.event);
+    if (!event)
         return undefined;
     const runId = stringValue(parsed.runId);
     const suiteTaskId = stringValue(parsed.suiteTaskId);
@@ -96,8 +110,81 @@ function parseStoredBenchEvent(line) {
         ...(runId ? { runId } : {}),
         ...(suiteTaskId ? { suiteTaskId } : {}),
         ...(driftCanaryProtocolVersion ? { driftCanaryProtocolVersion } : {}),
-        event: event.data,
+        event,
     };
+}
+function parseCanonicalStoredEvent(value) {
+    const parsed = CanonicalEventAny.safeParse(value);
+    if (parsed.success)
+        return parsed.data;
+    const validationShape = omitAdditiveTimingExtensions(value);
+    if (validationShape === value)
+        return undefined;
+    const fallback = CanonicalEventAny.safeParse(validationShape);
+    return fallback.success ? value : undefined;
+}
+function omitAdditiveTimingExtensions(value) {
+    if (!isRecord(value))
+        return value;
+    let changed = false;
+    const event = { ...value };
+    if (isRecord(value.timing)) {
+        event.timing = omitTimingExtensionFields(value.timing);
+        changed ||= event.timing !== value.timing;
+    }
+    if (isRecord(value.response)) {
+        event.response = omitResponseExtensionFields(value.response);
+        changed ||= event.response !== value.response;
+    }
+    if (Array.isArray(value.attempts)) {
+        const attempts = value.attempts.map((attempt) => {
+            if (!isRecord(attempt))
+                return attempt;
+            const timing = isRecord(attempt.timing) ? omitTimingExtensionFields(attempt.timing) : attempt.timing;
+            const attemptWithTiming = timing === attempt.timing ? attempt : { ...attempt, timing };
+            const next = omitAttemptExtensionFields(attemptWithTiming);
+            if (next === attempt)
+                return attempt;
+            changed = true;
+            return next;
+        });
+        if (changed)
+            event.attempts = attempts;
+    }
+    return changed ? event : value;
+}
+function omitTimingExtensionFields(timing) {
+    let changed = false;
+    const next = { ...timing };
+    for (const field of ADDITIVE_TIMING_EXTENSION_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(next, field)) {
+            delete next[field];
+            changed = true;
+        }
+    }
+    return changed ? next : timing;
+}
+function omitResponseExtensionFields(response) {
+    let changed = false;
+    const next = { ...response };
+    for (const field of ADDITIVE_RESPONSE_EXTENSION_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(next, field)) {
+            delete next[field];
+            changed = true;
+        }
+    }
+    return changed ? next : response;
+}
+function omitAttemptExtensionFields(attempt) {
+    let changed = false;
+    const next = { ...attempt };
+    for (const field of ADDITIVE_ATTEMPT_EXTENSION_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(next, field)) {
+            delete next[field];
+            changed = true;
+        }
+    }
+    return changed ? next : attempt;
 }
 function isNodeError(error) {
     return error instanceof Error && "code" in error;

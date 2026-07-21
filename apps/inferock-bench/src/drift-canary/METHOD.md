@@ -8,7 +8,7 @@ Use this method note when reviewing how drift canary evidence is gathered and wh
 | --- | --- |
 | Prompt set | Fixed, versioned GSM8K-Platinum and MMLU exact-match canary items. |
 | Baseline | Per provider, model, and effective protocol version; protocol changes start a new segment. |
-| Dollarization | Floor based on provider-billed cost of degraded calls when drift is flagged; provider-recognized dollars stay `0` until provider recognition. |
+| Dollarization | Floor based on provider-billed cost of degraded calls when drift is flagged; estimated recoverable dollars stay `0` until provider confirmation. |
 
 The coverage cycle runs a fixed, versioned canary per selected provider/model:
 25 GSM8K-Platinum numeric exact-match prompts and 25 MMLU A/B/C/D exact-match prompts.
@@ -44,7 +44,7 @@ p-value is `<0.05`.
 Dollarization is a floor: when drift is flagged, standard loss is the provider-billed
 cost of degraded calls in the affected window. Canary calls carry higher evidence;
 same-model customer calls between last-good and first-flagged carry lower evidence.
-Provider-recognized dollars are `0` until the provider recognizes the regression,
+Estimated recoverable dollars are `0` until the provider confirms the regression,
 so recognition gap equals the floor.
 
 Sources: arXiv:2307.09009, arXiv:2410.20247, arXiv:2512.03816,

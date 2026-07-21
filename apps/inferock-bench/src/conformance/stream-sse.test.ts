@@ -147,6 +147,113 @@ describe("stream SSE conformance module", () => {
     expect(terminalGap.entries[0]?.detectors.signalCodes).toEqual(["STREAM_TERMINAL_STATUS_GAP"]);
     expect(terminalGap.entries[0]?.rawEvidence.normalizedTerminalStatus).toBe("unknown");
   });
+
+  it("stream-sse-conformance-monotonic-duration: preserves monotonic elapsed and flags wall-clock reversal", async () => {
+    const [probe] = streamSseProbes({
+      providers: ["openai"],
+      models: {
+        openai: "gpt-5.4-mini",
+        anthropic: "claude-sonnet-5",
+      },
+    });
+    expect(probe).toBeDefined();
+
+    const result = await runStreamSseConformance({
+      runId: "conformance_20260708T120000Z_stream04",
+      probes: [probe as StreamSseProbe],
+      providerCall: async (streamProbe) => ({
+        requestId: `${streamProbe.probeId}-request`,
+        startedAt: "2026-07-08T12:00:10.000Z",
+        endedAt: "2026-07-08T12:00:09.000Z",
+        monotonicElapsedMs: 2_500,
+        monotonicClockSource: "test-monotonic-clock",
+        wallClockDrift: {
+          kind: "negative_wall_clock_elapsed",
+          wallClockElapsedMs: -1_000,
+          monotonicElapsedMs: 2_500,
+          driftMs: -3_500,
+        },
+        statusCode: 200,
+        headers: { "x-request-id": "req-monotonic-stream" },
+        frames: [
+          frame("2026-07-08T12:00:10.100Z", "response.created", JSON.stringify({ id: "resp_stream_clock" })),
+          frame("2026-07-08T12:00:10.200Z", "response.output_text.delta", JSON.stringify({ delta: "ok" })),
+          frame("2026-07-08T12:00:10.300Z", "response.completed", JSON.stringify({
+            response: { id: "resp_stream_clock", status: "completed" },
+          })),
+        ],
+        usage: { input_tokens: 8, output_tokens: 1 },
+      }),
+    });
+
+    expect(result.entries[0]?.canonical.timing).toMatchObject({
+      monotonicElapsedMs: 2_500,
+      monotonicClockSource: "test-monotonic-clock",
+      wallClockDrift: {
+        kind: "negative_wall_clock_elapsed",
+      },
+    });
+  });
+
+  it("stream-sse-boundary-definitions: keeps first byte, parsed SSE event, and first content distinct", async () => {
+    const [probe] = streamSseProbes({
+      providers: ["openai"],
+      models: {
+        openai: "gpt-5.4-mini",
+        anthropic: "claude-sonnet-5",
+      },
+    });
+    expect(probe).toBeDefined();
+
+    const result = await runStreamSseConformance({
+      runId: "conformance_20260708T120000Z_stream05",
+      probes: [probe as StreamSseProbe],
+      providerCall: async (streamProbe) => ({
+        requestId: `${streamProbe.probeId}-request`,
+        startedAt: "2026-07-08T12:00:00.000Z",
+        endedAt: "2026-07-08T12:00:01.000Z",
+        monotonicElapsedMs: 1_000,
+        monotonicClockSource: "test-monotonic-clock",
+        firstByteAt: "2026-07-08T12:00:00.050Z",
+        timeToFirstByteMs: 50,
+        statusCode: 200,
+        headers: { "x-request-id": "req-boundary-stream" },
+        frames: [
+          frame(
+            "2026-07-08T12:00:00.200Z",
+            "response.created",
+            JSON.stringify({ id: "resp_stream_boundary" }),
+            200,
+          ),
+          frame(
+            "2026-07-08T12:00:00.450Z",
+            "response.output_text.delta",
+            JSON.stringify({ delta: "ok" }),
+            450,
+          ),
+          frame(
+            "2026-07-08T12:00:00.800Z",
+            "response.completed",
+            JSON.stringify({ response: { id: "resp_stream_boundary", status: "completed" } }),
+            800,
+          ),
+        ],
+        usage: { input_tokens: 8, output_tokens: 1 },
+      }),
+    });
+
+    expect(result.entries[0]?.canonical.timing).toMatchObject({
+      firstByteAt: "2026-07-08T12:00:00.050Z",
+      firstEventAt: "2026-07-08T12:00:00.200Z",
+      firstContentDeltaAt: "2026-07-08T12:00:00.450Z",
+      firstTokenAt: "2026-07-08T12:00:00.450Z",
+      timeToFirstByteMs: 50,
+      timeToFirstEventMs: 200,
+      timeToFirstContentDeltaMs: 450,
+      timeToFirstTokenMs: 450,
+      maxInterChunkGapMs: 350,
+    });
+  });
 });
 
 const mockedCompleteProviderCall: StreamSseProviderCall = async (probe) => {
@@ -235,9 +342,11 @@ function frame(
   observedAt: string,
   event: string | undefined,
   data: string,
+  observedMonotonicElapsedMs?: number,
 ) {
   return {
     observedAt,
+    ...(observedMonotonicElapsedMs !== undefined ? { observedMonotonicElapsedMs } : {}),
     ...(event ? { event } : {}),
     data,
   };

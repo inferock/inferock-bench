@@ -15,6 +15,7 @@ Historical note: this card remains the published proof record for the 2026-07-06
 
 - Run id: `inferock-bench-0.1.7-real-traffic-2026-07-06`.
 - Package: `inferock-bench` 0.1.7.
+- Run-card freshness: historical-card-exempt; grading version: `inferock-bench` 0.1.7.
 - Scope: OpenAI, Anthropic, Gemini.
 - Run type: maintainer-owned development-key run, published to prove the artifact path and method. It is not an independent customer audit and not a provider ranking.
 - Measured calls: 175.

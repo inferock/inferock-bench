@@ -20,10 +20,19 @@ Use this page when you want a public issue or PR to survive the mirror boundary.
 
 ## Tests
 
-Run the narrowest tests that cover your change, and include the command output in the PR body.
+Use Node.js 22 or newer. The repo pins its package manager in `package.json`; activate that pnpm version through Corepack before installing dependencies.
 
 ```sh
+node --version
+corepack enable
+corepack prepare pnpm@9.15.0 --activate
+pnpm --version
 pnpm install --frozen-lockfile
+```
+
+Run the narrowest tests that cover your change, and include the command output in the PR body. The public CI gate runs the root test command:
+
+```sh
 pnpm test
 ```
 
@@ -35,7 +44,7 @@ Measurement fixtures are for tests only. Public examples, screenshots, receipts,
 
 By contributing, you certify that you have the right to submit the change and that it can be redistributed under the applicable public license:
 
-- `inferock-bench`: FSL-1.1-Apache-2.0 with 2-year Apache-2.0 conversion.
+- `inferock-bench`: FSL-1.1-ALv2 with 2-year Apache-2.0 conversion.
 - `@inferock/measure`: Apache-2.0.
 - The Inferock Standard and `spec/`: CC-BY-4.0.
 

@@ -80,10 +80,12 @@ describe("wave3 refusal regex false-positive tightening", () => {
       expect(regexRefusalTier(content), content).toBe("regex");
       expect(detectRefusal(refusalEvent(content, `true-positive-${index}`))).toMatchObject({
         code: "REFUSAL_BILLED",
-        failureClass: "refusal",
+        failureClass: null,
+        valueKind: "triage",
         evidence: {
           refusalDetectionSource: "classifier",
           refusalDetectionMechanism: "regex",
+          standardLossEligible: false,
         },
       });
     }

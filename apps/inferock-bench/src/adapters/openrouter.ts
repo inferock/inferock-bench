@@ -22,6 +22,7 @@ import {
   withOpenAiStreamUsage,
   type OpenAiCompatibleOptions,
 } from "./openai.js";
+import { captureMonotonicTimestamp } from "./canonical-v2.js";
 import type {
   AdapterBuildRequestInput,
   AdapterCanonicalInput,
@@ -34,6 +35,7 @@ import type {
 type ProviderFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 const OPENROUTER_METADATA_FIELD_PATH = "$.openrouter_metadata.endpoints.available";
+const OPENROUTER_ENDPOINT_EVIDENCE_FETCH_SEGMENT = "openrouter_endpoint_evidence_fetch";
 
 const OPENROUTER_COMPATIBLE_OPTIONS: OpenAiCompatibleOptions = {
   provider: "openrouter",
@@ -94,6 +96,7 @@ export async function openRouterEndpointEvidenceForRequest(input: {
   }
 
   const source = joinUrl(input.baseUrl, `/models/${pinned.model}/endpoints`);
+  const evidenceFetchStartedAt = captureMonotonicTimestamp();
   try {
     const response = await input.providerFetch(source, {
       method: "GET",
@@ -103,6 +106,8 @@ export async function openRouterEndpointEvidenceForRequest(input: {
       },
     });
     const parsed = parseJsonRecord(await response.text());
+    const evidenceFetchEndedAt = captureMonotonicTimestamp();
+    const timingEvidence = openRouterEndpointEvidenceFetchTiming(evidenceFetchStartedAt, evidenceFetchEndedAt);
     const endpoint = selectedPinnedEndpoint(parsed, pinned);
     if (!response.ok || !endpoint) {
       return {
@@ -112,6 +117,7 @@ export async function openRouterEndpointEvidenceForRequest(input: {
           pinnedProvider: pinned.providerSlug,
           source,
           httpStatus: response.status,
+          ...timingEvidence,
         },
       };
     }
@@ -123,6 +129,7 @@ export async function openRouterEndpointEvidenceForRequest(input: {
         requestedModel: pinned.model,
         pinnedProvider: pinned.providerSlug,
         source,
+        ...timingEvidence,
         endpointProviderTag: stringValue(endpoint.tag) ?? pinned.providerSlug,
         endpointProviderName: stringValue(endpoint.provider_name),
         endpointModel: stringValue(endpoint.model_id) ?? pinned.model,
@@ -131,12 +138,14 @@ export async function openRouterEndpointEvidenceForRequest(input: {
       },
     };
   } catch {
+    const evidenceFetchEndedAt = captureMonotonicTimestamp();
     return {
       openRouterEndpoint: {
         status: "fetch_failed",
         requestedModel: pinned.model,
         pinnedProvider: pinned.providerSlug,
         source,
+        ...openRouterEndpointEvidenceFetchTiming(evidenceFetchStartedAt, evidenceFetchEndedAt),
       },
     };
   }
@@ -162,6 +171,12 @@ function openRouterResponseEvidence(input: {
     ...(typeof metadata?.attempt === "number" ? { routerAttempt: metadata.attempt } : {}),
     ...(stringValue(metadata?.region) ? { routerRegion: stringValue(metadata?.region) } : {}),
     ...(stringValue(endpointEvidence?.source) ? { endpointPriceSource: stringValue(endpointEvidence?.source) } : {}),
+    ...(typeof endpointEvidence?.evidenceFetchElapsedMs === "number"
+      ? {
+          endpointEvidenceFetchMs: endpointEvidence.evidenceFetchElapsedMs,
+          endpointEvidenceFetchTimingAttribution: OPENROUTER_ENDPOINT_EVIDENCE_FETCH_SEGMENT,
+        }
+      : {}),
   };
 
   if (!selected) return { stopDetails: { openRouter: base } };
@@ -206,6 +221,18 @@ function openRouterResponseEvidence(input: {
         ...(endpointPriceSnapshot ? { endpointPriceSnapshot } : {}),
       },
     },
+  };
+}
+
+function openRouterEndpointEvidenceFetchTiming(
+  startedAt: ReturnType<typeof captureMonotonicTimestamp>,
+  endedAt: ReturnType<typeof captureMonotonicTimestamp>,
+): JsonRecord {
+  return {
+    evidenceFetchStartedAt: startedAt.wallTime.toISOString(),
+    evidenceFetchEndedAt: endedAt.wallTime.toISOString(),
+    evidenceFetchElapsedMs: Math.max(0, Number(endedAt.monotonicNs - startedAt.monotonicNs) / 1_000_000),
+    evidenceFetchTimingAttribution: OPENROUTER_ENDPOINT_EVIDENCE_FETCH_SEGMENT,
   };
 }
 

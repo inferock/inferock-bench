@@ -1,7 +1,9 @@
 // Copied from apps/proxy/src/adapters/types.ts for inferock-bench Track C.
-// Reuse approved by .claude/plans/oss-wave-2026-07.md "Track C Reuse Boundary".
 
-import type { CanonicalAttemptRecord, CanonicalEventV2 } from "@inferock/measure/canonical-event";
+import type {
+  CanonicalAttemptRecord,
+  CanonicalEventV2,
+} from "@inferock/measure/canonical-event";
 import type { JsonRecord } from "../record.js";
 import type { ProviderName } from "../provider.js";
 
@@ -10,6 +12,8 @@ export interface ProviderFetchRequest {
   readonly init: RequestInit;
   readonly canonicalRequestBody?: JsonRecord;
 }
+
+export type ErrorOrigin = "local" | "provider";
 
 export interface AdapterBuildRequestInput {
   readonly body: JsonRecord;
@@ -37,8 +41,14 @@ export interface AdapterCanonicalInput {
   readonly responseBody: string;
   readonly startedAt: Date;
   readonly endedAt: Date;
+  readonly startedAtMonotonicNs?: bigint;
+  readonly endedAtMonotonicNs?: bigint;
+  readonly monotonicClockSource?: string;
   readonly providerRequestStartedAt?: Date;
   readonly providerResponseEndedAt?: Date;
+  readonly providerRequestStartedAtMonotonicNs?: bigint;
+  readonly providerResponseEndedAtMonotonicNs?: bigint;
+  readonly errorOrigin?: ErrorOrigin;
   readonly attemptIndex: number;
   readonly previousAttempts?: readonly CanonicalAttemptRecord[];
   readonly providerEvidence?: JsonRecord;
@@ -63,12 +73,26 @@ export interface AdapterStreamInput {
   readonly headers: Headers;
   readonly body: ReadableStream<Uint8Array>;
   readonly startedAt: Date;
+  readonly startedAtMonotonicNs?: bigint;
+  readonly endedAtMonotonicNs?: bigint;
+  readonly monotonicClockSource?: string;
   readonly providerRequestStartedAt?: Date;
   readonly providerResponseEndedAt?: Date;
+  readonly providerRequestStartedAtMonotonicNs?: bigint;
+  readonly providerResponseEndedAtMonotonicNs?: bigint;
+  readonly errorOrigin?: ErrorOrigin;
   readonly attemptIndex: number;
   readonly previousAttempts?: readonly CanonicalAttemptRecord[];
   readonly providerEvidence?: JsonRecord;
+  readonly clientConsumptionTiming?: ClientConsumptionTiming;
   readonly onTerminal: (result: AdapterCanonicalResult) => void;
+}
+
+export interface ClientConsumptionTiming {
+  endedAt?: Date;
+  endedAtMonotonicNs?: bigint;
+  abortOrigin?: "client" | "local_harness";
+  abortReason?: string;
 }
 
 export interface AdapterCanonicalResult {

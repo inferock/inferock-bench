@@ -59,7 +59,9 @@ interface StreamSignalDecision {
   readonly code: StreamTerminationSignalCode;
   readonly category: StreamTerminationCategory;
   readonly reason: string;
-  readonly terminationAttribution: "client" | "provider" | "unknown";
+  readonly terminationAttribution: "client" | "local_harness" | "provider" | "unknown";
+  readonly abortOrigin?: "client" | "local_harness";
+  readonly abortReason?: string;
 }
 
 const DETECTOR_NAME = "stream-termination-evidence";
@@ -107,6 +109,28 @@ function streamSignalDecision(
   }
 
   if (timing.terminalStatus === "aborted") {
+    const abortOrigin = streamAbortOriginForEvent(event);
+    if (abortOrigin?.origin === "local_harness") {
+      return {
+        code: "STREAM_CLIENT_ABORTED",
+        category: "stream_aborted_before_terminal_state",
+        reason: "stream_local_harness_abort_confirmed",
+        terminationAttribution: "local_harness",
+        abortOrigin: abortOrigin.origin,
+        ...(abortOrigin.reason ? { abortReason: abortOrigin.reason } : {}),
+      };
+    }
+    if (abortOrigin?.origin === "client") {
+      return {
+        code: "STREAM_CLIENT_ABORTED",
+        category: "stream_aborted_before_terminal_state",
+        reason: "stream_client_abort_confirmed",
+        terminationAttribution: "client",
+        abortOrigin: abortOrigin.origin,
+        ...(abortOrigin.reason ? { abortReason: abortOrigin.reason } : {}),
+      };
+    }
+
     const causalityEvidence = streamTerminationCausalityEvidenceForEvent(event);
     if (causalityEvidence === "client_disconnect") {
       return {
@@ -163,6 +187,8 @@ function streamTerminationSignal(
     ...(event.response.errorClass ? { errorClass: event.response.errorClass } : {}),
     ...(responseErrorEvidence.rawErrorType ? { rawErrorType: responseErrorEvidence.rawErrorType } : {}),
     ...(responseErrorEvidence.rawErrorCode ? { rawErrorCode: responseErrorEvidence.rawErrorCode } : {}),
+    ...(decision.abortOrigin ? { abortOrigin: decision.abortOrigin } : {}),
+    ...(decision.abortReason ? { abortReason: decision.abortReason } : {}),
     providerBillingBasis: PROVIDER_BILLING_BASIS,
     refundableClassification: REFUNDABLE_CLASSIFICATION,
     creditCandidate: false,
@@ -188,12 +214,33 @@ function streamTerminationSignal(
       category: decision.category,
       terminalStatus: timing.terminalStatus ?? "missing",
       terminationAttribution: decision.terminationAttribution,
+      ...(decision.abortOrigin ? { abortOrigin: decision.abortOrigin } : {}),
+      ...(decision.abortReason ? { abortReason: decision.abortReason } : {}),
       ...(typeof timing.chunkCount === "number" ? { chunkCount: timing.chunkCount } : {}),
       evidenceOnly: true,
       providerBillingBasis: PROVIDER_BILLING_BASIS,
       refundableClassification: REFUNDABLE_CLASSIFICATION,
       creditCandidate: false,
     },
+  };
+}
+
+function streamAbortOriginForEvent(
+  event: CanonicalEventV1,
+): { readonly origin: "client" | "local_harness"; readonly reason?: string } | null {
+  const response = event.response as CanonicalEventV1["response"] & {
+    readonly stopDetails?: Record<string, unknown>;
+  };
+  const clientAbort = response.stopDetails?.clientAbort;
+  if (!isRecord(clientAbort)) return null;
+  const origin = clientAbort.origin;
+  if (origin !== "client" && origin !== "local_harness") return null;
+  const reason = typeof clientAbort.reason === "string" && clientAbort.reason.length > 0
+    ? clientAbort.reason
+    : undefined;
+  return {
+    origin,
+    ...(reason ? { reason } : {}),
   };
 }
 
@@ -291,4 +338,8 @@ function responseErrorEvidenceForEvent(event: CanonicalEventV1): ResponseErrorEv
     rawErrorType: response.rawErrorType,
     rawErrorCode: response.rawErrorCode,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

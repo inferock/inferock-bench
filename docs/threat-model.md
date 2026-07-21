@@ -19,7 +19,7 @@ Read this after the key-boundary pages if you are deciding what risk this local 
 - Accidental Inferock cloud telemetry. The local benchmark should not phone home with keys, prompts, responses, receipts, or traces.
 - Reliability-index overreach. The index is opt-in, records consent locally, shows the payload, and sends nothing while the public index is pre-launch; any live send path must stay reviewable and revocable.
 - Provider-key leakage through the dashboard. Saved keys are written to a local `0600` config file and shown back only in masked form.
-- Accidental unauthenticated localhost use. The local `ibl_` bench key gates proxied model requests. Local management calls that save provider keys or reveal the full bench key require same-origin dashboard authorization or the local bench key.
+- Accidental unauthenticated localhost use. The local `ibl_` bench key gates proxied model requests. The dashboard page itself now requires the one-time token printed by the CLI (`?token=...` in the logged `Dashboard:` URL) before it will render or embed the dashboard authorization token; local management calls that save provider keys or reveal the full bench key require that same dashboard authorization or the local bench key.
 - Accidental LAN exposure. The server binds to `127.0.0.1` by default and refuses non-loopback hosts unless started with `--allow-external-host`, which prints a warning that the proxy and management APIs are reachable from other machines that can connect to that host.
 - Weak public claims. Reports and receipts come from measured local events; receipts keep spent, bill-bounded money loss, time loss, provider-recognized amounts, bill-bounded recognition gap, and invoice-check exposure separate.
 - Public-export drift. The generated repo is manifest-driven so the public code and docs can be reviewed as a set.
@@ -31,12 +31,13 @@ Read this after the key-boundary pages if you are deciding what risk this local 
 - Provider-side retention, logging, billing mistakes, outages, model behavior, or security incidents.
 - Your app sending sensitive prompts or responses to the provider. The proxy forwards the provider request you asked it to measure.
 - Someone with local filesystem access reading `events.jsonl`, receipts, shell environment, or the config file.
+- Read-only local endpoints (`/api/summary`, `/api/rows`, `/api/calls`, `/api/receipt`, and the `/api/coverage-test/*` read routes). These are gated by the same loopback+same-origin check as everything else, but do not currently require the dashboard token or bench key the way `/api/key` and `/api/setup` do. Any other local process that can reach the loopback port can read summary, call, and receipt data without a secret. Tracked as a follow-up to require the same credential the write routes already need.
 - Anyone you intentionally expose the local server to with `--allow-external-host`. Keep that mode to trusted networks and short test windows.
 - Production-gateway availability, failover, secure multi-tenant key custody, or audit-ledger guarantees. Those are hosted-product responsibilities, not this local benchmark.
 
 ## Why the source matters
 
-The local app is FSL-1.1-Apache-2.0, `@inferock/measure` is Apache-2.0, and The Inferock Standard is CC-BY-4.0. The license stack is designed so you can inspect the key path, proxy path, event log, detector math, and generated public package contents instead of trusting a hosted black box.
+The local app is FSL-1.1-ALv2, `@inferock/measure` is Apache-2.0, and The Inferock Standard is CC-BY-4.0. The license stack is designed so you can inspect the key path, proxy path, event log, detector math, and generated public package contents instead of trusting a hosted black box.
 
 That auditability is not magic. It only helps if you run the real package, review meaningful changes, and treat local evidence files as private.
 

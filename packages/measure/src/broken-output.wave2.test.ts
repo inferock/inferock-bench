@@ -145,6 +145,8 @@ describe("wave2 Anthropic empty and truncation correctness", () => {
         callerCapCaptured: false,
         callerCapVerdict: "no_captured_caller_cap",
         verdict: "model_context_window_exceeded_triage",
+        standardLossEligible: false,
+        standardLossEligibility: "context_window_triage",
         provider: "anthropic",
         documentationUrl: "https://platform.claude.com/docs/en/build-with-claude/handling-stop-reasons",
         apiReferenceEnumNote: "documented live stop_reason; SDK/API enum typing may lag",

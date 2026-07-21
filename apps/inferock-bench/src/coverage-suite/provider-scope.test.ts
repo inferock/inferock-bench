@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CanonicalEventAny, CanonicalEventV2 } from "@inferock/measure/canonical-event";
+import type { ProviderFetch } from "../proxy.js";
+import type { ProviderName } from "../provider.js";
 import type { EventStore, StoredBenchEvent } from "../storage.js";
 import { loadCoverageTokenBaselineFromValue } from "./baseline.js";
 import { estimateCoverageSuite } from "./estimate.js";
@@ -124,10 +126,71 @@ describe("provider-scoped speed-test receipts", () => {
     expect(combined.providerScope?.parallelProviderCount).toBe(3);
     expect(combined.providerScope?.localContentionPossible).toBe(true);
     const rendered = renderSpeedTestReceipt(combined);
+    expect(rendered).toContain("provider scope: openai, anthropic, gemini (3 parallel; local contention possible)");
     expect(rendered).toContain("provider openai ledger: money loss");
     expect(rendered).toContain("provider anthropic ledger: money loss");
     expect(rendered).toContain("provider gemini ledger: money loss");
     expect(rendered).toContain("time lost");
+  });
+
+  it("stamps provider receipts with the enclosing parallel provider count", async () => {
+    const suite = await loadCoverageSuiteManifest();
+    const baseline = loadCoverageTokenBaselineFromValue(completeBaselineForSuite(suite), suite);
+    const estimate = estimateCoverageSuite({
+      selectedModels: [
+        { provider: "openai", model: "gpt-4o-mini-2024-07-18" },
+        { provider: "gemini", model: "gemini-2.5-flash" },
+      ],
+      suite,
+      baseline,
+      generator: "built-in",
+      spendCapUsd: 2,
+      eventTime: "2026-07-05T00:00:00.000Z",
+    });
+    const store = new MemoryStore();
+    const startedProviders = new Set<ProviderName>();
+
+    const result = await runProviderParallelCoverageSuite({
+      runId: "speedtest_actual_parallel",
+      suite,
+      baseline,
+      estimate,
+      config: {
+        benchKey: "local",
+        openaiApiKey: "provider-openai",
+        geminiApiKey: "provider-gemini",
+      },
+      env: {},
+      store,
+      providerFetch: overlappingProviderFetch(startedProviders),
+      benchHome: "/tmp/inferock-provider-parallel",
+      startedAt: "2026-07-05T00:00:00.000Z",
+      consentedAt: "2026-07-05T00:00:00.000Z",
+      log: () => undefined,
+    });
+
+    expect([...startedProviders].sort()).toEqual(["gemini", "openai"]);
+    expect(result.providerResults).toHaveLength(2);
+    expect(result.receipt.providerScope).toMatchObject({
+      selectedProviders: ["openai", "gemini"],
+      parallelProviderCount: 2,
+      localContentionPossible: true,
+    });
+    for (const providerResult of result.providerResults) {
+      const provider = providerResult.receipt.providerScope?.provider;
+      expect(provider).toBeDefined();
+      expect(providerResult.receipt.providerScope).toMatchObject({
+        selectedProviders: [provider],
+        parallelProviderCount: 2,
+        localContentionPossible: true,
+      });
+      expect(renderSpeedTestReceipt(providerResult.receipt)).toContain(
+        `provider scope: ${provider} (2 parallel; local contention possible)`,
+      );
+    }
+    expect(renderSpeedTestReceipt(result.receipt)).toContain(
+      "provider scope: openai, gemini (2 parallel; local contention possible)",
+    );
   });
 
   it("uses one provider surface denominator for receipt blocks and ledgers", async () => {
@@ -605,6 +668,195 @@ function stored(
     ...metadata,
     event,
   };
+}
+
+function overlappingProviderFetch(startedProviders: Set<ProviderName>): ProviderFetch {
+  let releaseBothStarted: (() => void) | undefined;
+  let bothProvidersStarted = false;
+  const bothStarted = new Promise<void>((resolve) => {
+    releaseBothStarted = resolve;
+  });
+
+  return async (url, init) => {
+    const provider = providerFromUrl(url);
+    startedProviders.add(provider);
+    if (!bothProvidersStarted && startedProviders.size >= 2) {
+      bothProvidersStarted = true;
+      releaseBothStarted?.();
+    }
+    await Promise.race([
+      bothStarted,
+      timeout(1_000, "provider parallel runner did not overlap provider jobs"),
+    ]);
+
+    const body = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+    if (provider === "gemini") return geminiResponse(url, body);
+    if (url.endsWith("/responses")) return openAiResponsesResponse(body);
+    if (body.stream === true) return openAiStreamResponse(body);
+    return openAiChatResponse(body);
+  };
+}
+
+function timeout(ms: number, message: string): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(message)), ms);
+  });
+}
+
+function providerFromUrl(url: string): Extract<ProviderName, "openai" | "gemini"> {
+  return url.includes("generativelanguage.googleapis.com") || url.includes(":generateContent") ||
+      url.includes(":streamGenerateContent")
+    ? "gemini"
+    : "openai";
+}
+
+function openAiChatResponse(body: Record<string, unknown>): Response {
+  const hasTools = Array.isArray(body.tools) && body.tools.length > 0;
+  const message = hasTools
+    ? {
+        role: "assistant",
+        content: null,
+        tool_calls: [{
+          id: "call-suite",
+          type: "function",
+          function: {
+            name: "record_plan",
+            arguments: JSON.stringify({
+              component: "billing worker",
+              riskLevel: "medium",
+              checks: ["verify retries", "review metrics"],
+            }),
+          },
+        }],
+      }
+    : { role: "assistant", content: responseContentForBody(body) };
+  return new Response(JSON.stringify({
+    id: "chatcmpl-suite",
+    model: String(body.model ?? "gpt-4o-mini-2024-07-18"),
+    choices: [{ finish_reason: hasTools ? "tool_calls" : "stop", message }],
+    usage: {
+      prompt_tokens: 120,
+      completion_tokens: 40,
+      total_tokens: 160,
+      prompt_tokens_details: body.metadata ? { cached_tokens: 15 } : undefined,
+    },
+  }), {
+    status: 200,
+    headers: { "content-type": "application/json", "x-request-id": "provider-chat" },
+  });
+}
+
+function openAiResponsesResponse(body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify({
+    id: "resp-suite",
+    object: "response",
+    created_at: 1782993603,
+    status: "completed",
+    model: String(body.model ?? "gpt-4o-mini-2024-07-18"),
+    output_text: "{\"title\":\"checkpoint\",\"status\":\"on track\",\"nextAction\":\"ship\"}",
+    output: [{
+      id: "msg-suite",
+      type: "message",
+      status: "completed",
+      role: "assistant",
+      content: [{
+        type: "output_text",
+        text: "{\"title\":\"checkpoint\",\"status\":\"on track\",\"nextAction\":\"ship\"}",
+        annotations: [],
+      }],
+    }],
+    usage: {
+      input_tokens: 90,
+      output_tokens: 35,
+      total_tokens: 125,
+    },
+  }), {
+    status: 200,
+    headers: { "content-type": "application/json", "x-request-id": "provider-responses" },
+  });
+}
+
+function openAiStreamResponse(body: Record<string, unknown>): Response {
+  const model = String(body.model ?? "gpt-4o-mini-2024-07-18");
+  const text = [
+    `data: ${JSON.stringify({
+      id: "chatcmpl-stream",
+      model,
+      choices: [{ delta: { content: "review " }, finish_reason: null }],
+    })}`,
+    "",
+    `data: ${JSON.stringify({
+      id: "chatcmpl-stream",
+      model,
+      choices: [{ delta: { content: "complete" }, finish_reason: null }],
+    })}`,
+    "",
+    `data: ${JSON.stringify({
+      id: "chatcmpl-stream",
+      model,
+      choices: [{ delta: {}, finish_reason: "stop" }],
+      usage: { prompt_tokens: 140, completion_tokens: 45, total_tokens: 185 },
+    })}`,
+    "",
+    "data: [DONE]",
+    "",
+  ].join("\n");
+  return new Response(text, {
+    status: 200,
+    headers: { "content-type": "text/event-stream", "x-request-id": "provider-stream" },
+  });
+}
+
+function geminiResponse(url: string, body: Record<string, unknown>): Response {
+  if (url.includes(":streamGenerateContent")) return geminiStreamResponse();
+  return new Response(JSON.stringify(geminiPayload(body)), {
+    status: 200,
+    headers: { "content-type": "application/json", "x-goog-request-id": "provider-gemini" },
+  });
+}
+
+function geminiStreamResponse(): Response {
+  const text = [
+    `data: ${JSON.stringify(geminiPayload({}, "review "))}`,
+    "",
+    `data: ${JSON.stringify(geminiPayload({}, "complete", "STOP"))}`,
+    "",
+  ].join("\n");
+  return new Response(text, {
+    status: 200,
+    headers: { "content-type": "text/event-stream", "x-goog-request-id": "provider-gemini-stream" },
+  });
+}
+
+function geminiPayload(
+  body: Record<string, unknown>,
+  text = responseContentForBody(body),
+  finishReason = "STOP",
+): Record<string, unknown> {
+  return {
+    candidates: [{
+      content: { role: "model", parts: [{ text }] },
+      finishReason,
+    }],
+    usageMetadata: {
+      promptTokenCount: 90,
+      candidatesTokenCount: 25,
+      totalTokenCount: 115,
+      serviceTier: "standard",
+    },
+    modelVersion: "gemini-2.5-flash",
+    responseId: "gemini-suite-response",
+  };
+}
+
+function responseContentForBody(body: Record<string, unknown>): string {
+  const serialized = JSON.stringify(body);
+  if (serialized.includes("invoice reconciliation")) return "Billing Reliability";
+  if (serialized.includes("deployment checks")) return "1. Check migrations\n2. Check rollback\n3. Check metrics";
+  if (serialized.includes("json_schema")) {
+    return "{\"serviceName\":\"gateway\",\"environment\":\"dev\",\"owner\":\"platform\",\"featureFlags\":[\"receipts\"]}";
+  }
+  return "The maintenance note is ready for review.";
 }
 
 type V2Overrides = {

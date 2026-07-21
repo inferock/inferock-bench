@@ -1,4 +1,5 @@
 import { normalizeCanonicalEvent } from "@inferock/measure/canonical-event";
+import { SLA_DEFAULTS } from "@inferock/measure/sla-defaults";
 import { estimateCostUsd } from "@inferock/measure/stateless";
 import { benchKeyFromConfig, maskSecret, providerBaseUrl, providerKeyStatus, } from "./config.js";
 import { createReceiptBundle, renderReceipt } from "./receipt.js";
@@ -71,6 +72,83 @@ export function receiptPayload(input) {
         bundle,
         compactText: renderReceipt(bundle, true),
     };
+}
+export function renderUnauthorizedDashboardShell() {
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inferock Bench</title>
+</head>
+<body>
+  <p>This dashboard needs the URL printed in your terminal when <code>inferock-bench start</code> ran (it carries a one-time <code>?token=</code>). Re-run the CLI and open the exact line it logs.</p>
+</body>
+</html>`;
+}
+export function actionCopyForReportRow(row) {
+    const code = String(row.code || "").toUpperCase();
+    const failureClass = String(row.failureClass || "").toLowerCase();
+    if (code === "CACHE_RATE_ANOMALY" || failureClass === "cache_rate_anomaly") {
+        const recognized = positiveDisplayValue(row.providerRecognizedUsd);
+        const gap = positiveDisplayValue(row.recognitionGapUsd ?? row.unrecognizedUsd);
+        const titleSuffix = recognized > 0 && gap <= 0
+            ? " - estimated recoverable (our arithmetic)"
+            : gap > 0 && recognized <= 0
+                ? " - not recognized yet"
+                : "";
+        return {
+            title: `Cache usage was charged above the expected rate${titleSuffix}`,
+            next: "Check the invoice line's cache token category, model rate, and charged amount against the expected rate; use the request IDs and delta for an overcharge dispute.",
+        };
+    }
+    if (code === "CACHE_DISCOUNT_AT_RISK" || failureClass === "cache_discount_at_risk") {
+        return {
+            title: "Cache discount may not have applied",
+            next: "Compare these calls against your invoice and cache configuration.",
+        };
+    }
+    const text = String((row.code || "") + " " + (row.failureClass || "")).toLowerCase();
+    if (text.includes("broken") || text.includes("schema") || text.includes("json") || text.includes("tool")) {
+        return { title: "Charged for an answer your app could not use", next: "Ask the provider for credit on these request IDs or add a retry/fallback rule." };
+    }
+    if (text.includes("trunc") || text.includes("empty")) {
+        return { title: "Charged for an incomplete answer", next: "Ask whether these calls qualify for credit and check max-token settings." };
+    }
+    if (text.includes("token") || text.includes("recount")) {
+        return { title: "Token count does not match the local check", next: "Compare this request to provider usage details before invoice review." };
+    }
+    if (text.includes("duplicate")) {
+        return { title: "Same request may have been charged more than once", next: "Send the receipt with duplicate request IDs to provider support." };
+    }
+    if (text.includes("cache")) {
+        return {
+            title: "Cache discount may not have applied",
+            next: "Compare these calls against your invoice and cache configuration.",
+        };
+    }
+    if (text.includes("downtime") || text.includes("timeout") || text.includes("availability")) {
+        return { title: "Provider unavailable", next: "Use this receipt for service-credit discussion and consider fallback routing." };
+    }
+    if (text.includes("latency") || text.includes("slow")) {
+        return { title: "Slow responses crossed your threshold", next: "Edit or confirm the threshold, then decide whether to adjust routing." };
+    }
+    if (text.includes("refusal") || text.includes("filter")) {
+        return { title: "Provider refused or filtered a billed request", next: "Review policy fit and ask for credit if the request should have completed." };
+    }
+    if (text.includes("drift") || text.includes("regression")) {
+        return { title: "Answer changed from the known baseline", next: "Review provider/model choice before routing more traffic." };
+    }
+    if (text.includes("security") || text.includes("governance")) {
+        return { title: "Safety or governance signal appeared", next: "Review the prompt, output, and routing policy before reuse." };
+    }
+    if (text.includes("factual") || text.includes("citation")) {
+        return { title: "Claim or citation support failed", next: "Do not rely on this answer without human or retrieval review." };
+    }
+    return { title: "Charged for an answer your app could not use", next: "Ask the provider for credit on these request IDs or add a retry/fallback rule." };
+    function positiveDisplayValue(value) {
+        return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+    }
 }
 export function renderDashboardHtml(input = {}) {
     return `<!doctype html>
@@ -679,6 +757,7 @@ export function renderDashboardHtml(input = {}) {
       flex-direction: column;
       justify-content: flex-end;
       gap: var(--space-1);
+      position: relative;
     }
     .headline-card-label {
       display: flex;
@@ -709,6 +788,51 @@ export function renderDashboardHtml(input = {}) {
       line-height: var(--leading-body);
       margin-top: var(--space-1);
       overflow-wrap: anywhere;
+    }
+    .illustrative-projection-banner {
+      display: grid;
+      gap: var(--space-1);
+      border: var(--border-size) solid #D6A536;
+      border-radius: var(--radius);
+      background: #FFF8E6;
+      color: #332715;
+      padding: var(--space-2);
+    }
+    .illustrative-projection-banner[hidden] { display: none; }
+    .projection-label-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .projection-label-line strong {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+    .projection-link-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+    }
+    .projection-link {
+      color: var(--ink);
+      font-weight: var(--weight-semibold);
+      text-decoration: underline;
+      text-decoration-color: rgba(31,29,26,.35);
+      text-underline-offset: 4px;
+      white-space: nowrap;
+    }
+    .projection-link.primary-basis {
+      border: var(--border-size) solid rgba(90,61,0,.24);
+      border-radius: 6px;
+      padding: 3px 6px;
+      background: rgba(255,255,255,.54);
+      text-decoration: none;
+    }
+    .projection-source-line {
+      max-width: 58rem;
     }
     .receipt-title-line {
       display: flex;
@@ -768,6 +892,17 @@ export function renderDashboardHtml(input = {}) {
     .receipt-ledger > dt {
       color: var(--secondary);
       font-size: var(--type-sm);
+      flex-wrap: wrap;
+    }
+    .ledger-sublabel {
+      display: block;
+      flex: 0 0 100%;
+      width: 100%;
+      margin-top: 2px;
+      color: var(--secondary);
+      font-size: var(--type-xs);
+      font-weight: var(--weight-regular);
+      line-height: var(--leading-body);
     }
     .ledger-row strong,
     .receipt-ledger > dd {
@@ -781,6 +916,21 @@ export function renderDashboardHtml(input = {}) {
     .receipt-ledger > dd {
       min-width: 0;
       overflow-wrap: anywhere;
+    }
+    .receipt-label-note {
+      display: block;
+      margin-top: var(--space-half);
+      color: var(--secondary);
+      font-size: var(--type-xs);
+      line-height: var(--leading-body);
+    }
+    .receipt-label-with-note {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--space-half);
+    }
+    .receipt-label-with-note .receipt-label-note {
+      margin-top: var(--space-0);
     }
     .receipt-meta {
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1198,26 +1348,37 @@ export function renderDashboardHtml(input = {}) {
         <p class="label" id="receiptModeLabel" data-testid="receipt-mode-label">Receipt</p>
         <p class="small muted" data-testid="bench-package-version">inferock-bench ${BENCH_PACKAGE_VERSION}</p>
         <p class="small muted" id="receiptModeNote" data-testid="receipt-mode-note" hidden></p>
+        <div class="illustrative-projection-banner" id="illustrativeProjectionBanner" data-testid="illustrative-projection-banner" hidden>
+          <div class="projection-label-line">
+            <strong id="illustrativeProjectionLabel" data-testid="illustrative-projection-label">Illustrative example</strong>
+            <span class="projection-link-row">
+              <a class="projection-link primary-basis" id="illustrativeProjectionBasisLink" data-testid="projection-basis-link" href="#" target="_blank" rel="noreferrer">See the basis -&gt;</a>
+              <a class="projection-link" id="illustrativeProjectionRunsLink" data-testid="actual-measured-runs-link" href="#" target="_blank" rel="noreferrer">See newest measured run -&gt;</a>
+            </span>
+          </div>
+          <p class="small projection-source-line" id="illustrativeProjectionSource" data-testid="illustrative-projection-source"></p>
+          <p class="small muted projection-source-line" id="illustrativeProjectionNotMeasured" data-testid="illustrative-projection-not-measured"></p>
+        </div>
         <div class="run-history-list" id="previousRunList" data-testid="previous-run-list" hidden></div>
         <div class="receipt-hero">
           <article class="headline-card">
-            <div class="headline-card-label label">Spent</div>
-            <div class="headline-card-gloss small muted">what providers charged</div>
+            <div class="headline-card-label label" id="receiptSpentCardLabel">Spent</div>
+            <div class="headline-card-gloss small muted" id="receiptSpentGloss">what providers charged</div>
             <strong class="headline-card-value money-headline" id="receiptSpentHeadline" data-testid="spent-headline">$0.00</strong>
           </article>
           <article class="headline-card">
-            <div class="headline-card-label label">Money loss</div>
-            <div class="headline-card-gloss small muted">lost within that bill</div>
+            <div class="headline-card-label label" id="receiptMoneyLossCardLabel">Money loss</div>
+            <div class="headline-card-gloss small muted" id="receiptMoneyLossGloss">lost within that bill</div>
             <strong class="headline-card-value money-headline" id="receiptMoneyLossHeadline" data-testid="money-headline-standard">$0.00</strong>
           </article>
           <article class="headline-card">
-            <div class="headline-card-label label">Time lost</div>
-            <div class="headline-card-gloss small muted">latency & downtime</div>
+            <div class="headline-card-label label" id="receiptTimeLossCardLabel">Time lost</div>
+            <div class="headline-card-gloss small muted" id="receiptTimeLossGloss">latency & downtime</div>
             <strong class="headline-card-value money-headline" id="receiptTimeLossHeadline" data-testid="time-headline">~0s</strong>
           </article>
           <article class="headline-card">
-            <div class="headline-card-label label">Invoice-check exposure</div>
-            <div class="headline-card-gloss small muted">double-check on your bill</div>
+            <div class="headline-card-label label" id="receiptInvoiceCheckExposureCardLabel">Invoice-check exposure</div>
+            <div class="headline-card-gloss small muted" id="receiptInvoiceCheckExposureGloss">double-check on your bill</div>
             <strong class="headline-card-value money-headline" id="receiptInvoiceCheckExposureHeadline" data-testid="invoice-check-exposure-headline">$0.00</strong>
           </article>
         </div>
@@ -1229,18 +1390,18 @@ export function renderDashboardHtml(input = {}) {
           <span class="summary-secondary-line receipt-title-note" id="receiptMoneyLossSpendShare" data-testid="money-loss-spend-share">money loss = no priced spend measured</span>
         </div>
         <dl class="receipt-ledger ledger">
-          <dt>Money loss</dt><dd id="receiptStandardLoss" data-testid="receipt-standard-loss">$0.00</dd>
-          <dt>Already recognized by provider</dt><dd id="receiptRecognized" data-testid="receipt-provider-recognized">$0.00</dd>
-          <dt>Money not recognized yet</dt><dd id="receiptGap" data-testid="receipt-gap">$0.00</dd>
-          <dt>Duration loss</dt><dd id="receiptDurationLoss" data-testid="receipt-time-loss">~0s</dd>
-          <dt>Invoice-check exposure</dt><dd id="receiptInvoiceCheckExposure" data-testid="receipt-invoice-check-exposure">$0.00</dd>
+          <dt id="receiptStandardLossLabel">Money loss</dt><dd id="receiptStandardLoss" data-testid="receipt-standard-loss">$0.00</dd>
+          <dt id="receiptRecognizedLabel">Estimated recoverable (our arithmetic)</dt><dd id="receiptRecognized" data-testid="receipt-provider-recognized">$0.00</dd>
+          <dt id="receiptGapLabel">Money not recognized yet</dt><dd id="receiptGap" data-testid="receipt-gap">$0.00</dd>
+          <dt id="receiptDurationLossLabel">Duration loss</dt><dd id="receiptDurationLoss" data-testid="receipt-time-loss">~0s</dd>
+          <dt id="receiptInvoiceCheckExposureLedgerLabel">Invoice-check exposure</dt><dd id="receiptInvoiceCheckExposure" data-testid="receipt-invoice-check-exposure">$0.00</dd>
           <dt>Surfaces watched</dt><dd id="receiptSurfaces" data-testid="receipt-surfaces">0 / 0</dd>
-          <dt>Provider recognized time</dt><dd id="receiptRecognizedTime" data-testid="receipt-provider-recognized-time">~0s</dd>
+          <dt>Estimated recoverable time (our arithmetic)</dt><dd id="receiptRecognizedTime" data-testid="receipt-provider-recognized-time">~0s</dd>
           <dt>Time not recognized yet</dt><dd id="receiptTimeGap" data-testid="receipt-time-gap">~0s</dd>
-          <dt>Approx at your rate</dt><dd id="receiptDurationTranslation" data-testid="receipt-duration-translation">≈ $0.00</dd>
-          <dt>Provider spend observed</dt><dd id="receiptProviderSpend" data-testid="receipt-provider-spend">$0.00</dd>
-          <dt>Calls measured</dt><dd id="receiptCalls" data-testid="receipt-calls">0</dd>
-          <dt>Failures</dt><dd id="receiptFailures" data-testid="receipt-failures">0</dd>
+          <dt class="receipt-label-with-note">Approx dollar translation<span class="receipt-label-note" id="receiptDurationTranslationRate" data-testid="receipt-duration-translation-rate">at default rate $${SLA_DEFAULTS.timeValueRate.usdPerHour}/hr, not customer-confirmed (edit to yours)</span></dt><dd id="receiptDurationTranslation" data-testid="receipt-duration-translation">≈ $0.00</dd>
+          <dt id="receiptProviderSpendLabel">Provider spend observed (priced calls only)</dt><dd id="receiptProviderSpend" data-testid="receipt-provider-spend">$0.00</dd>
+          <dt id="receiptCallsLabel">Calls measured</dt><dd id="receiptCalls" data-testid="receipt-calls">0</dd>
+          <dt id="receiptFailuresLabel">Failure signals</dt><dd id="receiptFailures" data-testid="receipt-failures">0</dd>
         </dl>
       </section>
 
@@ -1383,6 +1544,7 @@ export function renderDashboardHtml(input = {}) {
   <script>
     const PROVIDER_NAMES = ${JSON.stringify(PROVIDER_NAMES)};
     const MANAGEMENT_ACCESS_TOKEN = ${JSON.stringify(input.managementAccessToken ?? "")};
+    const DEFAULT_TIME_VALUE_RATE_USD_PER_HOUR = ${SLA_DEFAULTS.timeValueRate.usdPerHour};
     const state = {
       setup: null,
       summary: null,
@@ -1419,7 +1581,64 @@ export function renderDashboardHtml(input = {}) {
     const integer = new Intl.NumberFormat("en-US");
 
     function formatUsd(value) {
-      return money.format(Number(value || 0));
+      const numeric = Number(value || 0);
+      if (numeric > 0 && numeric < 0.01) return "$" + numeric.toFixed(6);
+      return money.format(numeric);
+    }
+
+    function timeValueRateUseLabel(rate) {
+      const numericRate = Number(rate && rate.usdPerHour);
+      const usdPerHour = Number.isFinite(numericRate) && numericRate >= 0
+        ? numericRate
+        : DEFAULT_TIME_VALUE_RATE_USD_PER_HOUR;
+      const unit = rate && typeof rate.unit === "string" && rate.unit.length > 0
+        ? timeValueRateUnitLabel(rate.unit)
+        : "hr";
+      const isDefaultRate = usdPerHour === DEFAULT_TIME_VALUE_RATE_USD_PER_HOUR;
+      return (isDefaultRate ? "at default rate " : "at rate ") +
+        formatRateUsd(usdPerHour) + "/" + unit +
+        (isDefaultRate ? ", not customer-confirmed" : "") +
+        " (edit to yours)";
+    }
+
+    function durationTranslationRateUseLabel(rows, fallbackRate) {
+      const durationRows = (rows || []).filter((row) =>
+        row.primaryValueKind === "time_loss" &&
+        row.dollarTranslationUsd !== null &&
+        row.dollarTranslationUsd !== undefined
+      );
+      const keys = [];
+      const ratesByKey = new Map();
+      for (const row of durationRows) {
+        const rate = row.rateSnapshot || fallbackRate || null;
+        const key = timeValueRateKey(rate);
+        if (!ratesByKey.has(key)) {
+          keys.push(key);
+          ratesByKey.set(key, rate);
+        }
+      }
+      if (keys.length === 0) return timeValueRateUseLabel(fallbackRate);
+      if (keys.length === 1) return timeValueRateUseLabel(ratesByKey.get(keys[0]));
+      return "at displayed row rates (edit to yours)";
+    }
+
+    function timeValueRateKey(rate) {
+      const numericRate = Number(rate && rate.usdPerHour);
+      const usdPerHour = Number.isFinite(numericRate) && numericRate >= 0
+        ? numericRate
+        : DEFAULT_TIME_VALUE_RATE_USD_PER_HOUR;
+      const unit = rate && typeof rate.unit === "string" && rate.unit.length > 0
+        ? timeValueRateUnitLabel(rate.unit)
+        : "hr";
+      return usdPerHour + "/" + unit;
+    }
+
+    function timeValueRateUnitLabel(unit) {
+      return unit === "hour" ? "hr" : unit;
+    }
+
+    function formatRateUsd(value) {
+      return Number.isInteger(value) ? "$" + value : money.format(value);
     }
 
     function formatApproxTimeLost(ms) {
@@ -1439,6 +1658,134 @@ export function renderDashboardHtml(input = {}) {
       return formatUsd(numeric);
     }
 
+    function reconcileDisplayPartition(input) {
+      function finiteDisplayNumber(value) {
+        const numeric = Number(value ?? 0);
+        return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+      }
+      const fractionDigits = Number.isInteger(input.fractionDigits)
+        ? Math.max(0, Math.min(9, input.fractionDigits))
+        : 0;
+      const scale = Math.pow(10, fractionDigits);
+      const total = finiteDisplayNumber(input.total);
+      const totalUnits = Math.round(total * scale);
+      const normalized = input.parts.map((part, index) => {
+        const value = finiteDisplayNumber(part.value);
+        const rawUnits = value * scale;
+        const floorUnits = Math.floor(rawUnits);
+        return {
+          key: part.key,
+          value,
+          index,
+          floorUnits,
+          remainder: rawUnits - floorUnits,
+        };
+      });
+      const units = normalized.map((part) => part.floorUnits);
+      let residual = totalUnits - units.reduce((sum, value) => sum + value, 0);
+      if (normalized.length > 0 && residual > 0) {
+        const order = [...normalized].sort((left, right) =>
+          right.remainder - left.remainder ||
+          right.value - left.value ||
+          left.index - right.index
+        );
+        for (let cursor = 0; residual > 0; residual -= 1, cursor += 1) {
+          units[order[cursor % order.length]?.index ?? 0] += 1;
+        }
+      } else if (normalized.length > 0 && residual < 0) {
+        const order = [...normalized].sort((left, right) =>
+          left.remainder - right.remainder ||
+          right.value - left.value ||
+          left.index - right.index
+        );
+        for (let cursor = 0; residual < 0; cursor += 1) {
+          const targetIndex = order[cursor % order.length]?.index ?? 0;
+          if (units[targetIndex] <= 0 && units.some((value) => value > 0)) continue;
+          units[targetIndex] -= 1;
+          residual += 1;
+        }
+      }
+      return {
+        total,
+        totalUnits,
+        parts: normalized.map((part) => ({
+          key: part.key,
+          value: units[part.index] / scale,
+          units: units[part.index],
+        })),
+      };
+    }
+
+    function formatDisplayUsd(value, fractionDigits) {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
+      }).format(Number(value || 0));
+    }
+
+    function reconciledMoneySplit(total, providerRecognized, recognitionGap) {
+      const fractionDigits = 2;
+      const partition = reconcileDisplayPartition({
+        total,
+        fractionDigits,
+        parts: [
+          { key: "providerRecognized", value: providerRecognized },
+          { key: "recognitionGap", value: recognitionGap },
+        ],
+      });
+      const values = {};
+      const parts = {};
+      for (const part of partition.parts) {
+        values[part.key] = part.value;
+        parts[part.key] = formatDisplayUsd(part.value, fractionDigits);
+      }
+      return {
+        total: formatDisplayUsd(partition.totalUnits / Math.pow(10, fractionDigits), fractionDigits),
+        parts,
+        values,
+      };
+    }
+
+    function approxTimeDisplaySpec(totalMs) {
+      const value = positiveDisplayNumber(totalMs);
+      if (value < 60000) return { unitMs: 1000, suffix: "s", divisor: 1, fractionDigits: 0 };
+      if (value < 3600000) return { unitMs: 6000, suffix: "min", divisor: 10, fractionDigits: 1 };
+      return { unitMs: 360000, suffix: "hr", divisor: 10, fractionDigits: 1 };
+    }
+
+    function formatApproxTimeUnits(units, spec) {
+      if (units <= 0) return "~0s";
+      if (spec.fractionDigits === 0) return "~" + integer.format(units) + spec.suffix;
+      return "~" + (units / spec.divisor).toFixed(spec.fractionDigits) + " " + spec.suffix;
+    }
+
+    function reconciledTimeSplit(totalMs, providerRecognizedTimeLossMs, recognitionGapTimeMs) {
+      const spec = approxTimeDisplaySpec(totalMs);
+      const partition = reconcileDisplayPartition({
+        total: positiveDisplayNumber(totalMs) / spec.unitMs,
+        fractionDigits: 0,
+        parts: [
+          { key: "providerRecognized", value: positiveDisplayNumber(providerRecognizedTimeLossMs) / spec.unitMs },
+          { key: "recognitionGap", value: positiveDisplayNumber(recognitionGapTimeMs) / spec.unitMs },
+        ],
+      });
+      const parts = {};
+      for (const part of partition.parts) {
+        parts[part.key] = formatApproxTimeUnits(part.units, spec);
+      }
+      return {
+        total: formatApproxTimeUnits(partition.totalUnits, spec),
+        parts,
+      };
+    }
+
+    function positiveDisplayNumber(value) {
+      const numeric = Number(value || 0);
+      return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+    }
+
     function invoiceCheckExposureAmount(exposures) {
       return (exposures || [])
         .map((exposure) => Number(exposure && exposure.amount || 0))
@@ -1456,8 +1803,8 @@ export function renderDashboardHtml(input = {}) {
       const formatted = percent.toFixed(1);
       if (formatted === "0.0" && standardLoss > 0) return null;
       const annotation = providerSpend < 1
-        ? " (small sample: " + formatExposureUsd(providerSpend) + " measured)"
-        : "";
+        ? " (priced calls only; small sample: " + formatExposureUsd(providerSpend) + " measured)"
+        : " (priced calls only)";
       return "money loss = " + formatted + "% of observed spend" + annotation;
     }
 
@@ -1466,11 +1813,11 @@ export function renderDashboardHtml(input = {}) {
       return match && match[1] ? match[1] + "%" : null;
     }
 
-    function moneyLossHeadlineValue(standardLossUsd, pricingUnknownCount, observedSpendLine) {
+    function moneyLossHeadlineValue(standardLossUsd, pricingUnknownCount, observedSpendLine, displayedStandardLoss) {
       const standardLoss = Number(standardLossUsd || 0);
       const hasPricingUnknown = Number(pricingUnknownCount || 0) > 0;
       if (hasPricingUnknown && standardLoss === 0) return "pricing unknown";
-      const formatted = formatUsd(standardLoss);
+      const formatted = displayedStandardLoss || formatUsd(standardLoss);
       const percent = moneyLossObservedSpendPercentFromLine(observedSpendLine);
       return percent ? formatted + " (" + percent + ")" : formatted;
     }
@@ -2160,15 +2507,87 @@ export function renderDashboardHtml(input = {}) {
       return { label: "Receipt", title: "Receipt", note: "" };
     }
 
+    function activeIllustrativeProjection() {
+      const summaryProjection = state.summary && state.summary.illustrativeProjection;
+      if (summaryProjection) return summaryProjection;
+      const bundle = receiptBundle();
+      return bundle && bundle.illustrativeProjection ? bundle.illustrativeProjection : null;
+    }
+
+    function projectionFirstRunLink(projection) {
+      const runs = projection && Array.isArray(projection.actualRuns) ? projection.actualRuns : [];
+      return runs.find((run) => run && run.href) || null;
+    }
+
+    function safeHref(value) {
+      const text = String(value || "");
+      if (text.startsWith("https://") || text.startsWith("http://") || text.startsWith("/") || text.startsWith("#")) return text;
+      return "#";
+    }
+
+    function projectionLabelHtml(projection) {
+      const label = String((projection && projection.label) || "Illustrative projection");
+      return escapeHtml(label);
+    }
+
+    function setLedgerLabel(id, label, sublabel) {
+      const target = $(id);
+      target.innerHTML = escapeHtml(label) + (sublabel ? '<span class="ledger-sublabel">' + escapeHtml(sublabel) + '</span>' : '');
+    }
+
+    function renderIllustrativeProjection(projection) {
+      const active = Boolean(projection);
+      $("doneStage").classList.toggle("illustrative-projection", active);
+      $("receiptSpentCardLabel").textContent = active ? "Spend" : "Spent";
+      $("receiptMoneyLossCardLabel").textContent = "Money loss";
+      $("receiptTimeLossCardLabel").textContent = "Time lost";
+      $("receiptInvoiceCheckExposureCardLabel").textContent = "Invoice-check exposure";
+      $("receiptSpentGloss").textContent = active ? "example provider charges" : "what providers charged";
+      $("receiptMoneyLossGloss").textContent = active ? "bill-bounded loss" : "lost within that bill";
+      $("receiptTimeLossGloss").textContent = "latency & downtime";
+      $("receiptInvoiceCheckExposureGloss").textContent = active ? "verify your invoice" : "double-check on your bill";
+      setLedgerLabel("receiptStandardLossLabel", "Money loss", "");
+      setLedgerLabel("receiptRecognizedLabel", "Estimated recoverable (our arithmetic)", "");
+      setLedgerLabel("receiptGapLabel", "Money not recognized yet", "");
+      setLedgerLabel("receiptDurationLossLabel", "Duration loss", "");
+      setLedgerLabel("receiptInvoiceCheckExposureLedgerLabel", "Invoice-check exposure", "");
+      setLedgerLabel("receiptProviderSpendLabel", active ? "Example spend" : "Provider spend observed (priced calls only)", active ? "provider spend observed (priced calls only)" : "");
+      setLedgerLabel("receiptCallsLabel", active ? "Example calls" : "Calls measured", "");
+      setLedgerLabel("receiptFailuresLabel", active ? "Example findings" : "Failure signals", active ? "failure signals" : "");
+
+      const banner = $("illustrativeProjectionBanner");
+      if (!active) {
+        banner.setAttribute("hidden", "");
+        return;
+      }
+
+      banner.removeAttribute("hidden");
+      $("illustrativeProjectionLabel").innerHTML = projectionLabelHtml(projection);
+      $("illustrativeProjectionSource").textContent = projection.sourceLine || "";
+      $("illustrativeProjectionNotMeasured").textContent = projection.notMeasuredLine || "";
+
+      const basisLink = $("illustrativeProjectionBasisLink");
+      basisLink.textContent = projection.basisLinkText || "See the basis ->";
+      basisLink.href = safeHref(projection.basisHref || "#");
+      const runLink = projectionFirstRunLink(projection);
+      const link = $("illustrativeProjectionRunsLink");
+      link.textContent = projection.actualRunsLinkText || "See newest measured run ->";
+      link.href = runLink ? safeHref(runLink.href) : "#";
+    }
+
     function renderReceiptStage() {
       const summary = state.summary;
       if (!summary) return;
       const copy = receiptModeCopy();
-      $("receiptModeLabel").textContent = copy.label;
-      $("receiptLedgerTitle").textContent = copy.title;
-      $("receiptModeNote").textContent = copy.note;
-      if (copy.note) $("receiptModeNote").removeAttribute("hidden");
+      const projection = activeIllustrativeProjection();
+      const bundle = receiptBundle();
+      $("receiptModeLabel").textContent = projection ? "Receipt" : copy.label;
+      $("receiptLedgerTitle").textContent = projection && bundle && bundle.title ? bundle.title : copy.title;
+      const note = projection ? "" : copy.note;
+      $("receiptModeNote").textContent = note;
+      if (note) $("receiptModeNote").removeAttribute("hidden");
       else $("receiptModeNote").setAttribute("hidden", "");
+      renderIllustrativeProjection(projection);
       const moneyTotals = summary.moneyTotals || {
         standardLossUsd: summary.standardLossUsd || 0,
         providerRecognizedUsd: summary.providerRecognizedUsd || 0,
@@ -2181,6 +2600,16 @@ export function renderDashboardHtml(input = {}) {
         recognitionGapTimeMs: 0,
         dollarTranslationUsd: 0,
       };
+      const moneySplit = reconciledMoneySplit(
+        moneyTotals.standardLossUsd,
+        moneyTotals.providerRecognizedUsd,
+        moneyTotals.recognitionGapUsd || moneyTotals.unrecognizedUsd,
+      );
+      const durationSplit = reconciledTimeSplit(
+        durationTotals.timeLossMs,
+        durationTotals.providerRecognizedTimeLossMs,
+        durationTotals.recognitionGapTimeMs,
+      );
       const pricingUnknownCount = Number(summary.pricingUnknownCount || 0);
       const hasSummarySpendShareLine = Object.prototype.hasOwnProperty.call(summary, "moneyLossObservedSpendLine");
       const spendShareLine = pricingUnknownCount > 0 && Number(moneyTotals.standardLossUsd || 0) === 0
@@ -2188,21 +2617,27 @@ export function renderDashboardHtml(input = {}) {
         : hasSummarySpendShareLine
         ? (typeof summary.moneyLossObservedSpendLine === "string" ? summary.moneyLossObservedSpendLine : null)
         : moneyLossObservedSpendLine(moneyTotals.standardLossUsd, summary.providerSpendUsd);
+      const displayedSpendShareLine = projection && spendShareLine
+        ? spendShareLine.replace("observed spend", "example spend")
+        : spendShareLine;
       $("receiptSpentHeadline").textContent = formatUsd(summary.providerSpendUsd);
-      $("receiptMoneyLossHeadline").textContent = moneyLossHeadlineValue(moneyTotals.standardLossUsd, pricingUnknownCount, spendShareLine);
+      $("receiptMoneyLossHeadline").textContent = moneyLossHeadlineValue(moneyTotals.standardLossUsd, pricingUnknownCount, displayedSpendShareLine, moneySplit.total);
       const invoiceCheckExposure = invoiceCheckExposureAmount(summary.exposures || []);
       $("receiptInvoiceCheckExposureHeadline").textContent = formatExposureUsd(invoiceCheckExposure);
-      $("receiptMoneyLossSpendShare").textContent = spendShareLine || "";
-      $("receiptMoneyLossSpendShare").hidden = !spendShareLine;
-      $("receiptTimeLossHeadline").textContent = formatApproxTimeLost(durationTotals.timeLossMs);
-      $("receiptStandardLoss").textContent = formatUsd(moneyTotals.standardLossUsd);
-      $("receiptRecognized").textContent = formatUsd(moneyTotals.providerRecognizedUsd);
-      $("receiptGap").textContent = formatUsd(moneyTotals.recognitionGapUsd || moneyTotals.unrecognizedUsd);
-      $("receiptDurationLoss").textContent = formatApproxTimeLost(durationTotals.timeLossMs);
+      $("receiptMoneyLossSpendShare").textContent = displayedSpendShareLine || "";
+      $("receiptMoneyLossSpendShare").hidden = !displayedSpendShareLine;
+      $("receiptTimeLossHeadline").textContent = durationSplit.total;
+      $("receiptStandardLoss").textContent = moneySplit.total;
+      $("receiptRecognized").textContent = moneySplit.parts.providerRecognized;
+      $("receiptGap").textContent = moneySplit.parts.recognitionGap;
+      $("receiptDurationLoss").textContent = durationSplit.total;
       $("receiptInvoiceCheckExposure").textContent = formatExposureUsd(invoiceCheckExposure);
-      $("receiptRecognizedTime").textContent = formatApproxTimeLost(durationTotals.providerRecognizedTimeLossMs);
-      $("receiptTimeGap").textContent = formatApproxTimeLost(durationTotals.recognitionGapTimeMs);
+      $("receiptRecognizedTime").textContent = durationSplit.parts.providerRecognized;
+      $("receiptTimeGap").textContent = durationSplit.parts.recognitionGap;
+      const durationRate = durationTotals.rate || (summary.slaAssumptions && summary.slaAssumptions.timeValueRate);
       $("receiptDurationTranslation").textContent = "≈ " + formatUsd(durationTotals.dollarTranslationUsd);
+      $("receiptDurationTranslationRate").textContent =
+        durationTranslationRateUseLabel(state.rows || summary.rows || [], durationRate);
       $("receiptProviderSpend").textContent = formatUsd(summary.providerSpendUsd);
       $("receiptCalls").textContent = integer.format(summary.measuredCalls);
       $("receiptFailures").textContent = integer.format(summary.failureCount);
@@ -2239,7 +2674,7 @@ export function renderDashboardHtml(input = {}) {
     function renderPreviousRunList() {
       const target = $("previousRunList");
       if (!target) return;
-      if (!state.viewingPreviousResults || !state.recentRuns.length) {
+      if (!state.viewingPreviousResults || !state.recentRuns.length || activeIllustrativeProjection()) {
         target.setAttribute("hidden", "");
         target.innerHTML = "";
         return;
@@ -2401,12 +2836,15 @@ export function renderDashboardHtml(input = {}) {
         measures: Array.isArray(bundle.measures) ? bundle.measures : [],
         coverage: bundle.coverage || { surfaces: [], watchedCount: 0, totalSurfaceCount: 0, signalCount: 0, notOpenableCount: 0 },
         slaAssumptions: bundle.assumptions || { impactFooterLines: [] },
+        ...(bundle.illustrativeProjection ? { illustrativeProjection: bundle.illustrativeProjection } : {}),
       };
     }
 
     function renderActionCards(rows, exposures) {
       const target = $("actionCards");
+      const projection = activeIllustrativeProjection();
       const exposureCards = exposureActionCardsHtml(exposures || []);
+      const moneyRowDisplays = displayedMoneyRowSplits(rows);
       if (!rows.length && !exposureCards) {
         const coverage = state.summary && state.summary.coverage;
         target.innerHTML = '<article class="action-card" data-testid="no-action-card"><h3>No action needed from this run.</h3><p class="small muted">Surfaces watched ' +
@@ -2419,13 +2857,15 @@ export function renderDashboardHtml(input = {}) {
       target.innerHTML = exposureCards + rows.slice(0, 6).map((row, index) => {
         const action = actionCopyForRow(row);
         const gapValue = Number(row.recognitionGapUsd ?? row.unrecognizedUsd ?? 0);
+        const moneySplit = moneyRowDisplays[index] || rowMoneySplit(row);
+        const timeSplit = rowTimeSplit(row);
         const amountLabel = row.primaryValueKind === "time_loss"
-          ? formatApproxTimeLost(row.timeLossMs || 0) + " time lost"
+          ? timeSplit.total + (row.timeLossClockLabel ? " " + row.timeLossClockLabel : "") + " time lost"
           : gapValue > 0
-            ? formatUsd(gapValue) + " gap"
-            : formatUsd(row.standardLossUsd || 0) + " measured";
+            ? moneySplit.parts.recognitionGap + " gap"
+            : moneySplit.total + (projection ? " example" : " measured");
         const secondary = row.primaryValueKind === "time_loss" && row.dollarTranslationUsd !== null && row.dollarTranslationUsd !== undefined
-          ? '<p class="small muted">approx ' + escapeHtml(formatUsd(row.dollarTranslationUsd)) + ' at your rate (edit)</p>'
+          ? '<p class="small muted">approx ' + escapeHtml(formatUsd(row.dollarTranslationUsd)) + ' ' + escapeHtml(timeValueRateUseLabel(row.rateSnapshot || (state.summary && state.summary.durationTotals && state.summary.durationTotals.rate))) + '</p>'
           : '';
         const editControls = isEditableLatencyTimeRow(row)
           ? latencyEditControlsHtml(row, index)
@@ -2476,10 +2916,12 @@ export function renderDashboardHtml(input = {}) {
             ? "Cache discount invoice-check exposure"
             : String(exposure.class || "Invoice-check exposure").replaceAll("_", " ");
           const guidance = exposure.guidance || "verify your invoice";
+          const amountLabel = amount + " invoice-check exposure";
+          const footer = "This is invoice-check exposure, not standard-loss or recognition-gap dollars.";
           return '<article class="action-card exposure-action-card" data-testid="exposure-card">' +
-            '<div class="card-head"><h3>' + escapeHtml(title) + '</h3><span class="gap-amount">' + escapeHtml(amount + ' invoice-check exposure') + '</span></div>' +
+            '<div class="card-head"><h3>' + escapeHtml(title) + '</h3><span class="gap-amount">' + escapeHtml(amountLabel) + '</span></div>' +
             '<p class="small">' + escapeHtml(count + ' - ' + guidance + '.') + '</p>' +
-            '<p class="small muted">This is invoice-check exposure, not standard-loss or recognition-gap dollars.</p>' +
+            '<p class="small muted">' + escapeHtml(footer) + '</p>' +
           '</article>';
         }).join("");
     }
@@ -2570,43 +3012,57 @@ export function renderDashboardHtml(input = {}) {
       };
     }
 
-    function actionCopyForRow(row) {
-      const text = String((row.code || "") + " " + (row.failureClass || "")).toLowerCase();
-      if (text.includes("broken") || text.includes("schema") || text.includes("json") || text.includes("tool")) {
-        return { title: "Charged for an answer your app could not use", next: "Ask the provider for credit on these request IDs or add a retry/fallback rule." };
+    function displayedMoneyRowSplits(rows) {
+      const displays = [];
+      const groups = new Map();
+      (rows || []).forEach((row, index) => {
+        if (row.primaryValueKind === "time_loss") return;
+        const key = [row.code || "", row.failureClass || ""].join("\\u001f");
+        const group = groups.get(key) || [];
+        group.push({ row, index });
+        groups.set(key, group);
+      });
+      for (const group of groups.values()) {
+        if (group.length === 0) continue;
+        const total = group.reduce((sum, entry) => sum + positiveDisplayNumber(entry.row.standardLossUsd), 0);
+        const partition = reconcileDisplayPartition({
+          total,
+          fractionDigits: 2,
+          parts: group.map((entry) => ({ key: String(entry.index), value: entry.row.standardLossUsd })),
+        });
+        for (const part of partition.parts) {
+          const index = Number(part.key);
+          const row = group.find((entry) => entry.index === index)?.row;
+          if (!row) continue;
+          displays[index] = rowMoneySplit(row, part.value);
+        }
       }
-      if (text.includes("trunc") || text.includes("empty")) {
-        return { title: "Charged for an incomplete answer", next: "Ask whether these calls qualify for credit and check max-token settings." };
-      }
-      if (text.includes("token") || text.includes("recount")) {
-        return { title: "Token count does not match the local check", next: "Compare this request to provider usage details before invoice review." };
-      }
-      if (text.includes("duplicate")) {
-        return { title: "Same request may have been charged more than once", next: "Send the receipt with duplicate request IDs to provider support." };
-      }
-      if (text.includes("cache")) {
-        return { title: "Cache discount may not have applied", next: "Compare these calls against your invoice and cache configuration." };
-      }
-      if (text.includes("downtime") || text.includes("timeout") || text.includes("availability")) {
-        return { title: "Provider unavailable", next: "Use this receipt for service-credit discussion and consider fallback routing." };
-      }
-      if (text.includes("latency") || text.includes("slow")) {
-        return { title: "Slow responses crossed your threshold", next: "Edit or confirm the threshold, then decide whether to adjust routing." };
-      }
-      if (text.includes("refusal") || text.includes("filter")) {
-        return { title: "Provider refused or filtered a billed request", next: "Review policy fit and ask for credit if the request should have completed." };
-      }
-      if (text.includes("drift") || text.includes("regression")) {
-        return { title: "Answer changed from the known baseline", next: "Review provider/model choice before routing more traffic." };
-      }
-      if (text.includes("security") || text.includes("governance")) {
-        return { title: "Safety or governance signal appeared", next: "Review the prompt, output, and routing policy before reuse." };
-      }
-      if (text.includes("factual") || text.includes("citation")) {
-        return { title: "Claim or citation support failed", next: "Do not rely on this answer without human or retrieval review." };
-      }
-      return { title: "Charged for an answer your app could not use", next: "Ask the provider for credit on these request IDs or add a retry/fallback rule." };
+      return displays;
     }
+
+    function displayedMoneySplitForRow(row) {
+      const rows = state.rows || [];
+      const index = rows.indexOf(row);
+      return index >= 0 ? displayedMoneyRowSplits(rows)[index] : null;
+    }
+
+    function rowMoneySplit(row, displayedStandardLoss) {
+      return reconciledMoneySplit(
+        displayedStandardLoss ?? (row && row.standardLossUsd),
+        row && row.providerRecognizedUsd,
+        row && (row.recognitionGapUsd ?? row.unrecognizedUsd),
+      );
+    }
+
+    function rowTimeSplit(row) {
+      return reconciledTimeSplit(
+        row && row.timeLossMs,
+        row && row.providerRecognizedTimeLossMs,
+        row && row.recognitionGapTimeMs,
+      );
+    }
+
+    const actionCopyForRow = ${actionCopyForReportRow.toString()};
 
     function openDetails(kind, row) {
       $("detailsTabs").innerHTML = "";
@@ -2626,24 +3082,24 @@ export function renderDashboardHtml(input = {}) {
     }
 
     function proofHtml(row) {
-      const standardLoss = row.standardLossUsd || 0;
       const recognized = row.providerRecognizedUsd || 0;
-      const gap = row.recognitionGapUsd || row.unrecognizedUsd || 0;
       const timePrimary = row.primaryValueKind === "time_loss";
+      const moneySplit = displayedMoneySplitForRow(row) || rowMoneySplit(row);
+      const timeSplit = rowTimeSplit(row);
       return '<section class="info-block" data-testid="proof-panel">' +
         '<h3>Problem found</h3>' +
         '<p>' + escapeHtml(actionCopyForRow(row).title) + '</p>' +
         '<div class="modal-row"><span>Evidence strength</span><strong data-testid="proof-evidence-strength">' + escapeHtml(row.evidenceGrade || "unknown") + '</strong></div>' +
         (timePrimary
-          ? '<div class="modal-row"><span>Measured time lost</span><strong>' + formatApproxTimeLost(row.timeLossMs || 0) + '</strong></div>' +
-            '<div class="modal-row"><span>Provider-recognized</span><strong>' + formatUsd(recognized) + ' / ' + formatApproxTimeLost(row.providerRecognizedTimeLossMs || 0) + '</strong></div>' +
-            '<div class="modal-row"><span>Time recognition gap</span><strong>' + formatApproxTimeLost(row.recognitionGapTimeMs || 0) + '</strong></div>' +
-            '<div class="modal-row"><span>Secondary translation</span><strong>approx ' + formatUsd(row.dollarTranslationUsd || 0) + ' at your rate (edit)</strong></div>' +
+          ? '<div class="modal-row"><span>Measured time lost</span><strong>' + timeSplit.total + (row.timeLossClockLabel ? ' (' + escapeHtml(row.timeLossClockLabel) + ')' : '') + '</strong></div>' +
+            '<div class="modal-row"><span>Estimated recoverable (our arithmetic)</span><strong>' + formatUsd(recognized) + ' / ' + timeSplit.parts.providerRecognized + '</strong></div>' +
+            '<div class="modal-row"><span>Time recognition gap</span><strong>' + timeSplit.parts.recognitionGap + '</strong></div>' +
+            '<div class="modal-row"><span>Secondary translation</span><strong>approx ' + formatUsd(row.dollarTranslationUsd || 0) + ' ' + escapeHtml(timeValueRateUseLabel(row.rateSnapshot || (state.summary && state.summary.durationTotals && state.summary.durationTotals.rate))) + '</strong></div>' +
             (row.thresholdSnapshot ? '<div class="modal-row"><span>Latency threshold proposal</span><strong>edit or confirm</strong></div>' : '') +
             (row.providerRecognitionLine ? '<p class="small muted">' + escapeHtml(row.providerRecognitionLine) + '</p>' : '')
-          : '<div class="modal-row"><span>Loss measured by the standard</span><strong>' + formatUsd(standardLoss) + '</strong></div>' +
-            '<div class="modal-row"><span>Provider-recognized</span><strong>' + formatUsd(recognized) + '</strong></div>' +
-            '<div class="modal-row"><span>Recognition-gap</span><strong>' + formatUsd(gap) + '</strong></div>') +
+          : '<div class="modal-row"><span>Loss measured by the standard</span><strong>' + moneySplit.total + '</strong></div>' +
+            '<div class="modal-row"><span>Estimated recoverable (our arithmetic)</span><strong>' + moneySplit.parts.providerRecognized + '</strong></div>' +
+            '<div class="modal-row"><span>Recognition-gap</span><strong>' + moneySplit.parts.recognitionGap + '</strong></div>') +
         '<div class="info-block"><h3>How this was calculated</h3>' + linesFor(row.howComputed).map((line) => '<p class="small muted">' + escapeHtml(line) + '</p>').join("") + '</div>' +
         '<div class="info-block"><h3>Method IDs and traces</h3><p class="small muted">Problem code: ' + escapeHtml(row.code || "") + '</p><p class="small muted">Signal class: ' + escapeHtml(row.failureClass || "") + '</p><p class="small muted">Coverage method: ' + escapeHtml((state.summary && state.summary.coverage && state.summary.coverage.methodVersion) || "") + '</p></div>' +
         '<div class="info-block"><h3>Raw proof</h3><pre data-testid="proof-raw">' + escapeHtml(JSON.stringify(row, null, 2)) + '</pre></div>' +
@@ -2667,6 +3123,7 @@ export function renderDashboardHtml(input = {}) {
 
     function signalsDetailsHtml(rows) {
       if (!rows.length) return emptyDetailHtml("No signals found in this run.");
+      const moneyRowDisplays = displayedMoneyRowSplits(rows);
       return tableHtml(
         [
           "Problem found",
@@ -2674,26 +3131,26 @@ export function renderDashboardHtml(input = {}) {
           "Evidence strength",
           "Count",
           "Primary impact",
-          "Recognized",
+          "Est. recoverable",
           "Gap",
         ],
-        rows.map((row) => [
+        rows.map((row, index) => [
           actionCopyForRow(row).title,
           [row.code || "", row.failureClass || ""].filter(Boolean).join(" / "),
           row.evidenceGrade || "",
           integer.format(row.count || 0),
           row.primaryValueKind === "time_loss"
-            ? formatApproxTimeLost(row.timeLossMs || 0)
-            : formatUsd(row.standardLossUsd || 0),
+            ? rowTimeSplit(row).total + (row.timeLossClockLabel ? " (" + row.timeLossClockLabel + ")" : "")
+            : (moneyRowDisplays[index] || rowMoneySplit(row)).total,
           row.primaryValueKind === "time_loss"
-            ? formatUsd(row.providerRecognizedUsd || 0) + " / " + formatApproxTimeLost(row.providerRecognizedTimeLossMs || 0)
-            : formatUsd(row.providerRecognizedUsd || 0),
+            ? formatUsd(row.providerRecognizedUsd || 0) + " / " + rowTimeSplit(row).parts.providerRecognized
+            : (moneyRowDisplays[index] || rowMoneySplit(row)).parts.providerRecognized,
           row.primaryValueKind === "time_loss"
-            ? formatApproxTimeLost(row.recognitionGapTimeMs || 0)
-            : formatUsd(row.recognitionGapUsd || row.unrecognizedUsd || 0),
+            ? rowTimeSplit(row).parts.recognitionGap
+            : (moneyRowDisplays[index] || rowMoneySplit(row)).parts.recognitionGap,
         ]),
         { numberColumns: [3, 4, 5, 6], testId: "signals-table" }
-      ) + '<section class="info-block"><h3>Method IDs and traces</h3><pre class="raw-block" data-testid="signals-method-traces">' +
+      ) + '<section class="info-block"><h3>Method IDs and traces</h3><pre class="raw-block" tabindex="0" data-testid="signals-method-traces">' +
         escapeHtml(JSON.stringify(rows.map((row) => ({
           code: row.code || "",
           signalClass: row.failureClass || "",
@@ -2718,7 +3175,7 @@ export function renderDashboardHtml(input = {}) {
             surface.label || surface.notOpenableReason || "",
           ]),
           { numberColumns: [2], testId: "coverage-table" }
-        ) + '<section class="info-block"><h3>Coverage row details</h3><pre class="raw-block" data-testid="coverage-row-details">' +
+        ) + '<section class="info-block"><h3>Coverage row details</h3><pre class="raw-block" tabindex="0" data-testid="coverage-row-details">' +
           escapeHtml(JSON.stringify(surfaces.map((surface) => ({
             surfaceId: surface.surfaceId || "",
             measure: surface.measure || "",
@@ -2755,7 +3212,7 @@ export function renderDashboardHtml(input = {}) {
       const receiptJson = state.receipt && state.receipt.bundle
         ? JSON.stringify(state.receipt.bundle, null, 2)
         : "{}";
-      return '<pre class="raw-block" data-testid="raw-receipt">' + escapeHtml(receiptJson) + '</pre>';
+      return '<pre class="raw-block" tabindex="0" data-testid="raw-receipt">' + escapeHtml(receiptJson) + '</pre>';
     }
 
     function connectionDetailsHtml() {
@@ -2764,9 +3221,9 @@ export function renderDashboardHtml(input = {}) {
         ? PROVIDER_NAMES.filter((provider) => setup.providers[provider] && setup.providers[provider].configured)
         : [];
       return '<div class="connection-grid">' +
-        '<div><p class="code-label">Local bench key</p><pre class="raw-block" data-testid="details-local-bench-key">' + escapeHtml((setup && setup.maskedBenchKey) || "No local key yet") + '</pre></div>' +
+        '<div><p class="code-label">Local bench key</p><pre class="raw-block" tabindex="0" data-testid="details-local-bench-key">' + escapeHtml((setup && setup.maskedBenchKey) || "No local key yet") + '</pre></div>' +
         (configured.length
-          ? configured.map((provider) => '<div><p class="code-label">' + escapeHtml(providerLabel(provider)) + ' SDK snippet</p><pre class="raw-block">' + escapeHtml(snippetFor(provider)) + '</pre></div>').join("")
+          ? configured.map((provider) => '<div><p class="code-label">' + escapeHtml(providerLabel(provider)) + ' SDK snippet</p><pre class="raw-block" tabindex="0">' + escapeHtml(snippetFor(provider)) + '</pre></div>').join("")
           : '<p class="small">Paste a provider key to show SDK snippets for routed calls.</p>') +
       '</div>';
     }

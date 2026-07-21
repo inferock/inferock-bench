@@ -1,23 +1,23 @@
 import { ANTHROPIC_TOKEN_CROSSCHECK_CAVEAT } from "./anthropic-token-crosscheck.js";
 const MILLISECONDS_PER_HOUR = 3_600_000;
 export const SLA_DEFAULTS = {
-    standardVersion: "sla-defaults-2026-07-03-user-approved",
+    standardVersion: "sla-defaults-2026-07-20-maintainer-signed",
     signoff: {
-        signedOffBy: "user",
-        signedOffAt: "2026-07-03",
-        numbersShipAs: "approved",
+        signedOffBy: "Inferock maintainers",
+        signedOffAt: "2026-07-20",
+        numbersShipAs: "maintainer-signed provisional default",
     },
     evidenceGrades: {
-        unrecognizedStandardLoss: "standard-defined loss, provider-unrecognized (owed by Inferock Standard; not yet provider-recognized)",
+        unrecognizedStandardLoss: "standard-defined loss, not provider-confirmed (owed by Inferock Standard; not yet credited by a provider)",
     },
     timeValueRate: {
         usdPerHour: 92,
         currency: "USD",
         unit: "hour",
-        label: "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)",
+        label: "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-confirmed loss (default — override)",
         oneLineWhy: "BLS median software developer wage, loaded by BLS private-industry benefit share.",
         sourceIds: ["BLS-OOH", "BLS-OEWS-2080", "BLS-ECEC"],
-        sourceNote: "This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-recognized. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.",
+        sourceNote: "This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-confirmed. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.",
         signoffRequired: false,
         overrideKey: "time_value_usd_per_hour",
         excessOnly: true,
@@ -138,7 +138,7 @@ export const SLA_DEFAULTS = {
         "ANTHROPIC-THINKING": "Anthropic extended-thinking behavior.",
         "ANTHROPIC-CONTEXT": "Anthropic thinking tokens and context accounting.",
         "ANTHROPIC-BATCH": "Anthropic batch completion and expiry windows.",
-        "LOCAL-LATENCY": "Existing local latency default in packages/measure/src/latency.ts.",
+        "LOCAL-LATENCY": "Inferock provisional default (pending external calibration).",
         "BLS-OOH": "BLS May 2024 software developer median annual wage.",
         "BLS-OEWS-2080": "BLS 2,080-hour annual wage conversion.",
         "BLS-ECEC": "BLS private-industry wage and benefit share.",
@@ -164,7 +164,8 @@ export function evaluateDefaultLatency(event) {
     const segment = selectDefaultLatencySegment(event);
     const thresholds = SLA_DEFAULTS.latencySegments[segment.segmentId].thresholds;
     const outputTokens = event.usage.output;
-    const observedTotalMs = event.timing.latencyMs;
+    const observedLatency = observedDefaultLatency(event);
+    const observedTotalMs = observedLatency.totalMs;
     const firstResultMs = firstResultMsForEvent(event);
     const outputTokensPerSecond = outputTokens > 0 && observedTotalMs > 0
         ? outputTokens / (observedTotalMs / 1000)
@@ -179,7 +180,7 @@ export function evaluateDefaultLatency(event) {
         segment,
         thresholds,
         observed: {
-            totalMs: observedTotalMs,
+            ...observedLatency,
             firstResultMs,
             outputTokens,
             outputTokensPerSecond,
@@ -201,6 +202,49 @@ export function evaluateDefaultLatency(event) {
             ? {}
             : { notExercisedLabel: SLA_DEFAULTS.renderCopy.latencyTimingMissing }),
     };
+}
+function observedDefaultLatency(event) {
+    const timing = event.timing;
+    const gatewayTotalMs = finiteNonNegative(timing.monotonicElapsedMs) ??
+        finiteNonNegative(event.timing.latencyMs) ??
+        event.timing.latencyMs;
+    const providerElapsedMs = finiteNonNegative(timing.providerMonotonicElapsedMs) ??
+        finiteNonNegative(timing.providerElapsedMs) ??
+        null;
+    const gatewayOverheadMs = finiteNonNegative(timing.gatewayOverheadMs);
+    const openRouterEvidenceFetchMs = openRouterEvidenceFetchMsForEvent(event);
+    const nonProviderDiagnosticSegments = [
+        ...(gatewayOverheadMs !== undefined
+            ? [{ segmentId: "gateway_overhead", elapsedMs: gatewayOverheadMs, providerAttributed: false }]
+            : []),
+        ...(openRouterEvidenceFetchMs !== null
+            ? [{
+                    segmentId: "openrouter_endpoint_evidence_fetch",
+                    elapsedMs: openRouterEvidenceFetchMs,
+                    providerAttributed: false,
+                }]
+            : []),
+    ];
+    const timingAttribution = providerElapsedMs !== null ? "provider_elapsed" : "gateway_total_elapsed";
+    return {
+        totalMs: providerElapsedMs ?? gatewayTotalMs,
+        timingAttribution,
+        clockLabel: timingAttribution === "provider_elapsed" ? "provider-clock" : "gateway-clock",
+        gatewayTotalMs,
+        providerElapsedMs,
+        gatewayOverheadMs: gatewayOverheadMs ?? null,
+        openRouterEvidenceFetchMs,
+        nonProviderDiagnosticSegments,
+    };
+}
+function finiteNonNegative(value) {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+function openRouterEvidenceFetchMsForEvent(event) {
+    const withStopDetails = event;
+    const stopDetails = withStopDetails.response.stopDetails;
+    const openRouter = isRecord(stopDetails?.openRouter) ? stopDetails.openRouter : undefined;
+    return finiteNonNegative(openRouter?.endpointEvidenceFetchMs) ?? null;
 }
 function latencyInteractionClass(event) {
     const generation = event.request.generation;

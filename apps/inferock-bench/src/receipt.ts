@@ -1,17 +1,27 @@
 import { join } from "node:path";
 import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { WATERMARK_NAME, WATERMARK_URL } from "./config.js";
+import {
+  reconciledApproxTimePartition,
+  reconciledUsdPartition,
+} from "./display-partition.js";
 import { ensurePrivateDir, writePrivateTextFile } from "./private-files.js";
 import {
   formatCoverageStatus,
   formatUsd,
+  ESTIMATED_RECOVERABLE_LABEL,
+  ESTIMATED_RECOVERABLE_TIME_LABEL,
+  FAILURE_SIGNAL_COUNT_LABEL,
+  PROVIDER_SPEND_OBSERVED_LABEL,
   isExposureReportRow,
   moneyLossObservedSpendPercentFromLine,
   moneyLossObservedSpendLine,
-  type ReportRow,
   renderCoverageSummaryLine,
+  timeValueRateUseLabel,
   type BenchSlaAssumptions,
   type BenchSummary,
+  type ReportRow,
+  type IllustrativeProjection,
 } from "./summary.js";
 import {
   BENCH_RECEIPT_SCHEMA_VERSION,
@@ -38,7 +48,9 @@ export interface ReceiptBundle {
   readonly totals: {
     readonly measuredCalls: number;
     readonly failures: number;
+    readonly failuresLabel?: string;
     readonly providerSpendUsd: number;
+    readonly providerSpendUsdLabel?: string;
     readonly money: BenchSummary["moneyTotals"];
     readonly duration: BenchSummary["durationTotals"];
     readonly legacyCombinedStandardLossUsd?: number;
@@ -48,6 +60,7 @@ export interface ReceiptBundle {
   readonly rows: BenchSummary["rows"];
   readonly measures: BenchSummary["measures"];
   readonly assumptions: BenchSlaAssumptions;
+  readonly illustrativeProjection?: IllustrativeProjection;
   readonly locality?: ReceiptLocality;
   readonly watermark: {
     readonly name: string;
@@ -74,6 +87,7 @@ interface LegacyReceiptBundleV1 {
   readonly rows?: readonly Record<string, unknown>[];
   readonly measures?: BenchSummary["measures"];
   readonly assumptions?: BenchSlaAssumptions;
+  readonly illustrativeProjection?: IllustrativeProjection;
   readonly watermark?: {
     readonly name: string;
     readonly url: string;
@@ -91,7 +105,9 @@ export function createReceiptBundle(summary: BenchSummary): ReceiptBundle {
     totals: {
       measuredCalls: summary.measuredCalls,
       failures: summary.failureCount,
+      failuresLabel: FAILURE_SIGNAL_COUNT_LABEL,
       providerSpendUsd: summary.providerSpendUsd,
+      providerSpendUsdLabel: PROVIDER_SPEND_OBSERVED_LABEL,
       money: summary.moneyTotals,
       duration: summary.durationTotals,
     },
@@ -100,6 +116,7 @@ export function createReceiptBundle(summary: BenchSummary): ReceiptBundle {
     rows: summary.rows,
     measures: summary.measures,
     assumptions: summary.slaAssumptions,
+    ...(summary.illustrativeProjection ? { illustrativeProjection: summary.illustrativeProjection } : {}),
     locality: LOCAL_RECEIPT_LOCALITY,
     watermark: {
       name: WATERMARK_NAME,
@@ -153,7 +170,9 @@ export function migrateReceiptBundle(value: ReceiptBundle | LegacyReceiptBundleV
     totals: {
       measuredCalls: totals.measuredCalls,
       failures: totals.failures,
+      failuresLabel: FAILURE_SIGNAL_COUNT_LABEL,
       providerSpendUsd: totals.providerSpendUsd,
+      providerSpendUsdLabel: PROVIDER_SPEND_OBSERVED_LABEL,
       money,
       duration,
       legacyCombinedStandardLossUsd: totals.standardLossUsd,
@@ -177,6 +196,7 @@ export function migrateReceiptBundle(value: ReceiptBundle | LegacyReceiptBundleV
       activeLatencySegments: [],
       impactFooterLines: [],
     },
+    ...(value.illustrativeProjection ? { illustrativeProjection: value.illustrativeProjection } : {}),
     locality: undefined,
     watermark: value.watermark ?? {
       name: WATERMARK_NAME,
@@ -189,22 +209,37 @@ export function renderReceipt(input: ReceiptBundle | LegacyReceiptBundleV1, comp
   const inputSchemaVersion = input.schemaVersion;
   const bundle = migrateReceiptBundle(input);
   const exposures = receiptExposures(bundle);
-  const headlineObservedSpendLine = inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
+  const computedObservedSpendLine = inputSchemaVersion === BENCH_RECEIPT_SCHEMA_VERSION
     ? receiptMoneyLossObservedSpendLine(bundle)
     : null;
+  const headlineObservedSpendLine = bundle.illustrativeProjection && computedObservedSpendLine
+    ? computedObservedSpendLine.replace("observed spend", "example spend")
+    : computedObservedSpendLine;
   const observedSpendLine = compact ? headlineObservedSpendLine : null;
+  const trafficLine = bundle.illustrativeProjection
+    ? `example ${bundle.totals.measuredCalls} calls, ${bundle.totals.failures} findings`
+    : `measured ${bundle.totals.measuredCalls} calls, ${bundle.totals.failures} failure signals`;
+  const guideLine = bundle.illustrativeProjection
+    ? "Guide: example findings are synthetic scenario calls with problems; estimated recoverable is Inferock arithmetic, not a provider admission."
+    : "Guide: failure signals are measurement findings; a call can produce more than one signal. Estimated recoverable is Inferock arithmetic from observed events, not a provider admission.";
+  const spendLine = bundle.illustrativeProjection
+    ? `example provider spend: ${formatReceiptUsd(bundle.totals.providerSpendUsd)}`
+    : `${PROVIDER_SPEND_OBSERVED_LABEL}: ${formatReceiptUsd(bundle.totals.providerSpendUsd)}`;
+  const moneySplit = receiptMoneySplit(bundle.totals.money);
+  const durationSplit = receiptDurationSplit(bundle.totals.duration);
   const lines = [
     receiptHeadline(bundle, headlineObservedSpendLine),
+    ...receiptProjectionLines(bundle.illustrativeProjection),
     receiptMoneyRecognitionLine(bundle, observedSpendLine),
     ...exposures.map(renderExposureLine),
     bundle.title,
     `period: ${bundle.period.since ?? "beginning"} to ${bundle.period.until}`,
-    `measured ${bundle.totals.measuredCalls} calls, ${bundle.totals.failures} failures`,
-    "Guide: failures observed are calls with problems, loss signals are the rows below, and provider-recognized is what your provider already reported or credited.",
-    `money-native standard loss ${formatReceiptUsd(bundle.totals.money.standardLossUsd)} | provider-recognized ${formatReceiptUsd(bundle.totals.money.providerRecognizedUsd)} | money recognition gap ${formatReceiptUsd(bundle.totals.money.recognitionGapUsd)}`,
-    `duration loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)} | provider-recognized time ${formatApproxTimeLost(bundle.totals.duration.providerRecognizedTimeLossMs)} | time recognition gap ${formatApproxTimeLost(bundle.totals.duration.recognitionGapTimeMs)}`,
-    `secondary translation approx ${formatReceiptUsd(bundle.totals.duration.dollarTranslationUsd)} at your rate (edit)`,
-    `provider spend observed: ${formatReceiptUsd(bundle.totals.providerSpendUsd)}`,
+    trafficLine,
+    guideLine,
+    `money-native standard loss ${moneySplit.total} | ${ESTIMATED_RECOVERABLE_LABEL} ${moneySplit.parts.providerRecognized} | money recognition gap ${moneySplit.parts.recognitionGap}`,
+    `duration loss ${durationSplit.total} | ${ESTIMATED_RECOVERABLE_TIME_LABEL} ${durationSplit.parts.providerRecognized} | time recognition gap ${durationSplit.parts.recognitionGap}`,
+    `secondary translation approx ${formatReceiptUsd(bundle.totals.duration.dollarTranslationUsd)} ${timeValueRateUseLabel(bundle.totals.duration.rate)}`,
+    spendLine,
     renderCoverageSummaryLine(bundle.coverage),
   ];
 
@@ -212,22 +247,23 @@ export function renderReceipt(input: ReceiptBundle | LegacyReceiptBundleV1, comp
   if (rows.length === 0) {
     lines.push("no loss rows");
   } else {
-    lines.push("class | evidence | count | primary impact | provider-recognized | recognition gap");
-    for (const row of rows) {
+    const rowMoneySplits = receiptDisplayedMoneyRowSplits(rows);
+    lines.push(`class | evidence | count | primary impact | ${ESTIMATED_RECOVERABLE_LABEL} | recognition gap`);
+    for (const [index, row] of rows.entries()) {
       lines.push([
         `${row.code}/${row.failureClass}`,
         row.evidenceGrade,
         String(row.count),
-        receiptPrimaryImpact(row),
-        receiptProviderRecognized(row),
-        receiptRecognitionGap(row),
+        receiptPrimaryImpact(row, rowMoneySplits[index]),
+        receiptProviderRecognized(row, rowMoneySplits[index]),
+        receiptRecognitionGap(row, rowMoneySplits[index]),
       ].join(" | "));
       if (row.providerRecognitionLine) lines.push(`  ${row.providerRecognitionLine}`);
       if (row.legacyCompatibilityLabel) {
         lines.push(`  compatibility: ${row.legacyCompatibilityLabel}`);
       }
       if (row.primaryValueKind === "time_loss" && row.dollarTranslationUsd !== null) {
-        lines.push(`  secondary translation: approx ${formatUsd(row.dollarTranslationUsd)} at your rate (edit)`);
+        lines.push(`  secondary translation: approx ${formatUsd(row.dollarTranslationUsd)} ${timeValueRateUseLabel(row.rateSnapshot)}`);
       }
       for (const line of row.howComputed) {
         lines.push(`  how computed: ${line}`);
@@ -252,11 +288,23 @@ export function renderReceipt(input: ReceiptBundle | LegacyReceiptBundleV1, comp
 
 function receiptHeadline(bundle: ReceiptBundle, observedSpendLine: string | null): string {
   return [
-    `spent ${formatUsd(bundle.totals.providerSpendUsd)}`,
+    `priced spend ${formatUsd(bundle.totals.providerSpendUsd)}`,
     `money loss ${receiptMoneyLossHeadlineDisplay(bundle, observedSpendLine)}`,
     `time loss ${formatApproxTimeLost(bundle.totals.duration.timeLossMs)}`,
     `invoice-check exposure ${formatReceiptUsd(invoiceCheckExposureAmount(bundle.exposures))}`,
   ].join(" · ");
+}
+
+function receiptProjectionLines(projection: IllustrativeProjection | undefined): readonly string[] {
+  if (!projection) return [];
+  return [
+    projection.label,
+    projection.sourceLine,
+    projection.precisionLine,
+    projection.notMeasuredLine,
+    `${projection.basisLinkText} ${projection.basisHref}`,
+    `${projection.actualRunsLinkText} ${projection.actualRuns.map((run) => `${run.label}: ${run.href}`).join(" | ")}`,
+  ];
 }
 
 function receiptMoneyLossHeadlineDisplay(bundle: ReceiptBundle, observedSpendLine: string | null): string {
@@ -274,9 +322,10 @@ function receiptMoneyLossDisplay(bundle: ReceiptBundle): string {
 }
 
 function receiptMoneyRecognitionLine(bundle: ReceiptBundle, observedSpendLine: string | null): string {
+  const moneySplit = receiptMoneySplit(bundle.totals.money);
   return [
-    `provider-recognized ${formatReceiptUsd(bundle.totals.money.providerRecognizedUsd)}`,
-    `recognition gap ${formatReceiptUsd(bundle.totals.money.recognitionGapUsd)}`,
+    `${ESTIMATED_RECOVERABLE_LABEL} ${moneySplit.parts.providerRecognized}`,
+    `recognition gap ${moneySplit.parts.recognitionGap}`,
     observedSpendLine,
   ].filter(Boolean).join(" · ");
 }
@@ -367,21 +416,96 @@ function migrateLegacyRow(row: Record<string, unknown>): ReportRow {
   };
 }
 
-function receiptPrimaryImpact(row: ReportRow): string {
-  if (row.primaryValueKind === "time_loss") return formatApproxTimeLost(row.timeLossMs);
-  return formatUsd(row.standardLossUsd);
-}
-
-function receiptProviderRecognized(row: ReportRow): string {
+function receiptPrimaryImpact(row: ReportRow, moneySplit?: ReconciledReceiptMoneySplit): string {
   if (row.primaryValueKind === "time_loss") {
-    return `${formatUsd(row.providerRecognizedUsd)} / ${formatApproxTimeLost(row.providerRecognizedTimeLossMs)}`;
+    const clock = row.timeLossClockLabel ? ` (${row.timeLossClockLabel})` : "";
+    return `${formatApproxTimeLost(row.timeLossMs)}${clock}`;
   }
-  return formatUsd(row.providerRecognizedUsd);
+  return moneySplit?.total ?? formatReceiptUsd(row.standardLossUsd);
 }
 
-function receiptRecognitionGap(row: ReportRow): string {
-  if (row.primaryValueKind === "time_loss") return formatApproxTimeLost(row.recognitionGapTimeMs);
-  return formatUsd(row.recognitionGapUsd);
+function receiptProviderRecognized(row: ReportRow, moneySplit?: ReconciledReceiptMoneySplit): string {
+  if (row.primaryValueKind === "time_loss") {
+    const split = receiptRowTimeSplit(row);
+    return `${formatReceiptUsd(row.providerRecognizedUsd)} / ${split.parts.providerRecognized}`;
+  }
+  return (moneySplit ?? receiptRowMoneySplit(row)).parts.providerRecognized;
+}
+
+function receiptRecognitionGap(row: ReportRow, moneySplit?: ReconciledReceiptMoneySplit): string {
+  if (row.primaryValueKind === "time_loss") return receiptRowTimeSplit(row).parts.recognitionGap;
+  return (moneySplit ?? receiptRowMoneySplit(row)).parts.recognitionGap;
+}
+
+function receiptMoneySplit(money: ReceiptBundle["totals"]["money"]): ReconciledReceiptMoneySplit {
+  return reconciledUsdPartition({
+    total: money.standardLossUsd,
+    parts: [
+      { key: "providerRecognized", value: money.providerRecognizedUsd },
+      { key: "recognitionGap", value: money.recognitionGapUsd },
+    ],
+  });
+}
+
+function receiptDurationSplit(duration: ReceiptBundle["totals"]["duration"]): ReconciledReceiptTimeSplit {
+  return reconciledApproxTimePartition({
+    totalMs: duration.timeLossMs,
+    parts: [
+      { key: "providerRecognized", value: duration.providerRecognizedTimeLossMs },
+      { key: "recognitionGap", value: duration.recognitionGapTimeMs },
+    ],
+  });
+}
+
+function receiptRowMoneySplit(row: ReportRow): ReconciledReceiptMoneySplit {
+  return reconciledUsdPartition({
+    total: row.standardLossUsd,
+    parts: [
+      { key: "providerRecognized", value: row.providerRecognizedUsd },
+      { key: "recognitionGap", value: row.recognitionGapUsd },
+    ],
+  });
+}
+
+function receiptDisplayedMoneyRowSplits(rows: readonly ReportRow[]): readonly (ReconciledReceiptMoneySplit | undefined)[] {
+  const displays: (ReconciledReceiptMoneySplit | undefined)[] = [];
+  const groups = new Map<string, { readonly row: ReportRow; readonly index: number }[]>();
+  rows.forEach((row, index) => {
+    if (row.primaryValueKind === "time_loss") return;
+    const key = [row.code, row.failureClass].join("\u001f");
+    const group = groups.get(key) ?? [];
+    group.push({ row, index });
+    groups.set(key, group);
+  });
+  for (const group of groups.values()) {
+    const total = sum(group.map((entry) => entry.row.standardLossUsd));
+    const partition = reconciledUsdPartition({
+      total,
+      parts: group.map((entry) => ({ key: String(entry.index), value: entry.row.standardLossUsd })),
+    });
+    for (const entry of group) {
+      const displayValue = partition.values[String(entry.index)] ?? entry.row.standardLossUsd;
+      displays[entry.index] = reconciledUsdPartition({
+        total: displayValue,
+        parts: [
+          { key: "providerRecognized", value: entry.row.providerRecognizedUsd },
+          { key: "recognitionGap", value: entry.row.recognitionGapUsd },
+        ],
+        fractionDigits: partition.fractionDigits,
+      });
+    }
+  }
+  return displays;
+}
+
+function receiptRowTimeSplit(row: ReportRow): ReconciledReceiptTimeSplit {
+  return reconciledApproxTimePartition({
+    totalMs: row.timeLossMs,
+    parts: [
+      { key: "providerRecognized", value: row.providerRecognizedTimeLossMs },
+      { key: "recognitionGap", value: row.recognitionGapTimeMs },
+    ],
+  });
 }
 
 function numericValue(value: unknown): number | null {
@@ -404,6 +528,9 @@ function formatReceiptUsd(value: number): string {
   if (value > 0 && value < 0.01) return `$${value.toFixed(6)}`;
   return formatUsd(value);
 }
+
+type ReconciledReceiptMoneySplit = ReturnType<typeof reconciledUsdPartition<"providerRecognized" | "recognitionGap">>;
+type ReconciledReceiptTimeSplit = ReturnType<typeof reconciledApproxTimePartition<"providerRecognized" | "recognitionGap">>;
 
 export async function writeReceiptBundle(
   receiptsDir: string,

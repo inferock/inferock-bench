@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalTiming,
   canonicalRequest,
+  createStreamTimingCapture,
   finalAttemptRecord,
   providerRequestIdFromHeaders,
+  recordParsedSseEvent,
+  recordStreamByte,
+  recordStreamContentDelta,
   sanitizedProviderHeaders,
+  streamTiming,
 } from "./canonical-v2.js";
 import type { AdapterCanonicalInput } from "./types.js";
 import type { JsonRecord } from "./record.js";
@@ -91,15 +96,18 @@ describe("provider adapter canonical v2 request capture", () => {
     const startedAt = new Date("2026-07-02T12:00:00.000Z");
     const providerRequestStartedAt = new Date("2026-07-02T12:00:00.025Z");
     const providerResponseEndedAt = new Date("2026-07-02T12:00:01.025Z");
+    const clientConsumptionTiming = { endedAt: new Date("2026-07-02T12:00:02.500Z") };
     const endedAt = new Date("2026-07-02T12:00:01.100Z");
 
     expect(canonicalTiming(startedAt, endedAt, "complete", {
       providerRequestStartedAt,
       providerResponseEndedAt,
+      clientConsumptionTiming,
     })).toMatchObject({
       latencyMs: 1_100,
       providerElapsedMs: 1_000,
       gatewayOverheadMs: 100,
+      clientConsumptionEndedAt: "2026-07-02T12:00:02.500Z",
     });
     expect(finalAttemptRecord({
       provider: "openai",
@@ -108,11 +116,93 @@ describe("provider adapter canonical v2 request capture", () => {
       startedAt,
       providerRequestStartedAt,
       providerResponseEndedAt,
+      clientConsumptionTiming,
       endedAt,
       status: "success",
     }).timing).toMatchObject({
       providerElapsedMs: 1_000,
       gatewayOverheadMs: 100,
+      clientConsumptionEndedAt: "2026-07-02T12:00:02.500Z",
+    });
+  });
+
+  it("canonical-timing-monotonic-negative-wall-clock: uses monotonic elapsed and flags wall-clock reversal", () => {
+    const startedAt = new Date("2026-07-02T12:00:10.000Z");
+    const providerRequestStartedAt = new Date("2026-07-02T12:00:09.000Z");
+    const providerResponseEndedAt = new Date("2026-07-02T12:00:08.500Z");
+    const endedAt = new Date("2026-07-02T12:00:09.000Z");
+
+    const timing = canonicalTiming(startedAt, endedAt, "complete", {
+      startedAtMonotonicNs: 1_000_000_000n,
+      providerRequestStartedAtMonotonicNs: 1_100_000_000n,
+      providerResponseEndedAtMonotonicNs: 2_600_000_000n,
+      endedAtMonotonicNs: 3_000_000_000n,
+      monotonicClockSource: "test-monotonic-clock",
+      providerRequestStartedAt,
+      providerResponseEndedAt,
+    });
+
+    expect(timing).toMatchObject({
+      latencyMs: 2_000,
+      monotonicElapsedMs: 2_000,
+      monotonicClockSource: "test-monotonic-clock",
+      wallClockDrift: {
+        kind: "negative_wall_clock_elapsed",
+        wallClockElapsedMs: -1_000,
+        monotonicElapsedMs: 2_000,
+        driftMs: -3_000,
+      },
+      providerElapsedMs: 1_500,
+      providerMonotonicElapsedMs: 1_500,
+      providerWallClockDrift: {
+        kind: "negative_wall_clock_elapsed",
+        wallClockElapsedMs: -500,
+        monotonicElapsedMs: 1_500,
+        driftMs: -2_000,
+      },
+      gatewayOverheadMs: 500,
+    });
+  });
+
+  it("stream-timing-boundaries: separates first byte, parsed SSE event, and first content delta", () => {
+    const capture = createStreamTimingCapture();
+    const startedAt = new Date("2026-07-02T12:00:00.000Z");
+    const endedAt = new Date("2026-07-02T12:00:01.000Z");
+
+    recordStreamByte(capture, {
+      wallTime: new Date("2026-07-02T12:00:00.100Z"),
+      monotonicNs: 100_000_000n,
+      monotonicClockSource: "test-monotonic-clock",
+    });
+    recordParsedSseEvent(capture, {
+      wallTime: new Date("2026-07-02T12:00:00.250Z"),
+      monotonicNs: 250_000_000n,
+      monotonicClockSource: "test-monotonic-clock",
+    });
+    recordStreamContentDelta(capture, {
+      wallTime: new Date("2026-07-02T12:00:00.400Z"),
+      monotonicNs: 400_000_000n,
+      monotonicClockSource: "test-monotonic-clock",
+    });
+
+    const timing = streamTiming(startedAt, endedAt, capture, {
+      startedAtMonotonicNs: 0n,
+      endedAtMonotonicNs: 1_000_000_000n,
+      monotonicClockSource: "test-monotonic-clock",
+      clientConsumptionTiming: { endedAt: new Date("2026-07-02T12:00:02.000Z") },
+    });
+
+    expect(timing).toMatchObject({
+      firstByteAt: "2026-07-02T12:00:00.100Z",
+      firstEventAt: "2026-07-02T12:00:00.250Z",
+      firstContentDeltaAt: "2026-07-02T12:00:00.400Z",
+      firstTokenAt: "2026-07-02T12:00:00.400Z",
+      timeToFirstByteMs: 100,
+      timeToFirstEventMs: 250,
+      timeToFirstContentDeltaMs: 400,
+      timeToFirstTokenMs: 400,
+      chunkCount: 1,
+      clientConsumptionEndedAt: "2026-07-02T12:00:02.000Z",
     });
   });
 });

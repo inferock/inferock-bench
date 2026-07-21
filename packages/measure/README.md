@@ -43,4 +43,4 @@ Anthropic does not publish a local tokenizer for Claude 3 or later models, and n
 - [Evidence grade methodology](../../docs/evidence-grade-methodology.md) for how detector posture affects provider-recognized recovery.
 - [Coverage test methodology](../../docs/coverage-test-methodology.md) for the local benchmark path that produces receipt evidence.
 
-inferock-bench and @inferock/measure are the open-source measurement layer of [Inferock](https://inferock.opiusai.com), the hosted billing-integrity and reliability gateway.
+`inferock-bench` is source-available under FSL-1.1-ALv2, and `@inferock/measure` is Apache-2.0. Together they are the source-available measurement layer of [Inferock](https://inferock.opiusai.com), the hosted billing-integrity and reliability gateway.

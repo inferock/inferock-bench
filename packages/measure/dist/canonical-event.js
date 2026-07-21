@@ -30,7 +30,16 @@ const CacheUsage = z
 })
     .strict();
 const ToolCall = JsonRecord;
+const ErrorOrigin = z.enum(["local", "provider"]);
 const EventSource = z.enum(["proxy", "drift_replay"]);
+const WallClockDrift = z
+    .object({
+    kind: z.enum(["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]),
+    wallClockElapsedMs: z.number(),
+    monotonicElapsedMs: z.number().nonnegative(),
+    driftMs: z.number(),
+})
+    .strict();
 const CanonicalEventV1Request = z
     .object({
     tenantId: z.string().min(1),
@@ -49,6 +58,7 @@ const CanonicalEventV1Response = z
     content: z.string(),
     toolCalls: z.array(ToolCall).optional(),
     errorClass: z.string().min(1).optional(),
+    errorOrigin: ErrorOrigin.optional(),
 })
     .strict();
 const CanonicalEventV1Usage = z
@@ -63,10 +73,16 @@ const CanonicalEventV1Timing = z
     startedAt: DateTime,
     endedAt: DateTime,
     latencyMs: z.number().nonnegative(),
+    monotonicElapsedMs: z.number().nonnegative().optional(),
+    monotonicClockSource: z.string().min(1).optional(),
+    wallClockDrift: WallClockDrift.optional(),
     providerRequestStartedAt: DateTime.optional(),
     providerResponseEndedAt: DateTime.optional(),
     providerElapsedMs: z.number().nonnegative().optional(),
+    providerMonotonicElapsedMs: z.number().nonnegative().optional(),
+    providerWallClockDrift: WallClockDrift.optional(),
     gatewayOverheadMs: z.number().nonnegative().optional(),
+    clientConsumptionEndedAt: DateTime.optional(),
 })
     .strict();
 const CanonicalEventV1Meta = z
@@ -202,6 +218,7 @@ const AttemptRecord = z
     status: AttemptStatus,
     timing: AttemptTiming,
     errorClass: z.string().min(1).optional(),
+    errorOrigin: ErrorOrigin.optional(),
     retryReason: z.string().min(1).optional(),
     statusCode: z.number().int().min(100).max(599).optional(),
     providerRequestId: z.string().min(1).optional(),
@@ -269,6 +286,7 @@ export const CanonicalEventV2 = z
         grounding: JsonRecord.optional(),
         logprobs: z.array(JsonRecord).optional(),
         errorClass: z.string().min(1).optional(),
+        errorOrigin: ErrorOrigin.optional(),
     })
         .strict(),
     usage: CanonicalEventV1Usage.extend({
@@ -344,6 +362,7 @@ function normalizeV1(event) {
                 status: attemptStatus,
                 timing: event.timing,
                 ...(event.response.errorClass ? { errorClass: event.response.errorClass } : {}),
+                ...(event.response.errorOrigin ? { errorOrigin: event.response.errorOrigin } : {}),
                 finalSelected: true,
             },
         ],
@@ -417,6 +436,16 @@ function normalizedV2Timing(eventTiming) {
             ? { maxInterChunkGapMs: eventTiming.maxStreamGapMs }
             : {}),
     };
+}
+export function canonicalEventErrorOrigin(event) {
+    if (event.response.errorOrigin)
+        return event.response.errorOrigin;
+    if (!("attempts" in event))
+        return undefined;
+    const finalAttempt = event.attempts.find((attempt) => attempt.finalSelected);
+    if (finalAttempt?.errorOrigin)
+        return finalAttempt.errorOrigin;
+    return event.attempts.find((attempt) => attempt.errorOrigin)?.errorOrigin;
 }
 function usageCategoriesFromV1(event) {
     return [

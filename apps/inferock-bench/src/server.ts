@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { randomBytes } from "node:crypto";
 import { isIP } from "node:net";
 import {
   benchKeyFromConfig,
@@ -52,6 +53,7 @@ export async function startServer(input: StartServerInput): Promise<void> {
   });
   const { host, port } = bind;
   const store = new JsonlEventStore(input.paths.eventsFile);
+  const managementAccessToken = randomBytes(32).toString("base64url");
   const app = createBenchApp({
     config: input.config,
     paths: input.paths,
@@ -59,6 +61,7 @@ export async function startServer(input: StartServerInput): Promise<void> {
     env,
     log,
     allowExternalManagementHost: bind.externalHost,
+    managementAccessToken,
     reliabilityIndexPrompt: {
       paths: input.paths,
       stdinIsTty: input.stdinIsTty,
@@ -67,7 +70,7 @@ export async function startServer(input: StartServerInput): Promise<void> {
   });
 
   const summary = summarizeBenchEvents(await store.readAll(), {}, { config: input.config });
-  const dashboardUrl = `http://${host}:${port}/`;
+  const dashboardUrl = `http://${host}:${port}/?token=${managementAccessToken}`;
   for (const warning of bind.warnings) log(warning);
   log(`inferock-bench listening at http://${host}:${port}`);
   log(`Dashboard: ${dashboardUrl}`);

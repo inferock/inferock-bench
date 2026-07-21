@@ -54,7 +54,88 @@ describe("bench event storage metadata", () => {
     expect(summarizeStoredBenchEventScope([scoped!, other, legacy], "run-speed-1"))
       .toEqual([scoped]);
   });
+
+  it("bench-storage-monotonic-timing-extensions: preserves additive timing fields during readback", () => {
+    const event = withMonotonicTimingExtensions(v2Event("req-run-monotonic"));
+    const parsed = parseStoredBenchEventLine(JSON.stringify(createStoredBenchEvent(event, {
+      runId: "run-speed-monotonic",
+      suiteTaskId: "json_schema_extract",
+    })));
+
+    expect(parsed?.suiteTaskId).toBe("json_schema_extract");
+    expect((parsed?.event.timing as Record<string, unknown>).monotonicElapsedMs).toBe(1_000);
+    expect((parsed?.event.timing as Record<string, unknown>).providerMonotonicElapsedMs).toBe(900);
+    expect((parsed?.event.timing as Record<string, unknown>).clientConsumptionEndedAt)
+      .toBe("2026-07-04T12:00:02.000Z");
+    expect((parsed?.event.attempts[0]?.timing as Record<string, unknown>).monotonicClockSource)
+      .toBe("test-monotonic-clock");
+    expect((parsed?.event.attempts[0]?.timing as Record<string, unknown>).clientConsumptionEndedAt)
+      .toBe("2026-07-04T12:00:02.000Z");
+  });
+
+  it("bench-storage-error-origin-extension: preserves local-origin failure evidence during readback", () => {
+    const event = withLocalErrorOrigin(v2Event("req-run-local-origin"));
+    const parsed = parseStoredBenchEventLine(JSON.stringify(createStoredBenchEvent(event)));
+
+    expect((parsed?.event.response as Record<string, unknown>).errorOrigin).toBe("local");
+    expect((parsed?.event.attempts[0] as Record<string, unknown>).errorOrigin).toBe("local");
+    expect(summarizeBenchEvents([parsed!]).localOriginErrorCount).toBe(1);
+    expect(summarizeBenchEvents([parsed!]).measuredCalls).toBe(0);
+  });
 });
+
+function withMonotonicTimingExtensions(event: CanonicalEventV2): CanonicalEventV2 {
+  return {
+    ...event,
+    timing: {
+      ...event.timing,
+      monotonicElapsedMs: 1_000,
+      monotonicClockSource: "test-monotonic-clock",
+      providerMonotonicElapsedMs: 900,
+      clientConsumptionEndedAt: "2026-07-04T12:00:02.000Z",
+      wallClockDrift: {
+        kind: "implausible_wall_clock_drift",
+        wallClockElapsedMs: 1_200,
+        monotonicElapsedMs: 1_000,
+        driftMs: 200,
+      },
+    },
+    attempts: event.attempts.map((attempt) => ({
+      ...attempt,
+      timing: {
+        ...attempt.timing,
+        monotonicElapsedMs: 1_000,
+        monotonicClockSource: "test-monotonic-clock",
+        clientConsumptionEndedAt: "2026-07-04T12:00:02.000Z",
+      },
+    })),
+  } as unknown as CanonicalEventV2;
+}
+
+function withLocalErrorOrigin(event: CanonicalEventV2): CanonicalEventV2 {
+  return {
+    ...event,
+    response: {
+      ...event.response,
+      statusCode: 429,
+      finishReason: "error",
+      content: "Agent call budget exhausted before provider dispatch.",
+      errorClass: "http_429:agent_call_budget_exhausted",
+      errorOrigin: "local",
+    },
+    timing: {
+      ...event.timing,
+      terminalStatus: "error",
+    },
+    attempts: event.attempts.map((attempt) => ({
+      ...attempt,
+      status: "error",
+      errorClass: "http_429:agent_call_budget_exhausted",
+      statusCode: 429,
+      errorOrigin: "local",
+    })),
+  } as unknown as CanonicalEventV2;
+}
 
 function v2Event(requestId: string): CanonicalEventV2 {
   return {

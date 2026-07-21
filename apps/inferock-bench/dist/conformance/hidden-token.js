@@ -229,9 +229,14 @@ function hiddenTokenModel(selection, kind) {
 function supportsOpenAiReasoningNone(model) {
     return /^gpt-5(?:\.|-|$)/.test(model) || /^o\d/.test(model);
 }
+function elapsedMs(startedMs, endedMs) {
+    if (!Number.isFinite(startedMs) || !Number.isFinite(endedMs))
+        return 0;
+    return Math.max(0, endedMs - startedMs);
+}
 function canonicalHiddenTokenEvent(probe, result) {
     const usage = canonicalUsageFromRaw(probe, result.rawUsage);
-    const latencyMs = Math.max(0, Date.parse(result.endedAt) - Date.parse(result.startedAt));
+    const latencyMs = result.monotonicElapsedMs ?? elapsedMs(Date.parse(result.startedAt), Date.parse(result.endedAt));
     return {
         schemaVersion: "v2",
         request: {
@@ -259,6 +264,9 @@ function canonicalHiddenTokenEvent(probe, result) {
             startedAt: result.startedAt,
             endedAt: result.endedAt,
             latencyMs,
+            ...(result.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: result.monotonicElapsedMs } : {}),
+            ...(result.monotonicClockSource ? { monotonicClockSource: result.monotonicClockSource } : {}),
+            ...(result.wallClockDrift ? { wallClockDrift: result.wallClockDrift } : {}),
             chunkCount: 0,
             terminalStatus: result.statusCode >= 400 ? "error" : "complete",
         },
@@ -271,6 +279,9 @@ function canonicalHiddenTokenEvent(probe, result) {
                     startedAt: result.startedAt,
                     endedAt: result.endedAt,
                     latencyMs,
+                    ...(result.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: result.monotonicElapsedMs } : {}),
+                    ...(result.monotonicClockSource ? { monotonicClockSource: result.monotonicClockSource } : {}),
+                    ...(result.wallClockDrift ? { wallClockDrift: result.wallClockDrift } : {}),
                 },
                 statusCode: result.statusCode,
                 finalSelected: true,

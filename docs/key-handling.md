@@ -36,7 +36,9 @@ The `ibl_` key does not authenticate you to Inferock, OpiusAI, OpenAI, Anthropic
 
 `INFEROCK_BENCH_KEY` can override the key your app sends. When both a generated key and `INFEROCK_BENCH_KEY` exist, the proxy accepts both.
 
-The dashboard shows the local bench key masked by default. Full-key reveal is gated: the same-origin dashboard page or the local bench key must authorize `/api/key`, so a bare unauthenticated request does not return the full value. Provider-key setup through the dashboard uses the same local management gate.
+The dashboard shows the local bench key masked by default. Full-key reveal is gated: the same-origin dashboard page or the local bench key must authorize `/api/key`, so a bare unauthenticated request does not return the full value. Provider-key setup through the dashboard uses the same local management gate. The dashboard page (`GET /`) itself requires the one-time token the CLI prints (`Dashboard: http://host:port/?token=...`) before it renders or embeds that authorization token, so a bare unauthenticated request to the dashboard cannot be used to obtain it either.
+
+Read-only endpoints (`/api/summary`, `/api/rows`, `/api/calls`, `/api/receipt`, and the `/api/coverage-test/*` read routes) are same-origin-gated but do not currently require the dashboard token or bench key. Any other local process able to reach the loopback port can read summary, call, and receipt data without a secret; see [Threat model](threat-model.md) for the tracked follow-up.
 
 Reliability-index opt-in does not change key handling. Today it records consent locally, shows the aggregate payload, and sends nothing while the public index is pre-launch. When the index goes live, contribution must remain reviewable and revocable, and keys must never be part of the payload.
 
@@ -45,6 +47,13 @@ provider-scoped agent process. The agent receives that local key and the
 localhost base URL only. It does not receive provider keys. The proxy maps the
 ephemeral key to the run ID and selected provider, then attaches the real
 provider key server-side inside the local `inferock-bench` process.
+
+The ephemeral key limits what the proxy hands to the agent process directly;
+it is not a sandbox. The agent runs as an ordinary child process under your own
+OS user, with its own shell and network access, and nothing stops it from
+reading `~/.inferock-bench/config`, `events.jsonl`, or your shell environment
+directly if its own instructions or behavior led it there. Give a real-agent
+run the same trust you would give any local script you choose to execute.
 
 Agent command, environment, stdout, stderr, dashboard events, and receipt fields
 must redact usable `ibl_`, `sk-`, `sk-ant-`, and bearer-token values.

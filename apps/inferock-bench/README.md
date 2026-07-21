@@ -91,6 +91,10 @@ only after explicit consent, or uses `--agent-cmd` as a user-supplied agent.
 
 Production routing, secure key custody, invoice reconciliation, provider leverage, and audit workflows belong in hosted Inferock: https://inferock.opiusai.com.
 
+## Founders
+
+Built by Bharath Koneti ([LinkedIn](https://www.linkedin.com/in/bharathkoneti/), [X](https://x.com/bharathakoneti)) and Himashwetha Gowda ([LinkedIn](https://www.linkedin.com/in/himashwethagowda/)), building Inferock at [OpiusAI](https://opiusai.com) — the AI-provider accountability standard.
+
 ## What to read next
 
 - [Root README](../../README.md) for screenshots, the public run card, and the docs map.

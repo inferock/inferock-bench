@@ -21,6 +21,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../..");
 const seedRunId = "speedtest_20f50256-1816-4078-97af-2b9582c15c44";
 const benchKey = "capture-local-placeholder";
+const captureManagementAccessToken = "capture-dashboard-real-traffic-management-token";
 const captureDeviceScaleFactor = DASHBOARD_CAPTURE_DEVICE_SCALE_FACTOR;
 const defaultComponentRoot = process.env.INFEROCK_BENCH_CAPTURE_COMPONENT_ROOT
   ? resolve(process.env.INFEROCK_BENCH_CAPTURE_COMPONENT_ROOT)
@@ -222,6 +223,7 @@ async function startCaptureServer(paths: BenchPaths): Promise<{
       INFEROCK_BENCH_KEY: benchKey,
     },
     log: () => undefined,
+    managementAccessToken: captureManagementAccessToken,
   });
 
   const server = createServer(async (incoming, outgoing) => {
@@ -255,11 +257,11 @@ async function waitForDashboardValues(page: Page): Promise<void> {
   await page.waitForSelector('[data-testid="done-state"]', { state: "visible" });
   await page.waitForFunction(() => document.body.dataset.stage === "done");
   await assertTestIdText(page, "spent-headline", "$7.15");
-  await assertTestIdText(page, "money-headline-standard", "$0.07 (1.0%)");
+  await assertTestIdText(page, "money-headline-standard", "$0.03 (0.4%)");
   await assertTestIdText(page, "time-headline", "~2.9 min");
   await assertTestIdText(page, "invoice-check-exposure-headline", "$16.80");
   await assertTestIdText(page, "receipt-calls", "1,268");
-  await assertTestIdText(page, "receipt-failures", "565");
+  await assertTestIdText(page, "receipt-failures", "564");
   await assertTestIdText(page, "receipt-surfaces", "12 / 13");
   await assertTestIdText(page, "receipt-provider-spend", "$7.15");
 }
@@ -539,7 +541,7 @@ async function captureDashboard(options: CaptureOptions): Promise<void> {
       viewport: { width: options.viewportWidth, height: options.viewportHeight },
       deviceScaleFactor: captureDeviceScaleFactor,
     });
-    await page.goto(`http://127.0.0.1:${server.port}/`, { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${server.port}/?token=${captureManagementAccessToken}`, { waitUntil: "networkidle" });
     await waitForDashboardValues(page);
     await applyStaticCaptureMode(page);
     await assertNoVisibleKeyPanel(page);

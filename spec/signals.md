@@ -48,7 +48,7 @@ Every signal uses this as-built shape:
 | `observedChargeUsd` | No | Provider-origin or supplied observed charge when available. |
 | `expectedChargeUsd` | No | Expected charge when price or rule evidence supports it. |
 | `providerRecoverableLossUsd` | No | Provider-recognized recoverable dollars when the signal qualifies. |
-| `standardLossUsd` | No | Inferock-standard money loss after standard-loss enrichment; null when pricing is unknown or not applicable. |
+| `standardLossUsd` | No | Inferock-standard money loss after standard-loss enrichment; null when pricing is unknown or not applicable; invoice-check exposure is not stored here. |
 | `providerRecognizedLossUsd` | No | Provider-recognized portion of enriched standard loss. |
 | `recognitionGapUsd` | No | Difference between standard loss and provider-recognized loss; null when pricing is unknown or not applicable. |
 | `standardLossStatus` | No | `computed`, `pricing_unknown`, `not_applicable`, or `legacy_pre_dollarcore`. |
@@ -57,8 +57,8 @@ Every signal uses this as-built shape:
 | `computationTrace` | No | Machine-readable computation trace for standard-loss enrichment. |
 | `pricingVersion` | No | Pricing source version when known. |
 | `pricingStatus` | Yes | Pricing status. |
-| `valueJson` | No | Structured value payload for rollups and reports. |
-| `evidence` | Yes | Structured detector evidence. |
+| `valueJson` | No | Structured value payload for rollups and reports; exposure-only rows such as `CACHE_DISCOUNT_AT_RISK` carry `invoiceCheckExposureUsd` here when priced. |
+| `evidence` | Yes | Structured detector evidence; exposure-only rows may also carry `invoiceCheckExposureUsd` here as detector evidence. |
 
 ## Enumerated Values
 
@@ -96,6 +96,7 @@ Each public signal carries an `evidenceGrade`, `status`, and ledger placement. L
 | `DUPLICATE_REQUEST_ID` | `duplicate_request_id` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No until provider billing evidence proves duplicate charge |
 | `CACHE_RATE_ANOMALY` | `cache_rate_anomaly` | `money` | `triage_only` by default; `refundable_candidate` only with dashboard-eligible provider-origin observed charge evidence | Conditional |
 | `CACHE_DISCOUNT_AT_RISK` | `cache_discount_at_risk` | `money` when priced; `triage` when pricing is unknown | Invoice-check exposure when cache-read usage and pricing are known; `pricing_unknown` when missing or partial | No; verify against invoice; never summed into headline money loss or recognition gap |
+| `SERVED_MODEL_MISMATCH` | `served_model_mismatch` | `triage` before enrichment; `money` when standard-loss enrichment applies | `triage_only` for identity evidence alone; `unrecognized_standard_loss`, `candidate` for a priced whole-call floor; `refundable_candidate`, `candidate` for a proven overcharge delta | Conditional; proven overcharge delta is provider-recognized, identity-only whole-call floor is not |
 | `SECURITY_SECRET_EXACT_MATCH` | `security_secret_leak` when real-loss; otherwise null | `money` for real-loss; `security` for evidence-only context | `unrecognized_standard_loss` on priced real-loss calls; `triage_only` for carried-in-request/evidence-only context | No |
 | `FACTUALITY_KNOWN_ANSWER_FAIL` | `factuality_contradiction` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No |
 | `ANTHROPIC_CITATION_CONTRADICTS_CITED_TEXT` | `factuality_contradiction` | `money` | `unrecognized_standard_loss`, `candidate` when priced; `pricing_unknown` when price lookup is missing or partial | No; Anthropic-specific |
@@ -185,7 +186,17 @@ Cache read or cache creation usage is reconciled against expected pricing. Witho
 
 Detector: `billing-integrity`.
 
-From usage and pricing alone: `cache_read_tokens x (full input rate - cache read rate)`. This is an at-risk discount amount, not provider-recognized recovery, not headline standard-loss, and not a whole-call floor. The row tells the user to verify against the invoice, and receipts report the amount as an invoice-check exposure headline element plus a separate invoice-check exposure detail line when nonzero.
+From usage and pricing alone: `cache_read_tokens x (full input rate - cache read rate)`. This is an at-risk discount amount, not provider-recognized recovery, not headline standard-loss, not recognition gap, and not a whole-call floor. Payloads carry it as `invoiceCheckExposureUsd` inside `valueJson` and detector `evidence`; enriched rows also preserve it in the standard-loss computation trace. It is not a top-level `LossSignal` field. Legacy `standardLossUsd`/`recognitionGapUsd` cache exposure fields are display fallbacks only. The row tells the user to verify against the invoice, and receipts report the amount as an invoice-check exposure headline element plus a separate invoice-check exposure detail line when nonzero.
+
+### `SERVED_MODEL_MISMATCH`
+
+Detector: `model-identity`.
+
+The requested model and the provider-response served model differ on a canonical v2 event. The detector requires `response.servedModelSource: "provider_response"`, a requested model, and a served model. It suppresses case-only differences, service-tier or system-fingerprint-only differences, documented provider alias rollovers, and registry-backed Gemini served-version aliases.
+
+Identity evidence alone emits `triage_only` with `valueKind: triage`, `liabilityParty: unknown`, no credit candidate, and standard-loss evidence showing zero dollars before enrichment. When standard-loss enrichment sees a priced served-model mismatch without a stronger overcharge basis, it treats the mismatch as a whole-call floor: `call_cost_floor_v1`, basis `failed_to_deliver_usable_output`, basis detail `served_wrong_model`. The enriched row becomes `candidate` / `unrecognized_standard_loss`, `valueKind: money`, `standardLossUsd` equals the priced call cost, `providerRecognizedLossUsd` is `0`, and `recognitionGapUsd` equals `standardLossUsd`. If the call is not fully priced, the standard-loss row is `pricing_unknown` until model price is added.
+
+With billing context proving the requested model was billed and both requested and served models are fully priced, the detector can emit a provider-recognized overcharge delta. The delta is `max(0, observed charge - served-model expected charge)` when an observed charge is supplied; otherwise it is `max(0, requested-model expected charge - served-model expected charge)`. This path uses `recoverableBasis: "overcharge_delta"`, `evidenceGrade: refundable_candidate`, and standard-loss enrichment records `measure_specific_delta_v1` with basis `served_model_overcharge_delta`. `providerRecognizedLossUsd` equals the delta, so `recognitionGapUsd` is `0`.
 
 ### `SECURITY_SECRET_EXACT_MATCH`
 

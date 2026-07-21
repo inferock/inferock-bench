@@ -2,9 +2,12 @@
 
 - Bharath Koneti (@bharathopius)
 - Himashwetha Gowda
-- Inferock team contact: founders@opiusai.com
+- Contact: oss@opiusai.com
 
-Founder-led maintainer decisions are made by the founders / Inferock team.
+Public decisions (accepting a change, a security disposition, a release) are
+made by the Inferock maintainers. If you disagree with a decision, reply on the
+issue or PR thread or email `oss@opiusai.com` and we will take another look —
+the maintainers make the final call.
 
 Use this page to understand who owns public decisions and how the generated mirror is handled. It is governance context, not a claim that GitHub is the source-of-truth repo.
 
@@ -24,13 +27,13 @@ Accepted changes are re-implemented upstream in the private repo by the maintain
 
 File issues for bugs, feature requests, documentation corrections, and reproducible benchmark findings. Security reports should use the private disclosure path in [SECURITY.md](./SECURITY.md), not a public issue.
 
-We aim to triage public issues and PRs within a few business days. Launch periods and security work may change the order, but maintainer decisions stay founder-led.
+Maintainers review public issues and PRs as capacity allows. Launch periods and security work may change the order, and maintainer decisions stay with the Inferock maintainers.
 
 By contributing, you agree that accepted work can be ported into the private upstream repo and redistributed through this public mirror under this repo's license terms, with attribution.
 
 ## Publish Identity
 
-The generated public repo is committed by the bot identity `inferock-publish` using a noreply email. Founders appear in this file and launch posts, not as the publish-job commit author.
+The generated public repo is committed by the bot identity `inferock-publish` using a noreply email. The Inferock team appears in this file and launch posts, not as the publish-job commit author.
 
 GitHub remains a downstream mirror. Maintainers port accepted public changes into the monorepo with attribution, then the manual export job regenerates this repo.
 

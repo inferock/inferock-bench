@@ -10,8 +10,9 @@ claims — not against what a benchmark might be imagined to claim.
 Inference billing is consumption-metered: tokens in, tokens out, dollars
 owed. Nothing in that pipeline measures delivery — whether the call
 succeeded, answered the question, arrived on time, or was silently served
-by a different model. Reliability measurement for inference barely exists
-as an industry. This project is an attempt to build it in the open.
+by a different model. Inference has observability, usage, and cost tools,
+but few tools cross-check the actual provider bill per call against
+delivery evidence. This project is an attempt to build that in the open.
 
 ## The rules every number obeys
 
@@ -36,21 +37,25 @@ as an industry. This project is an attempt to build it in the open.
 These are the known gaps between what the instrument measures and what a
 reader might assume it measures. Each is on the roadmap below.
 
-- **Time-loss sums per-request excess.** Ten concurrent calls that each
-  run 1s over threshold book 10s of time loss, though 1s of wall-clock
-  time passed. The figure measures aggregate request-time overhead, not
-  elapsed human time.
+- **Time-loss uses wall-clock union semantics.** Ten concurrent calls that
+  each run 1s over threshold book 1s of headline time loss, because the
+  overlapping elapsed interval is counted once. Row details may still show
+  how many failure signals contributed to that interval.
 - **Whole-call floors are all-or-nothing.** When a call is flagged as
   failed, its full price enters the loss column, whether the response
   delivered 1% or 99% of its value. Partial-value grading does not exist
   yet.
-- **"Provider-recognized" derives from our own estimator.** No provider
-  signal currently enters that column; it is our estimate of what a
-  provider would credit, and it is labeled as such.
-- **Latency dollars use the gateway clock and published defaults.** The
-  timing includes network segments a provider does not control, and the
-  dollar translation uses a stated hourly rate and threshold you can
-  change.
+- **"Estimated recoverable (our arithmetic)" derives from our own
+  estimator.** No provider signal currently enters that column; compatibility
+  payload fields may still use `providerRecognized*` names, but the rendered
+  label must state that the number is our arithmetic estimate.
+- **Latency labels its clock.** Provider elapsed timing is used when
+  captured; otherwise the receipt labels the figure as `gateway-clock`
+  because it can include network segments a provider does not control.
+  Provider elapsed timing is captured around the provider fetch boundary and
+  does not exclude cold start, DNS, TCP, TLS, or other connection setup time
+  when those occur. The dollar translation uses a stated hourly rate and
+  threshold you can change.
 - **Receipts are not yet tamper-evident.** Events are stored as plain
   append files; a receipt is an honest summary of local data, not yet a
   cryptographically verifiable artifact.

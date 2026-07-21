@@ -1,6 +1,7 @@
 import type { CanonicalEventV1 } from "./canonical-event.js";
 export type LatencyInteractionClass = "interactive_streaming" | "batch";
 export type LatencyReasoningClass = "reasoning" | "non_reasoning";
+export type LatencyDefaultTimingAttribution = "provider_elapsed" | "gateway_total_elapsed";
 export type LatencySegmentId = "interactive_streaming_non_reasoning" | "interactive_streaming_reasoning" | "batch_non_reasoning" | "batch_reasoning";
 export type LatencyMetricGrade = "good" | "degraded" | "loss" | "not_exercised";
 export interface LatencySegmentSelection {
@@ -24,6 +25,13 @@ export interface LatencyDefaultEvaluation {
     readonly thresholds: LatencyDefaultThresholds;
     readonly observed: {
         readonly totalMs: number;
+        readonly timingAttribution: LatencyDefaultTimingAttribution;
+        readonly clockLabel: "provider-clock" | "gateway-clock";
+        readonly gatewayTotalMs: number;
+        readonly providerElapsedMs: number | null;
+        readonly gatewayOverheadMs: number | null;
+        readonly openRouterEvidenceFetchMs: number | null;
+        readonly nonProviderDiagnosticSegments: readonly LatencyDiagnosticSegment[];
         readonly firstResultMs: number | null;
         readonly outputTokens: number;
         readonly outputTokensPerSecond: number | null;
@@ -39,24 +47,29 @@ export interface LatencyDefaultEvaluation {
     };
     readonly notExercisedLabel?: string;
 }
+export interface LatencyDiagnosticSegment {
+    readonly segmentId: "gateway_overhead" | "openrouter_endpoint_evidence_fetch";
+    readonly elapsedMs: number;
+    readonly providerAttributed: false;
+}
 export declare const SLA_DEFAULTS: {
-    readonly standardVersion: "sla-defaults-2026-07-03-user-approved";
+    readonly standardVersion: "sla-defaults-2026-07-20-maintainer-signed";
     readonly signoff: {
-        readonly signedOffBy: "user";
-        readonly signedOffAt: "2026-07-03";
-        readonly numbersShipAs: "approved";
+        readonly signedOffBy: "Inferock maintainers";
+        readonly signedOffAt: "2026-07-20";
+        readonly numbersShipAs: "maintainer-signed provisional default";
     };
     readonly evidenceGrades: {
-        readonly unrecognizedStandardLoss: "standard-defined loss, provider-unrecognized (owed by Inferock Standard; not yet provider-recognized)";
+        readonly unrecognizedStandardLoss: "standard-defined loss, not provider-confirmed (owed by Inferock Standard; not yet credited by a provider)";
     };
     readonly timeValueRate: {
         readonly usdPerHour: 92;
         readonly currency: "USD";
         readonly unit: "hour";
-        readonly label: "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)";
+        readonly label: "Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-confirmed loss (default — override)";
         readonly oneLineWhy: "BLS median software developer wage, loaded by BLS private-industry benefit share.";
         readonly sourceIds: readonly ["BLS-OOH", "BLS-OEWS-2080", "BLS-ECEC"];
-        readonly sourceNote: "This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-recognized. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.";
+        readonly sourceNote: "This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-confirmed. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.";
         readonly signoffRequired: false;
         readonly overrideKey: "time_value_usd_per_hour";
         readonly excessOnly: true;
@@ -169,13 +182,13 @@ export declare const SLA_DEFAULTS: {
         readonly "ANTHROPIC-THINKING": "Anthropic extended-thinking behavior.";
         readonly "ANTHROPIC-CONTEXT": "Anthropic thinking tokens and context accounting.";
         readonly "ANTHROPIC-BATCH": "Anthropic batch completion and expiry windows.";
-        readonly "LOCAL-LATENCY": "Existing local latency default in packages/measure/src/latency.ts.";
+        readonly "LOCAL-LATENCY": "Inferock provisional default (pending external calibration).";
         readonly "BLS-OOH": "BLS May 2024 software developer median annual wage.";
         readonly "BLS-OEWS-2080": "BLS 2,080-hour annual wage conversion.";
         readonly "BLS-ECEC": "BLS private-industry wage and benefit share.";
     };
 };
-export declare const SLA_STANDARD_VERSION: "sla-defaults-2026-07-03-user-approved";
+export declare const SLA_STANDARD_VERSION: "sla-defaults-2026-07-20-maintainer-signed";
 export declare const DEFAULT_TIME_VALUE_USD_PER_HOUR: 92;
 export declare const UNRECOGNIZED_STANDARD_LOSS_EVIDENCE_GRADE = "unrecognized_standard_loss";
 export declare function selectDefaultLatencySegment(event: CanonicalEventV1): LatencySegmentSelection;

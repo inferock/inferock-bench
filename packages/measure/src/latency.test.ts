@@ -48,7 +48,7 @@ describe("latency detector", () => {
         sloEffectiveFrom: "2026-01-01T00:00:00.000Z",
         route: "chat.completions",
         workloadClass: "interactive",
-        coldStartExcluded: true,
+        coldStartExcluded: false,
       },
       valueJson: {
         latencyMs: 31_000,
@@ -253,8 +253,12 @@ describe("latency detector", () => {
       },
       timing: {
         startedAt: "2026-06-14T12:00:00.000Z",
-        endedAt: "2026-06-14T12:01:27.700Z",
-        latencyMs: 87_700,
+        providerRequestStartedAt: "2026-06-14T12:00:00.000Z",
+        providerResponseEndedAt: "2026-06-14T12:01:27.700Z",
+        endedAt: "2026-06-14T12:02:00.000Z",
+        latencyMs: 120_000,
+        providerElapsedMs: 87_700,
+        gatewayOverheadMs: 32_300,
       },
     });
     const signal = detectLatencyBilled(event, {
@@ -270,13 +274,25 @@ describe("latency detector", () => {
       providerRecoverableLossUsd: 0,
       valueJson: {
         latencyMs: 87_700,
-        timingAttribution: "gateway_total_elapsed",
+        timingAttribution: "provider_elapsed",
+        timingClockLabel: "provider-clock",
+        providerElapsedMs: 87_700,
+        gatewayTotalMs: 120_000,
+        gatewayElapsedMs: 120_000,
+        gatewayOverheadMs: 32_300,
+        providerRequestStartedAt: "2026-06-14T12:00:00.000Z",
         sloMs: 10_000,
         excessWaitMs: 77_700,
         providerRecognizedLossUsd: 0,
       },
       evidence: {
-        timingAttribution: "gateway_total_elapsed",
+        timingAttribution: "provider_elapsed",
+        timingClockLabel: "provider-clock",
+        providerElapsedMs: 87_700,
+        gatewayTotalMs: 120_000,
+        gatewayElapsedMs: 120_000,
+        gatewayOverheadMs: 32_300,
+        providerRequestStartedAt: "2026-06-14T12:00:00.000Z",
         activeLatencySegment: {
           segmentId: "interactive_streaming_non_reasoning",
         },
@@ -286,9 +302,14 @@ describe("latency detector", () => {
         },
         computationTrace: {
           methodId: "latency_excess_v1",
-          methodVersion: "2026-07-03",
+          methodVersion: "2026-07-20",
           inputs: {
-            observedTotalMs: 87_700,
+            observedDefaultLatencyMs: 87_700,
+            timingAttribution: "provider_elapsed",
+            timingClockLabel: "provider-clock",
+            gatewayTotalMs: 120_000,
+            gatewayElapsedMs: 120_000,
+            providerRequestStartedAt: "2026-06-14T12:00:00.000Z",
             acceptableTotalMs: 10_000,
             rateUsdPerHour: 92,
           },
@@ -307,6 +328,43 @@ describe("latency detector", () => {
     expect(signal?.valueJson.recognitionGapUsd).toBeCloseTo(1.985667, 6);
   });
 
+  it("latency-default-provider-clean: does not count gateway overhead as provider default latency", () => {
+    const event = slowPricedEvent({
+      usage: {
+        input: 100,
+        output: 0,
+      },
+      timing: {
+        startedAt: "2026-06-14T12:00:00.000Z",
+        providerRequestStartedAt: "2026-06-14T12:01:51.000Z",
+        providerResponseEndedAt: "2026-06-14T12:02:00.000Z",
+        endedAt: "2026-06-14T12:02:00.000Z",
+        latencyMs: 120_000,
+        providerElapsedMs: 9_000,
+        gatewayOverheadMs: 111_000,
+      },
+    });
+
+    const evaluation = evaluateDefaultLatency(event);
+    expect(evaluation.observed).toMatchObject({
+      totalMs: 9_000,
+      timingAttribution: "provider_elapsed",
+      clockLabel: "provider-clock",
+      providerElapsedMs: 9_000,
+      gatewayTotalMs: 120_000,
+      gatewayOverheadMs: 111_000,
+      nonProviderDiagnosticSegments: [{
+        segmentId: "gateway_overhead",
+        elapsedMs: 111_000,
+        providerAttributed: false,
+      }],
+    });
+    expect(evaluation.excessMs).toBe(0);
+    expect(detectLatencyBilled(event, {
+      latencySloPolicy: defaultLatencySloPolicyForEvent(event),
+    })).toBeNull();
+  });
+
   it("latency-time-loss-primitive: persists time as primary and dollars as secondary translation", () => {
     const event = slowPricedEvent({
       usage: {
@@ -317,6 +375,8 @@ describe("latency detector", () => {
         startedAt: "2026-06-14T12:00:00.000Z",
         endedAt: "2026-06-14T12:01:27.700Z",
         latencyMs: 87_700,
+        providerElapsedMs: 87_700,
+        gatewayOverheadMs: 0,
       },
     });
     const signal = detectLatencyBilled(event, {
@@ -332,11 +392,14 @@ describe("latency detector", () => {
         timeLossMs: 77_700,
         timeLossSeconds: 77.7,
         observedMs: 87_700,
-        timingAttribution: "gateway_total_elapsed",
+        timingAttribution: "provider_elapsed",
+        timingClockLabel: "provider-clock",
+        providerElapsedMs: 87_700,
+        gatewayElapsedMs: 87_700,
         acceptableMs: 10_000,
         excessMs: 77_700,
         thresholdProposalId: "inferock-default:interactive_streaming_non_reasoning",
-        thresholdSourceLabel: "The Inferock Standard default threshold proposal",
+        thresholdSourceLabel: "Inferock provisional default (pending external calibration)",
         thresholdConfirmed: false,
         dollarTranslationUsd: expect.any(Number),
         dollarTranslationRateUsdPerHour: SLA_DEFAULTS.timeValueRate.usdPerHour,
@@ -345,7 +408,7 @@ describe("latency detector", () => {
         providerRecognizedCreditUsd: null,
         recognitionGapTimeMs: 77_700,
         providerRecognitionLine:
-          "Provider-recognized: no configured provider latency credit basis for this receipt",
+          "Estimated recoverable (our arithmetic): no configured provider latency credit basis for this receipt",
         timeLossTrace: {
           methodId: "latency_excess_v1",
           outputs: {
@@ -356,6 +419,68 @@ describe("latency detector", () => {
       },
     });
     expect(signal?.valueJson.dollarTranslationUsd).toBeCloseTo(1.985667, 6);
+  });
+
+  it("latency-default-uses-provider-clock-when-provider-elapsed-exists", () => {
+    const event = slowPricedEvent({
+      usage: {
+        input: 100,
+        output: 0,
+      },
+      timing: {
+        startedAt: "2026-06-14T12:00:00.000Z",
+        endedAt: "2026-06-14T12:01:30.000Z",
+        latencyMs: 90_000,
+        providerRequestStartedAt: "2026-06-14T12:00:30.000Z",
+        providerResponseEndedAt: "2026-06-14T12:00:50.000Z",
+        providerElapsedMs: 20_000,
+      },
+    });
+    const signal = detectLatencyBilled(event, {
+      latencySloPolicy: defaultLatencySloPolicyForEvent(event),
+    });
+
+    expect(signal).toMatchObject({
+      valueJson: {
+        timeLossMs: 10_000,
+        observedMs: 20_000,
+        gatewayElapsedMs: 90_000,
+        providerElapsedMs: 20_000,
+        timingAttribution: "provider_elapsed",
+        timingClockLabel: "provider-clock",
+        providerRequestStartedAt: "2026-06-14T12:00:30.000Z",
+      },
+      evidence: {
+        timingAttribution: "provider_elapsed",
+        timingClockLabel: "provider-clock",
+        observedLatency: {
+          totalMs: 20_000,
+          clockLabel: "provider-clock",
+        },
+      },
+    });
+    expect(signal?.valueJson.dollarTranslationUsd).toBeCloseTo(0.255556, 6);
+  });
+
+  it("latency-default-provider-clock-below-threshold-suppresses-gateway-delay", () => {
+    const event = slowPricedEvent({
+      usage: {
+        input: 100,
+        output: 0,
+      },
+      timing: {
+        startedAt: "2026-06-14T12:00:00.000Z",
+        endedAt: "2026-06-14T12:01:30.000Z",
+        latencyMs: 90_000,
+        providerRequestStartedAt: "2026-06-14T12:00:30.000Z",
+        providerResponseEndedAt: "2026-06-14T12:00:35.000Z",
+        providerElapsedMs: 5_000,
+      },
+    });
+
+    expect(detectLatencyBilled(event, {
+      latencySloPolicy: defaultLatencySloPolicyForEvent(event),
+    })).toBeNull();
   });
 
   it("latency-threshold-edit-reprices-time-and-dollar-translation-while-rate-only-reprices-dollar", () => {
@@ -434,6 +559,7 @@ describe("latency detector", () => {
       },
       timing: {
         latencyMs: 499_999,
+        providerElapsedMs: 499_999,
       },
     }));
     const batch = evaluateDefaultLatency(slowPricedEvent({
@@ -446,6 +572,7 @@ describe("latency detector", () => {
       },
       timing: {
         latencyMs: 3_600_001,
+        providerElapsedMs: 3_600_001,
       },
     }));
 

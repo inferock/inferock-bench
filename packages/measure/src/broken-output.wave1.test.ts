@@ -212,9 +212,9 @@ describe("wave1 broken-output signal economics", () => {
     expect(signal?.evidence.registeredVsSentSchemaDelta).toBeUndefined();
   });
 
-  it("truncation-absent-generation-refundable-with-auditable-missing-cap-evidence", () => {
-    // Caller-cap correction: absent generation capture stays refundable by policy,
-    // but evidence must disclose that the caller cap was not captured.
+  it("truncation-absent-generation-without-contract-is-ambiguous-triage", () => {
+    // Without caller-cap capture or a task contract, a length/max_tokens stop is
+    // evidence for review, not proof of provider-owned non-delivery.
     const signal = detectBrokenOutput(buildCanonicalEvent({
       request: {
         tenantId: TENANT_ID,
@@ -234,17 +234,78 @@ describe("wave1 broken-output signal economics", () => {
 
     expect(signal).toMatchObject({
       code: "TRUNCATED",
-      failureClass: "truncation",
-      status: "candidate",
-      evidenceGrade: "refundable_candidate",
-      creditCandidate: true,
-      pricingStatus: "priced",
+      failureClass: null,
+      status: "triage_only",
+      evidenceGrade: "triage_only",
+      severity: "warning",
+      creditCandidate: false,
+      dispute: false,
+      liabilityParty: "unknown",
+      valueKind: "triage",
+      recoverableBasis: null,
+      observedChargeUsd: null,
+      expectedChargeUsd: null,
+      providerRecoverableLossUsd: 0,
+      pricingVersion: null,
+      pricingStatus: "not_priced",
       evidence: {
         finishReason: "max_tokens",
         outputTokens: 12,
         generationCaptured: false,
         callerCapCaptured: false,
         verdict: "no_captured_caller_cap",
+        recoverability: "triage_only_ambiguous_truncation",
+        standardLossEligible: false,
+        standardLossEligibility: "ambiguous_truncation_triage",
+      },
+    });
+  });
+
+  it("truncation-registered-output-contract-remains-floor-eligible-with-missing-cap-disclosure", () => {
+    registerOutputSchema({
+      tenantId: TENANT_ID,
+      schemaVersion: OUTPUT_SCHEMA_VERSION,
+      schema: OUTPUT_SCHEMA,
+    });
+
+    const signal = detectBrokenOutput(buildCanonicalEvent({
+      request: {
+        tenantId: TENANT_ID,
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-latest",
+        requestId: "req-truncated-contract-wave1",
+      },
+      response: {
+        finishReason: "max_tokens",
+        content: "{\"answer\":\"partial",
+      },
+      usage: {
+        input: 100,
+        output: 12,
+      },
+      meta: {
+        outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+      },
+    }));
+
+    expect(signal).toMatchObject({
+      code: "TRUNCATED",
+      failureClass: "truncation",
+      status: "candidate",
+      evidenceGrade: "refundable_candidate",
+      creditCandidate: true,
+      evidence: {
+        finishReason: "max_tokens",
+        outputTokens: 12,
+        generationCaptured: false,
+        callerCapCaptured: false,
+        verdict: "no_captured_caller_cap",
+        standardLossEligible: true,
+        standardLossEligibility: "task_contract_truncation",
+        taskContractEvidence: {
+          kind: "registered_output_schema",
+          outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+        },
       },
     });
     expect(signal?.providerRecoverableLossUsd).toBeGreaterThan(0);
@@ -304,6 +365,8 @@ describe("wave1 broken-output signal economics", () => {
         callerMaxField,
         callerMaxParam,
         verdict: "caller_cap_hit",
+        standardLossEligible: false,
+        standardLossEligibility: "caller_cap_hit_triage",
       },
     });
   });
@@ -343,6 +406,8 @@ describe("wave1 broken-output signal economics", () => {
         callerMaxField: "maxCompletionTokens",
         callerMaxParam: "max_completion_tokens",
         verdict: "provider_stopped_before_caller_cap",
+        standardLossEligible: true,
+        standardLossEligibility: "provider_stopped_before_caller_cap",
       },
     });
     expect(signal?.providerRecoverableLossUsd).toBeGreaterThan(0);

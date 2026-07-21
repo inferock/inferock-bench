@@ -57,6 +57,8 @@ export interface AgentProcessBudgetResult {
   readonly concurrencyLimit: number;
   readonly elapsedMs: number;
   readonly budgetBoundedReason?: "max_calls" | "max_wall_time";
+  readonly abortOrigin?: "local_harness";
+  readonly abortReason?: "max_calls" | "max_wall_time";
 }
 
 export interface AgentCoverageSuiteRunInput {
@@ -351,6 +353,9 @@ export async function runAgentProcessWithBudget(input: {
       concurrencyLimit: input.callBudget?.concurrencyLimit ?? AGENT_ORGANIC_CALL_CONCURRENCY_LIMIT,
       elapsedMs: Math.max(0, now() - startedAt),
       ...(budgetBoundedReason ? { budgetBoundedReason } : {}),
+      ...(budgetBoundedReason
+        ? { abortOrigin: "local_harness" as const, abortReason: budgetBoundedReason }
+        : {}),
     };
   } finally {
     clearTimeout(timer);

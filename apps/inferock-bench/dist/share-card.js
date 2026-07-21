@@ -3,8 +3,9 @@ import { formatApproxTimeLost } from "@inferock/measure/time-loss";
 import { LEGACY_SPEEDTEST_RECEIPT_SCHEMA_VERSION, SPEEDTEST_RECEIPT_SCHEMA_VERSION, } from "./receipt-schema.js";
 import { migrateReceiptBundle, } from "./receipt.js";
 import { migrateSpeedTestReceiptBundle } from "./coverage-suite/runner.js";
+import { reconciledApproxTimePartition, reconciledUsdPartition, } from "./display-partition.js";
 import { ensurePrivateDir, writePrivateTextFile } from "./private-files.js";
-import { formatUsd, moneyLossObservedSpendLine, moneyLossObservedSpendPercentFromLine } from "./summary.js";
+import { ESTIMATED_RECOVERABLE_LABEL, ESTIMATED_RECOVERABLE_TIME_LABEL, formatUsd, moneyLossObservedSpendLine, moneyLossObservedSpendPercentFromLine, timeValueRateUseLabel, } from "./summary.js";
 export const SHARE_CARD_FOOTER = "github.com/inferock/inferock-bench";
 const DEFAULT_CARD_WIDTH = 68;
 const MIN_CARD_WIDTH = 48;
@@ -16,6 +17,7 @@ export function createShareCardModel(receipt) {
     const totals = recordValue(normalized.totals);
     const money = recordValue(totals?.money);
     const duration = recordValue(totals?.duration);
+    const durationRate = recordValue(duration?.rate);
     const providerSpend = numberValue(totals?.providerSpendUsd) ?? numberValue(money?.providerSpendUsd);
     const rawStandardLoss = numberValue(money?.standardLossUsd);
     const standardLoss = billBoundedStandardLoss(rawStandardLoss, providerSpend);
@@ -27,10 +29,28 @@ export function createShareCardModel(receipt) {
         providerRecognized,
         explicitRecognitionGap,
     });
+    const moneySplit = standardLoss !== null && providerRecognized !== null && recognitionGap !== null
+        ? reconciledUsdPartition({
+            total: standardLoss,
+            parts: [
+                { key: "providerRecognized", value: providerRecognized },
+                { key: "recognitionGap", value: recognitionGap },
+            ],
+        })
+        : null;
     const timeLossMs = numberValue(duration?.timeLossMs);
     const providerRecognizedTimeLossMs = numberValue(duration?.providerRecognizedTimeLossMs);
     const explicitTimeGapMs = numberValue(duration?.recognitionGapTimeMs);
     const timeGapMs = explicitTimeGapMs ?? derivedGap(timeLossMs, providerRecognizedTimeLossMs);
+    const timeSplit = timeLossMs !== null && providerRecognizedTimeLossMs !== null && timeGapMs !== null
+        ? reconciledApproxTimePartition({
+            totalMs: timeLossMs,
+            parts: [
+                { key: "providerRecognized", value: providerRecognizedTimeLossMs },
+                { key: "timeGap", value: timeGapMs },
+            ],
+        })
+        : null;
     const dollarTranslation = numberValue(duration?.dollarTranslationUsd);
     const rows = (normalized.rows ?? []).map((row) => row);
     const cacheDiscountExposure = cacheDiscountExposureTotal(normalized.exposures);
@@ -49,11 +69,13 @@ export function createShareCardModel(receipt) {
             spendShare,
         }),
         receiptLabel: receiptLabel(normalized),
-        standardLoss: standardLossLine(standardLoss, pricingUnknownCount),
+        standardLoss: standardLossLine(standardLoss, pricingUnknownCount, moneySplit?.total),
         providerRecognized: providerRecognized === null
-            ? "provider-recognized not in receipt"
-            : formatShareUsd(providerRecognized),
-        recognitionGap: recognitionGap === null ? "gap not in receipt" : formatShareUsd(recognitionGap),
+            ? "estimated recoverable not in receipt"
+            : moneySplit?.parts.providerRecognized ?? formatShareUsd(providerRecognized),
+        recognitionGap: recognitionGap === null
+            ? "gap not in receipt"
+            : moneySplit?.parts.recognitionGap ?? formatShareUsd(recognitionGap),
         ...(spendShare ? { spendShare } : {}),
         ...(cacheDiscountExposure !== null
             ? {
@@ -62,20 +84,23 @@ export function createShareCardModel(receipt) {
             : {}),
         ...(timeLossMs && timeLossMs > 0
             ? {
-                timeLoss: formatApproxTimeLost(timeLossMs),
+                timeLoss: timeSplit?.total ?? formatApproxTimeLost(timeLossMs),
                 providerRecognizedTime: providerRecognizedTimeLossMs === null
                     ? "not in receipt"
-                    : formatApproxTimeLost(providerRecognizedTimeLossMs),
-                timeGap: timeGapMs === null ? "not in receipt" : formatApproxTimeLost(timeGapMs),
+                    : timeSplit?.parts.providerRecognized ?? formatApproxTimeLost(providerRecognizedTimeLossMs),
+                timeGap: timeGapMs === null ? "not in receipt" : timeSplit?.parts.timeGap ?? formatApproxTimeLost(timeGapMs),
                 ...(dollarTranslation !== null
-                    ? { timeTranslation: `approx ${formatShareUsd(dollarTranslation)} at your rate` }
+                    ? { timeTranslation: `approx ${formatShareUsd(dollarTranslation)} ${timeValueRateUseLabel(durationRate)}` }
                     : {}),
             }
             : {}),
         measuredCalls: measuredCalls === null ? "calls not in receipt" : integer(measuredCalls),
-        failures: failures === null ? "failures not in receipt" : integer(failures),
+        failures: failures === null ? "failure signals not in receipt" : integer(failures),
         keysStayedLocal: keysStayedLocal(normalized.locality),
         ...(coverageLine(normalized.coverage) ? { coverageLine: coverageLine(normalized.coverage) } : {}),
+        ...(providerScopeLine(normalized.providerScope)
+            ? { providerScopeLine: providerScopeLine(normalized.providerScope) }
+            : {}),
         topCause: topCause(rows, normalized.rows !== undefined),
         ...(selectedModels(normalized.run?.selectedModels).length > 0
             ? { selectedModels: selectedModels(normalized.run?.selectedModels) }
@@ -90,13 +115,14 @@ export function renderShareCard(model, options = {}) {
         wrapLine(model.headline, innerWidth),
         [
             `standard loss: ${model.standardLoss}`,
-            `provider-recognized: ${model.providerRecognized}`,
+            `${ESTIMATED_RECOVERABLE_LABEL}: ${model.providerRecognized}`,
             `recognition gap: ${model.recognitionGap}`,
             ...(model.cacheDiscountExposure ? [model.cacheDiscountExposure] : []),
             ...(model.spendShare ? [model.spendShare] : []),
         ],
         timeLines(model),
         wrapLine(runFacts(model), innerWidth),
+        model.providerScopeLine ? wrapLine(model.providerScopeLine, innerWidth) : [],
         model.coverageLine ? wrapLine(model.coverageLine, innerWidth) : [],
         model.selectedModels?.length ? wrapLine(`models: ${model.selectedModels.join(", ")}`, innerWidth) : [],
         wrapLine(`top cause: ${model.topCause}`, innerWidth),
@@ -154,7 +180,7 @@ function normalizeReceipt(receipt) {
 }
 function headlineFor(input) {
     return [
-        `spent ${input.providerSpend === null ? "not in receipt" : formatShareUsd(input.providerSpend)}`,
+        `priced spend ${input.providerSpend === null ? "not in receipt" : formatShareUsd(input.providerSpend)}`,
         `money loss ${moneyLossHeadlineValue(input.standardLoss, input.pricingUnknownCount, input.spendShare)}`,
         `time loss ${input.timeLossMs === null ? "not in receipt" : formatApproxTimeLost(input.timeLossMs)}`,
         `invoice-check exposure ${formatShareUsd(input.invoiceCheckExposure)}`,
@@ -206,6 +232,19 @@ function keysStayedLocal(locality) {
     const record = recordValue(locality);
     return record?.providerKeysSentToInferock === false && record.rawReceiptsSentToInferock === false;
 }
+function providerScopeLine(providerScope) {
+    const record = recordValue(providerScope);
+    if (!record)
+        return null;
+    const parallelProviderCount = numberValue(record.parallelProviderCount);
+    if (parallelProviderCount === null)
+        return null;
+    const contention = booleanValue(record.localContentionPossible) ?? parallelProviderCount > 1;
+    return [
+        `provider scope ${integer(parallelProviderCount)} parallel`,
+        contention ? "local contention possible" : "no local contention",
+    ].join(" · ");
+}
 function topCause(rows, rowsPresent) {
     if (!rowsPresent)
         return "failure rows not in receipt";
@@ -215,7 +254,7 @@ function topCause(rows, rowsPresent) {
     if (!selected)
         return "none in this receipt";
     const name = selected.failureClass || selected.code;
-    return `${name} · ${integer(selected.count)} ${selected.count === 1 ? "call" : "calls"} · ${primaryImpact(selected)}`;
+    return `${name} · ${integer(selected.count)} ${selected.count === 1 ? "signal" : "signals"} · ${primaryImpact(selected)}`;
 }
 function compareImpact(left, right) {
     return impactScore(right) - impactScore(left);
@@ -228,8 +267,10 @@ function impactScore(row) {
     return row.pricingUnknownCount > 0 ? 0.000001 : 0;
 }
 function primaryImpact(row) {
-    if (row.primaryValueKind === "time_loss")
-        return formatApproxTimeLost(row.timeLossMs);
+    if (row.primaryValueKind === "time_loss") {
+        const clock = row.timeLossClockLabel ? ` (${row.timeLossClockLabel})` : "";
+        return `${formatApproxTimeLost(row.timeLossMs)}${clock}`;
+    }
     if (row.pricingUnknownCount > 0 && row.standardLossUsd === 0) {
         return "pricing unknown — add model price";
     }
@@ -257,15 +298,15 @@ function invoiceCheckExposureTotal(exposures) {
         .filter((amount) => amount > 0)
         .reduce((sum, amount) => sum + amount, 0);
 }
-function standardLossLine(standardLoss, pricingUnknownCount) {
+function standardLossLine(standardLoss, pricingUnknownCount, displayedStandardLoss) {
     if (pricingUnknownCount > 0 && (standardLoss ?? 0) === 0)
         return "pricing unknown - add model price";
     if (standardLoss === null)
         return "standard loss not in receipt";
     if (pricingUnknownCount > 0) {
-        return `${formatShareUsd(standardLoss)} (+${integer(pricingUnknownCount)} unpriced failures)`;
+        return `${displayedStandardLoss ?? formatShareUsd(standardLoss)} (+${integer(pricingUnknownCount)} unpriced failure signals)`;
     }
-    return formatShareUsd(standardLoss);
+    return displayedStandardLoss ?? formatShareUsd(standardLoss);
 }
 function billBoundedStandardLoss(standardLoss, providerSpend) {
     if (standardLoss === null || providerSpend === null)
@@ -305,7 +346,7 @@ function timeLines(model) {
         return [];
     return [
         `time lost: ${model.timeLoss}`,
-        `provider-recognized time: ${model.providerRecognizedTime ?? "not in receipt"}`,
+        `${ESTIMATED_RECOVERABLE_TIME_LABEL}: ${model.providerRecognizedTime ?? "not in receipt"}`,
         `time gap: ${model.timeGap ?? "not in receipt"}`,
         ...(model.timeTranslation ? [model.timeTranslation] : []),
     ];
@@ -313,7 +354,7 @@ function timeLines(model) {
 function runFacts(model) {
     return [
         `${model.measuredCalls} calls`,
-        `${model.failures} failures`,
+        `${model.failures} failure signals`,
         ...(model.keysStayedLocal ? ["keys stayed local"] : []),
     ].join(" · ");
 }
@@ -385,5 +426,8 @@ function stringValue(value) {
 }
 function numberValue(value) {
     return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+function booleanValue(value) {
+    return typeof value === "boolean" ? value : null;
 }
 //# sourceMappingURL=share-card.js.map

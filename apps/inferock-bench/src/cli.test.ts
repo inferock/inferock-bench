@@ -432,7 +432,7 @@ describe("cli", () => {
     });
 
     const output = lines.join("\n");
-    expect(cardText(output)).toContain("spent $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
+    expect(cardText(output)).toContain("priced spend $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
     expect(output).toContain("github.com/inferock/inferock-bench");
     expect(output).toContain("Share card: receipts/share-card-");
     expect(output).not.toContain(home);

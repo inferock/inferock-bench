@@ -4,6 +4,7 @@ import {
   CanonicalEventAny,
   CanonicalEventV1,
   CanonicalEventV2,
+  canonicalEventErrorOrigin,
   normalizeCanonicalEvent,
   type CanonicalEventV2 as CanonicalEventV2Type,
 } from "./canonical-event.js";
@@ -150,6 +151,37 @@ describe("CanonicalEventV2", () => {
 
     expect(CanonicalEventV2.parse(event)).toEqual(event);
     expect(CanonicalEventAny.parse(event)).toEqual(event);
+  });
+
+  it("canonical-event-error-origin: preserves local-origin error evidence on response and attempt", () => {
+    const event: CanonicalEventV2Type = {
+      ...minimalV2Event(),
+      response: {
+        ...minimalV2Event().response,
+        statusCode: 429,
+        finishReason: "error",
+        content: "",
+        errorClass: "http_429:agent_call_budget_exhausted",
+        errorOrigin: "local",
+      },
+      timing: {
+        ...minimalV2Event().timing,
+        terminalStatus: "error",
+      },
+      attempts: [
+        {
+          ...minimalV2Event().attempts[0],
+          status: "error",
+          errorClass: "http_429:agent_call_budget_exhausted",
+          errorOrigin: "local",
+        },
+      ],
+    };
+
+    expect(CanonicalEventV2.parse(event).response.errorOrigin).toBe("local");
+    const normalized = normalizeCanonicalEvent(event);
+    expect(canonicalEventErrorOrigin(normalized)).toBe("local");
+    expect(normalized.attempts[0]?.errorOrigin).toBe("local");
   });
 
   it("canonical-event-v2-gemini-provider: parses Gemini provider and generateContent surface", () => {
@@ -475,11 +507,13 @@ describe("CanonicalEventV2", () => {
     expect(normalized.timing.providerResponseEndedAt).toBe("2026-06-14T12:00:01.210Z");
     expect(normalized.timing.providerElapsedMs).toBe(1200);
     expect(normalized.timing.gatewayOverheadMs).toBe(50);
+    expect(normalized.timing.clientConsumptionEndedAt).toBe("2026-06-14T12:00:03.000Z");
     expect(normalized.attempts[1]?.timing).toMatchObject({
       providerRequestStartedAt: "2026-06-14T12:00:00.010Z",
       providerResponseEndedAt: "2026-06-14T12:00:01.210Z",
       providerElapsedMs: 1200,
       gatewayOverheadMs: 50,
+      clientConsumptionEndedAt: "2026-06-14T12:00:03.000Z",
     });
     expect(normalized.meta).toEqual({
       attemptIndex: 1,
@@ -703,6 +737,7 @@ function fullV2Event(): CanonicalEventV2Type {
       lastChunkAt: "2026-06-14T12:00:01.200Z",
       providerResponseEndedAt: "2026-06-14T12:00:01.210Z",
       endedAt: "2026-06-14T12:00:01.250Z",
+      clientConsumptionEndedAt: "2026-06-14T12:00:03.000Z",
       latencyMs: 1250,
       providerElapsedMs: 1200,
       gatewayOverheadMs: 50,
@@ -746,6 +781,7 @@ function fullV2Event(): CanonicalEventV2Type {
           providerRequestStartedAt: "2026-06-14T12:00:00.010Z",
           providerResponseEndedAt: "2026-06-14T12:00:01.210Z",
           endedAt: "2026-06-14T12:00:01.250Z",
+          clientConsumptionEndedAt: "2026-06-14T12:00:03.000Z",
           latencyMs: 1250,
           providerElapsedMs: 1200,
           gatewayOverheadMs: 50,

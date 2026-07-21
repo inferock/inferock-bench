@@ -54,7 +54,14 @@ import {
   runSecurityDetectors,
   type SecuritySignal,
 } from "@inferock/measure/security";
-import { runStreamTerminationDetectors } from "@inferock/measure/stream-termination";
+import {
+  runStreamTerminationDetectors,
+  type StreamTerminationSignal,
+} from "@inferock/measure/stream-termination";
+import {
+  reconciledApproxTimePartition,
+  reconciledUsdPartition,
+} from "./display-partition.js";
 import type {
   BenchConfig,
   CoverageTestConfig,
@@ -92,15 +99,19 @@ export interface ReportRow {
   readonly primaryValueKind: "money" | "time_loss";
   readonly standardLossUsd: number;
   readonly providerRecognizedUsd: number;
+  readonly providerRecognizedLabel?: string;
   readonly recognitionGapUsd: number;
   readonly unrecognizedUsd: number;
   readonly timeLossMs: number;
   readonly providerRecognizedTimeLossMs: number;
+  readonly providerRecognizedTimeLossLabel?: string;
   readonly recognitionGapTimeMs: number;
   readonly dollarTranslationUsd: number | null;
+  readonly invoiceCheckExposureUsd?: number;
   readonly thresholdSnapshot?: Record<string, unknown>;
   readonly rateSnapshot?: Record<string, unknown>;
   readonly timeLossTrace?: Record<string, unknown>;
+  readonly timeLossClockLabel?: string;
   readonly providerRecognitionLine?: string;
   readonly legacyCompatibilityLabel?: string;
   readonly pricingUnknownCount: number;
@@ -108,10 +119,28 @@ export interface ReportRow {
 }
 
 export interface BenchExposure {
-  readonly class: "cache_discount_at_risk";
+  readonly class: "cache_discount_at_risk" | "external_audit_projection";
   readonly amount: number;
   readonly count: number;
-  readonly guidance: "verify your invoice";
+  readonly guidance: "verify your invoice" | "review against invoice evidence and real measured run cards";
+}
+
+export interface IllustrativeProjectionLink {
+  readonly label: string;
+  readonly href: string;
+}
+
+export interface IllustrativeProjection {
+  readonly label: string;
+  readonly projectionLine: string;
+  readonly recoverableLine: string;
+  readonly sourceLine: string;
+  readonly precisionLine: string;
+  readonly notMeasuredLine: string;
+  readonly basisLinkText: string;
+  readonly basisHref: string;
+  readonly actualRunsLinkText: string;
+  readonly actualRuns: readonly IllustrativeProjectionLink[];
 }
 
 export type BenchMeasureVerdict = "signal" | "exercised" | "not_exercised";
@@ -235,8 +264,11 @@ export interface BenchSlaAssumptions {
 export interface BenchSummary {
   readonly period: ReportPeriod;
   readonly measuredCalls: number;
+  readonly localOriginErrorCount: number;
   readonly failureCount: number;
+  readonly failureCountLabel?: string;
   readonly providerSpendUsd: number;
+  readonly providerSpendUsdLabel?: string;
   readonly moneyLossObservedSpendLine: string | null;
   readonly moneyTotals: BenchMoneyTotals;
   readonly durationTotals: BenchDurationTotals;
@@ -251,19 +283,23 @@ export interface BenchSummary {
   readonly measures: readonly BenchMeasureRow[];
   readonly coverage: CoverageSummary;
   readonly slaAssumptions: BenchSlaAssumptions;
+  readonly illustrativeProjection?: IllustrativeProjection;
 }
 
 export interface BenchMoneyTotals {
   readonly standardLossUsd: number;
   readonly providerRecognizedUsd: number;
+  readonly providerRecognizedLabel?: string;
   readonly recognitionGapUsd: number;
   readonly unrecognizedUsd: number;
   readonly providerSpendUsd: number;
+  readonly providerSpendUsdLabel?: string;
 }
 
 export interface BenchDurationTotals {
   readonly timeLossMs: number;
   readonly providerRecognizedTimeLossMs: number;
+  readonly providerRecognizedTimeLossLabel?: string;
   readonly recognitionGapTimeMs: number;
   readonly dollarTranslationUsd: number;
   readonly rate: BenchSlaAssumptions["timeValueRate"];
@@ -290,6 +326,7 @@ interface EventWithSignals {
 
 interface SummarySignalSource {
   readonly events: readonly CanonicalEventNormalized[];
+  readonly localOriginErrorCount: number;
   readonly suiteTaskIds: readonly string[];
   readonly eventsWithSignals: readonly EventWithSignals[];
   readonly signalEntries: readonly SummarySignalEntry[];
@@ -301,6 +338,11 @@ interface SummarySignalEntry {
   readonly signal: LossSignal;
 }
 
+interface CountedFailureSignalEntry {
+  readonly event: CanonicalEventNormalized;
+  readonly signal: CountedFailureSignal;
+}
+
 interface BillBoundedMoneySignalEntry {
   readonly offset: number;
   readonly signal: LossSignal;
@@ -310,6 +352,17 @@ interface BillBoundedMoneySignalEntry {
 
 type CountedFailureSignal = LossSignal & { readonly failureClass: string };
 type ChargeObservationMap = ReadonlyMap<string, BenchChargeObservation>;
+
+export interface TimeLossInterval {
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly groupKey?: string;
+}
+
+type ReportRowAccumulator = ReportRow & {
+  readonly howComputedSet: ReadonlySet<string>;
+  readonly timeLossIntervals?: readonly TimeLossInterval[];
+};
 
 interface SummaryContext {
   readonly coverageTest?: CoverageTestConfig;
@@ -335,6 +388,12 @@ interface BenchChargeObservation {
 
 const COVERAGE_SUITE_VERSION = "inferock-coverage-suite-v1";
 const COVERAGE_METHOD_VERSION = "inferock-bench-coverage-summary-v1";
+export const ESTIMATED_RECOVERABLE_LABEL = "estimated recoverable (our arithmetic)";
+export const ESTIMATED_RECOVERABLE_TIME_LABEL = "estimated recoverable time (our arithmetic)";
+export const FAILURE_SIGNAL_COUNT_LABEL = "failure signals";
+export const PROVIDER_SPEND_OBSERVED_LABEL = "provider spend observed (priced calls only)";
+export const PROVIDER_LATENCY_CLOCK_LABEL = "provider-clock";
+export const GATEWAY_LATENCY_CLOCK_LABEL = "gateway-clock";
 export const MONEY_LOSS_OBSERVED_SPEND_SMALL_SAMPLE_FLOOR_USD = 1;
 const TOOL_CALL_VALIDITY_SIGNAL_CODES = [
   "MALFORMED_TOOL_CALL",
@@ -528,9 +587,10 @@ export function summarizeBenchEvents(
   const signalSource = summarySignalSource(records, window, summaryContext);
   const events = signalSource.events;
   const signals = signalSource.signals;
-  const failureSignals = signals.filter(isCountedFailureSignal);
+  const failureSignalEntries = signalSource.signalEntries.filter(isCountedFailureSignalEntry);
+  const failureSignals = failureSignalEntries.map((entry) => entry.signal);
   const downtimeWindows = identifyDowntimeWindows(events);
-  const allRows = reportRows(failureSignals, downtimeWindows);
+  const allRows = reportRows(failureSignalEntries, downtimeWindows);
   const exposures = exposureTotalsForRows(allRows);
   const rows = standardReportRows(allRows);
   const moneyRows = rows.filter(isBillBoundedMoneyNativeRow);
@@ -543,18 +603,17 @@ export function summarizeBenchEvents(
   const moneyTotals: BenchMoneyTotals = {
     standardLossUsd,
     providerRecognizedUsd,
+    providerRecognizedLabel: ESTIMATED_RECOVERABLE_LABEL,
     recognitionGapUsd,
     unrecognizedUsd: recognitionGapUsd,
     providerSpendUsd,
+    providerSpendUsdLabel: PROVIDER_SPEND_OBSERVED_LABEL,
   };
-  const durationTotals: BenchDurationTotals = {
-    timeLossMs: sum(rows.map((row) => row.timeLossMs)),
-    providerRecognizedTimeLossMs: sum(rows.map((row) => row.providerRecognizedTimeLossMs)),
-    recognitionGapTimeMs: sum(rows.map((row) => row.recognitionGapTimeMs)),
-    dollarTranslationUsd: roundUsd(sum(rows.map((row) => row.dollarTranslationUsd ?? 0))),
-    rate: slaAssumptions.timeValueRate,
-    thresholds: slaAssumptions.activeLatencySegments,
-  };
+  const durationTotals = publicDurationTotals(
+    rows,
+    signalSource.signalEntries.filter((entry) => isCountedFailureSignal(entry.signal)),
+    slaAssumptions,
+  );
   const measures = measureRows(events, signals, summaryContext, signalSource.suiteTaskIds);
   const coverage = coverageSummary(measures, window.runId);
   const pricingUnknownCount = signals.filter((signal) =>
@@ -573,8 +632,11 @@ export function summarizeBenchEvents(
       until: (window.until ?? new Date()).toISOString(),
     },
     measuredCalls: events.length,
+    localOriginErrorCount: signalSource.localOriginErrorCount,
     failureCount: failureSignals.length,
+    failureCountLabel: FAILURE_SIGNAL_COUNT_LABEL,
     providerSpendUsd: moneyTotals.providerSpendUsd,
+    providerSpendUsdLabel: PROVIDER_SPEND_OBSERVED_LABEL,
     moneyLossObservedSpendLine: moneyLossSpendLine,
     moneyTotals,
     durationTotals,
@@ -593,11 +655,14 @@ export function summarizeBenchEvents(
 }
 
 export function renderLiveCounter(summary: BenchSummary): string {
-  const failures = summary.failureCount === 1 ? "1 failure" : `${summary.failureCount} failures`;
+  const failures = summary.failureCount === 1 ? "1 failure signal" : `${summary.failureCount} failure signals`;
   const lines = [
     `money loss so far: ${formatUsd(summary.moneyTotals.standardLossUsd)}`,
     `time lost so far: ${formatApproxTimeLost(summary.durationTotals.timeLossMs)}`,
     `measured ${summary.measuredCalls} calls, ${failures}`,
+    ...(summary.localOriginErrorCount > 0
+      ? [`local-origin errors excluded ${summary.localOriginErrorCount}`]
+      : []),
     `money recognition gap ${formatUsd(summary.moneyTotals.recognitionGapUsd)}`,
     `time recognition gap ${formatApproxTimeLost(summary.durationTotals.recognitionGapTimeMs)}`,
     renderCoverageSummaryLine(summary.coverage),
@@ -680,25 +745,26 @@ function wholeCallStandardFloorFromSignal(
 export function renderReport(summary: BenchSummary): string {
   const lines = [
     renderLiveCounter(summary),
-    `provider spend observed: ${formatUsd(summary.providerSpendUsd)}`,
+    `${PROVIDER_SPEND_OBSERVED_LABEL}: ${formatUsd(summary.providerSpendUsd)}`,
     renderCoverageSummaryLine(summary.coverage),
     ...renderExposureLines(summary.exposures),
   ];
   if (summary.rows.length === 0) {
-    lines.push(`No loss rows. measured ${summary.measuredCalls} calls, 0 failures.`);
+    lines.push(`No loss rows. measured ${summary.measuredCalls} calls, 0 failure signals.`);
     lines.push(...renderMeasureLines(summary));
     return lines.join("\n");
   }
 
-  lines.push("class | evidence | count | primary impact | provider-recognized | recognition gap");
-  for (const row of summary.rows) {
+  lines.push(`class | evidence | count | primary impact | ${ESTIMATED_RECOVERABLE_LABEL} | recognition gap`);
+  const moneyRowDisplays = displayedMoneyRowSplits(summary.rows);
+  for (const [index, row] of summary.rows.entries()) {
     lines.push([
       `${row.code}/${row.failureClass}`,
       row.evidenceGrade,
       String(row.count),
-      primaryImpactDisplay(row),
-      providerRecognizedDisplay(row),
-      recognitionGapDisplay(row),
+      primaryImpactDisplay(row, moneyRowDisplays[index]),
+      providerRecognizedDisplay(row, moneyRowDisplays[index]),
+      recognitionGapDisplay(row, moneyRowDisplays[index]),
     ].join(" | "));
     for (const line of row.howComputed) {
       lines.push(`  how computed: ${line}`);
@@ -716,6 +782,27 @@ export function formatUsd(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+export function timeValueRateUseLabel(
+  rate: Partial<BenchSlaAssumptions["timeValueRate"]> | undefined | null,
+): string {
+  const usdPerHour = numericValue(rate?.usdPerHour) ?? SLA_DEFAULTS.timeValueRate.usdPerHour;
+  const unit = typeof rate?.unit === "string" && rate.unit.length > 0
+    ? timeValueRateUnitLabel(rate.unit)
+    : "hr";
+  const isDefaultRate = usdPerHour === SLA_DEFAULTS.timeValueRate.usdPerHour;
+  const prefix = isDefaultRate ? "at default rate" : "at rate";
+  const confirmation = isDefaultRate ? ", not customer-confirmed" : "";
+  return `${prefix} ${formatTimeValueRateUsd(usdPerHour)}/${unit}${confirmation} (edit to yours)`;
+}
+
+function timeValueRateUnitLabel(unit: string): string {
+  return unit === "hour" ? "hr" : unit;
+}
+
+function formatTimeValueRateUsd(value: number): string {
+  return Number.isInteger(value) ? `$${value}` : formatUsd(value);
 }
 
 export interface MoneyLossObservedSpendLineInput {
@@ -743,8 +830,8 @@ export function moneyLossObservedSpendLine(
   if (options.suppressRoundedZero && formatted === "0.0" && standardLossUsd > 0) return null;
 
   const annotation = providerSpendUsd < MONEY_LOSS_OBSERVED_SPEND_SMALL_SAMPLE_FLOOR_USD
-    ? ` (small sample: ${formatMeasuredSpendUsd(providerSpendUsd)} measured)`
-    : "";
+    ? ` (priced calls only; small sample: ${formatMeasuredSpendUsd(providerSpendUsd)} measured)`
+    : " (priced calls only)";
   return `money loss = ${formatted}% of observed spend${annotation}`;
 }
 
@@ -843,35 +930,91 @@ function isRepriceableLatencyRow(row: ReportRow): boolean {
   );
 }
 
-function primaryImpactDisplay(row: ReportRow): string {
+function primaryImpactDisplay(row: ReportRow, moneySplit?: ReconciledSummaryMoneySplit): string {
   if (row.primaryValueKind === "time_loss") {
+    const clock = row.timeLossClockLabel ? ` (${row.timeLossClockLabel})` : "";
     const translation = row.dollarTranslationUsd === null
       ? ""
-      : ` (approx ${formatUsd(row.dollarTranslationUsd)} at your rate)`;
-    return `${formatApproxTimeLost(row.timeLossMs)}${translation}`;
+      : ` (approx ${formatUsd(row.dollarTranslationUsd)} ${timeValueRateUseLabel(row.rateSnapshot)})`;
+    return `${rowTimeSplit(row).total}${clock}${translation}`;
   }
   if (row.pricingUnknownCount > 0 && row.standardLossUsd === 0) {
     return "pricing unknown — add model price";
   }
   if (row.pricingUnknownCount > 0) {
-    return `${formatUsd(row.standardLossUsd)} (+ ${row.pricingUnknownCount} pricing unknown — add model price)`;
+    return `${moneySplit?.total ?? rowMoneySplit(row).total} (+ ${row.pricingUnknownCount} pricing unknown — add model price)`;
   }
-  return formatUsd(row.standardLossUsd);
+  return moneySplit?.total ?? rowMoneySplit(row).total;
 }
 
-function providerRecognizedDisplay(row: ReportRow): string {
+function providerRecognizedDisplay(row: ReportRow, moneySplit?: ReconciledSummaryMoneySplit): string {
   if (row.primaryValueKind === "time_loss") {
-    return `${formatUsd(row.providerRecognizedUsd)} / ${formatApproxTimeLost(row.providerRecognizedTimeLossMs)}`;
+    return `${formatUsd(row.providerRecognizedUsd)} / ${rowTimeSplit(row).parts.providerRecognized}`;
   }
-  return formatUsd(row.providerRecognizedUsd);
+  return (moneySplit ?? rowMoneySplit(row)).parts.providerRecognized;
 }
 
-function recognitionGapDisplay(row: ReportRow): string {
+function recognitionGapDisplay(row: ReportRow, moneySplit?: ReconciledSummaryMoneySplit): string {
   if (row.primaryValueKind === "time_loss") {
-    return formatApproxTimeLost(row.recognitionGapTimeMs);
+    return rowTimeSplit(row).parts.recognitionGap;
   }
-  return formatUsd(row.recognitionGapUsd);
+  return (moneySplit ?? rowMoneySplit(row)).parts.recognitionGap;
 }
+
+function rowMoneySplit(row: ReportRow): ReconciledSummaryMoneySplit {
+  return reconciledUsdPartition({
+    total: row.standardLossUsd,
+    parts: [
+      { key: "providerRecognized", value: row.providerRecognizedUsd },
+      { key: "recognitionGap", value: row.recognitionGapUsd },
+    ],
+    fractionDigits: 2,
+  });
+}
+
+function displayedMoneyRowSplits(rows: readonly ReportRow[]): readonly (ReconciledSummaryMoneySplit | undefined)[] {
+  const displays: (ReconciledSummaryMoneySplit | undefined)[] = [];
+  const groups = new Map<string, { readonly row: ReportRow; readonly index: number }[]>();
+  rows.forEach((row, index) => {
+    if (row.primaryValueKind === "time_loss") return;
+    const key = [row.code, row.failureClass].join("\u001f");
+    const group = groups.get(key) ?? [];
+    group.push({ row, index });
+    groups.set(key, group);
+  });
+  for (const group of groups.values()) {
+    const total = sum(group.map((entry) => entry.row.standardLossUsd));
+    const partition = reconciledUsdPartition({
+      total,
+      parts: group.map((entry) => ({ key: String(entry.index), value: entry.row.standardLossUsd })),
+      fractionDigits: 2,
+    });
+    for (const entry of group) {
+      displays[entry.index] = reconciledUsdPartition({
+        total: partition.values[String(entry.index)] ?? entry.row.standardLossUsd,
+        parts: [
+          { key: "providerRecognized", value: entry.row.providerRecognizedUsd },
+          { key: "recognitionGap", value: entry.row.recognitionGapUsd },
+        ],
+        fractionDigits: 2,
+      });
+    }
+  }
+  return displays;
+}
+
+function rowTimeSplit(row: ReportRow): ReconciledSummaryTimeSplit {
+  return reconciledApproxTimePartition({
+    totalMs: row.timeLossMs,
+    parts: [
+      { key: "providerRecognized", value: row.providerRecognizedTimeLossMs },
+      { key: "recognitionGap", value: row.recognitionGapTimeMs },
+    ],
+  });
+}
+
+type ReconciledSummaryMoneySplit = ReturnType<typeof reconciledUsdPartition<"providerRecognized" | "recognitionGap">>;
+type ReconciledSummaryTimeSplit = ReturnType<typeof reconciledApproxTimePartition<"providerRecognized" | "recognitionGap">>;
 
 function renderExposureLines(exposures: readonly BenchExposure[]): readonly string[] {
   return exposures
@@ -891,19 +1034,26 @@ function formatExposureUsd(value: number): string {
 }
 
 function reportRows(
-  signals: readonly CountedFailureSignal[],
+  entries: readonly CountedFailureSignalEntry[],
   downtimeWindows: readonly DowntimeWindow[] = [],
 ): ReportRow[] {
-  const rows = new Map<string, ReportRow & { readonly howComputedSet: ReadonlySet<string> }>();
-  for (const signal of signals) {
+  const rows = new Map<string, ReportRowAccumulator>();
+  for (const entry of entries) {
+    const { signal } = entry;
     const key = `${signal.code}\u0000${signal.failureClass}\u0000${signal.evidenceGrade}`;
     const existing = rows.get(key);
     const primaryValueKind = primaryValueKindForSignal(signal);
     const providerRecognized = providerRecognizedUsdForSignal(signal);
     const standardLossUsd = standardLossUsdForSignal(signal);
     const unrecognized = recognitionGapUsdForSignal(signal, standardLossUsd, providerRecognized);
+    const invoiceCheckExposureUsd = invoiceCheckExposureUsdForSignal(signal);
     const timeLoss = timeLossForSignal(signal);
     const dollarTranslation = dollarTranslationForSignal(signal, timeLoss.timeLossMs);
+    const timeLossInterval = timeLossIntervalForSignal(entry.event, signal, timeLoss.timeLossMs);
+    const timeLossIntervals = [
+      ...(existing?.timeLossIntervals ?? []),
+      ...(timeLossInterval ? [timeLossInterval] : []),
+    ];
     const howComputed = computationTraceLine(signal);
     const howComputedSet = new Set(existing?.howComputedSet ?? []);
     if (howComputed) howComputedSet.add(howComputed);
@@ -911,6 +1061,7 @@ function reportRows(
     const thresholdSnapshot = thresholdSnapshotForSignal(signal);
     const rateSnapshot = rateSnapshotForSignal(signal);
     const timeLossTrace = timeLossTraceForSignal(signal);
+    const timeLossClockLabel = timeLossClockLabelForSignal(signal);
     rows.set(key, {
       code: signal.code,
       failureClass: signal.failureClass,
@@ -919,16 +1070,25 @@ function reportRows(
       primaryValueKind,
       standardLossUsd: roundUsd((existing?.standardLossUsd ?? 0) + standardLossUsd),
       providerRecognizedUsd: roundUsd((existing?.providerRecognizedUsd ?? 0) + providerRecognized),
+      providerRecognizedLabel: ESTIMATED_RECOVERABLE_LABEL,
       recognitionGapUsd: roundUsd((existing?.recognitionGapUsd ?? 0) + unrecognized),
       unrecognizedUsd: roundUsd((existing?.unrecognizedUsd ?? 0) + unrecognized),
       timeLossMs: (existing?.timeLossMs ?? 0) + timeLoss.timeLossMs,
       providerRecognizedTimeLossMs: (existing?.providerRecognizedTimeLossMs ?? 0) +
         timeLoss.providerRecognizedTimeLossMs,
+      providerRecognizedTimeLossLabel: ESTIMATED_RECOVERABLE_TIME_LABEL,
       recognitionGapTimeMs: (existing?.recognitionGapTimeMs ?? 0) + timeLoss.recognitionGapTimeMs,
       dollarTranslationUsd: nullableRoundUsd(
         (existing?.dollarTranslationUsd ?? 0) + (dollarTranslation ?? 0),
         existing?.dollarTranslationUsd !== undefined || dollarTranslation !== null,
       ),
+      ...(invoiceCheckExposureUsd !== null || existing?.invoiceCheckExposureUsd !== undefined
+        ? {
+            invoiceCheckExposureUsd: roundUsd(
+              (existing?.invoiceCheckExposureUsd ?? 0) + (invoiceCheckExposureUsd ?? 0),
+            ),
+          }
+        : {}),
       ...(thresholdSnapshot ?? existing?.thresholdSnapshot
         ? { thresholdSnapshot: thresholdSnapshot ?? existing?.thresholdSnapshot }
         : {}),
@@ -937,6 +1097,9 @@ function reportRows(
         : {}),
       ...(timeLossTrace ?? existing?.timeLossTrace
         ? { timeLossTrace: mergeTimeLossTrace(existing?.timeLossTrace, timeLossTrace) }
+        : {}),
+      ...(timeLossClockLabel ?? existing?.timeLossClockLabel
+        ? { timeLossClockLabel: timeLossClockLabel ?? existing?.timeLossClockLabel }
         : {}),
       ...(providerRecognitionLineForSignal(signal)
         ? { providerRecognitionLine: providerRecognitionLineForSignal(signal) as string }
@@ -947,13 +1110,15 @@ function reportRows(
         (signal.standardLossStatus === "pricing_unknown" ? 1 : 0),
       howComputed: [...howComputedSet],
       howComputedSet,
+      ...(timeLossIntervals.length > 0 ? { timeLossIntervals } : {}),
     });
   }
+  applyTimeLossIntervalUnionToRows(rows);
   applyDowntimeWindowsToRows(rows, downtimeWindows);
   return [...rows.values()].map(toReportRow).sort(compareRows);
 }
 
-function toReportRow(row: ReportRow & { readonly howComputedSet: ReadonlySet<string> }): ReportRow {
+function toReportRow(row: ReportRowAccumulator): ReportRow {
   return {
     code: row.code,
     failureClass: row.failureClass,
@@ -962,15 +1127,23 @@ function toReportRow(row: ReportRow & { readonly howComputedSet: ReadonlySet<str
     primaryValueKind: row.primaryValueKind,
     standardLossUsd: row.standardLossUsd,
     providerRecognizedUsd: row.providerRecognizedUsd,
+    ...(row.providerRecognizedLabel ? { providerRecognizedLabel: row.providerRecognizedLabel } : {}),
     recognitionGapUsd: row.recognitionGapUsd,
     unrecognizedUsd: row.unrecognizedUsd,
     timeLossMs: row.timeLossMs,
     providerRecognizedTimeLossMs: row.providerRecognizedTimeLossMs,
+    ...(row.providerRecognizedTimeLossLabel
+      ? { providerRecognizedTimeLossLabel: row.providerRecognizedTimeLossLabel }
+      : {}),
     recognitionGapTimeMs: row.recognitionGapTimeMs,
     dollarTranslationUsd: row.dollarTranslationUsd,
+    ...(row.invoiceCheckExposureUsd !== undefined
+      ? { invoiceCheckExposureUsd: row.invoiceCheckExposureUsd }
+      : {}),
     ...(row.thresholdSnapshot ? { thresholdSnapshot: row.thresholdSnapshot } : {}),
     ...(row.rateSnapshot ? { rateSnapshot: row.rateSnapshot } : {}),
     ...(row.timeLossTrace ? { timeLossTrace: row.timeLossTrace } : {}),
+    ...(row.timeLossClockLabel ? { timeLossClockLabel: row.timeLossClockLabel } : {}),
     ...(row.providerRecognitionLine ? { providerRecognitionLine: row.providerRecognitionLine } : {}),
     ...(row.legacyCompatibilityLabel ? { legacyCompatibilityLabel: row.legacyCompatibilityLabel } : {}),
     pricingUnknownCount: row.pricingUnknownCount,
@@ -980,6 +1153,10 @@ function toReportRow(row: ReportRow & { readonly howComputedSet: ReadonlySet<str
 
 function isCountedFailureSignal(signal: LossSignal): signal is CountedFailureSignal {
   return signal.severity === "loss" && signal.failureClass !== null;
+}
+
+function isCountedFailureSignalEntry(entry: SummarySignalEntry): entry is CountedFailureSignalEntry {
+  return isCountedFailureSignal(entry.signal);
 }
 
 function withinWindow(event: CanonicalEventAny, window: TimeWindow): boolean {
@@ -1001,6 +1178,45 @@ function compareRows(left: ReportRow, right: ReportRow): number {
   const rightTotal = right.primaryValueKind === "time_loss" ? right.timeLossMs : right.standardLossUsd;
   if (leftTotal !== rightTotal) return rightTotal - leftTotal;
   return left.code.localeCompare(right.code);
+}
+
+export function unionTimeLossIntervals(
+  intervals: readonly TimeLossInterval[],
+): readonly TimeLossInterval[] {
+  const groups = new Map<string, TimeLossInterval[]>();
+  for (const interval of intervals) {
+    const startMs = finiteNumber(interval.startMs);
+    const endMs = finiteNumber(interval.endMs);
+    if (startMs === null || endMs === null) continue;
+    const normalized = {
+      ...interval,
+      startMs: Math.min(startMs, endMs),
+      endMs: Math.max(startMs, endMs),
+    };
+    if (normalized.endMs <= normalized.startMs) continue;
+    const key = interval.groupKey ?? "";
+    groups.set(key, [...(groups.get(key) ?? []), normalized]);
+  }
+
+  const unioned: { startMs: number; endMs: number; groupKey?: string }[] = [];
+  for (const [groupKey, groupIntervals] of groups.entries()) {
+    const sorted = [...groupIntervals].sort((left, right) => left.startMs - right.startMs);
+    for (const interval of sorted) {
+      const previous = unioned.at(-1);
+      const sameGroup = (previous?.groupKey ?? "") === groupKey;
+      if (!previous || !sameGroup || interval.startMs > previous.endMs) {
+        unioned.push({ ...interval });
+      } else {
+        previous.endMs = Math.max(previous.endMs, interval.endMs);
+      }
+    }
+  }
+
+  return unioned.sort((left, right) => left.startMs - right.startMs);
+}
+
+export function unionTimeLossDurationMs(intervals: readonly TimeLossInterval[]): number {
+  return sum(unionTimeLossIntervals(intervals).map((interval) => interval.endMs - interval.startMs));
 }
 
 function sum(values: readonly number[]): number {
@@ -1040,9 +1256,250 @@ function standardReportRows(rows: readonly ReportRow[]): ReportRow[] {
   return rows.filter((row) => !isExposureReportRow(row));
 }
 
+function publicDurationTotals(
+  rows: readonly ReportRow[],
+  signalEntries: readonly SummarySignalEntry[],
+  slaAssumptions: BenchSlaAssumptions,
+): BenchDurationTotals {
+  const collapsedSignalTotals = collapsedSummarySignalDurationTotals(signalEntries);
+  const signalTimeLossCodes = new Set<string>(
+    signalEntries
+      .filter((entry) => primaryValueKindForSignal(entry.signal) === "time_loss")
+      .map((entry) => entry.signal.code),
+  );
+  const syntheticRows = rows.filter((row) =>
+    row.primaryValueKind === "time_loss" && !signalTimeLossCodes.has(row.code)
+  );
+
+  return {
+    timeLossMs: collapsedSignalTotals.timeLossMs + sum(syntheticRows.map((row) => row.timeLossMs)),
+    providerRecognizedTimeLossMs: collapsedSignalTotals.providerRecognizedTimeLossMs +
+      sum(syntheticRows.map((row) => row.providerRecognizedTimeLossMs)),
+    providerRecognizedTimeLossLabel: ESTIMATED_RECOVERABLE_TIME_LABEL,
+    recognitionGapTimeMs: collapsedSignalTotals.recognitionGapTimeMs +
+      sum(syntheticRows.map((row) => row.recognitionGapTimeMs)),
+    dollarTranslationUsd: roundUsd(
+      collapsedSignalTotals.dollarTranslationUsd +
+        sum(syntheticRows.map((row) => row.dollarTranslationUsd ?? 0)),
+    ),
+    rate: slaAssumptions.timeValueRate,
+    thresholds: slaAssumptions.activeLatencySegments,
+  };
+}
+
+function collapsedSummarySignalDurationTotals(
+  signalEntries: readonly SummarySignalEntry[],
+): Pick<
+  BenchDurationTotals,
+  "timeLossMs" | "providerRecognizedTimeLossMs" | "recognitionGapTimeMs" | "dollarTranslationUsd"
+> {
+  const intervals = signalEntries
+    .map(summaryTimeLossInterval)
+    .filter((interval): interval is SummaryTimeLossInterval => interval !== null);
+  const allocated = allocateSummaryTimeLoss(intervals);
+  const boundedIntervals: TimeLossInterval[] = allocated
+    .filter((interval) =>
+      interval.publicTimeLossMs > 0 &&
+      interval.startedAtMs !== null &&
+      interval.endedAtMs !== null
+    )
+    .map((interval) => ({
+      startMs: interval.startedAtMs as number,
+      endMs: interval.endedAtMs as number,
+    }));
+  const intervalLessTimeLossMs = sum(allocated
+    .filter((interval) =>
+      interval.publicTimeLossMs > 0 &&
+      (interval.startedAtMs === null || interval.endedAtMs === null)
+    )
+    .map((interval) => interval.publicTimeLossMs));
+  const allocatedTimeLossMs = sum(allocated.map((interval) => interval.publicTimeLossMs));
+  const timeLossMs = boundedIntervals.length > 0
+    ? unionTimeLossDurationMs(boundedIntervals) + intervalLessTimeLossMs
+    : allocatedTimeLossMs;
+  const publicRatio = allocatedTimeLossMs > 0 ? timeLossMs / allocatedTimeLossMs : 0;
+  const providerRecognizedTimeLossMs = Math.min(
+    timeLossMs,
+    sum(allocated.map((interval) => interval.publicProviderRecognizedTimeLossMs)) * publicRatio,
+  );
+  return {
+    timeLossMs,
+    providerRecognizedTimeLossMs,
+    recognitionGapTimeMs: Math.max(0, timeLossMs - providerRecognizedTimeLossMs),
+    dollarTranslationUsd: roundUsd(
+      sum(allocated.map((interval) => interval.publicDollarTranslationUsd)) * publicRatio,
+    ),
+  };
+}
+
+interface SummaryTimeLossInterval {
+  readonly logicalOperationKey: string;
+  readonly startedAtMs: number | null;
+  readonly endedAtMs: number | null;
+  readonly rawTimeLossMs: number;
+  readonly providerRecognizedTimeLossMs: number;
+  readonly recognitionGapTimeMs: number;
+  readonly dollarTranslationUsd: number;
+  readonly priority: number;
+}
+
+interface AllocatedSummaryTimeLossInterval extends SummaryTimeLossInterval {
+  readonly publicTimeLossMs: number;
+  readonly publicProviderRecognizedTimeLossMs: number;
+  readonly publicRecognitionGapTimeMs: number;
+  readonly publicDollarTranslationUsd: number;
+}
+
+function summaryTimeLossInterval(entry: SummarySignalEntry): SummaryTimeLossInterval | null {
+  if (primaryValueKindForSignal(entry.signal) !== "time_loss") return null;
+  const timeLoss = timeLossForSignal(entry.signal);
+  if (timeLoss.timeLossMs <= 0) return null;
+  const rawBounds = summaryTimeLossBounds(entry.event);
+  const bounds = boundedSummaryTimeLossInterval(rawBounds, timeLoss.timeLossMs);
+  return {
+    logicalOperationKey: summaryLogicalOperationKey(entry.event),
+    startedAtMs: bounds.startedAtMs,
+    endedAtMs: bounds.endedAtMs,
+    rawTimeLossMs: timeLoss.timeLossMs,
+    providerRecognizedTimeLossMs: timeLoss.providerRecognizedTimeLossMs,
+    recognitionGapTimeMs: timeLoss.recognitionGapTimeMs,
+    dollarTranslationUsd: dollarTranslationForSignal(entry.signal, timeLoss.timeLossMs) ?? 0,
+    priority: summaryTimeLossPriority(entry.signal),
+  };
+}
+
+function summaryTimeLossBounds(
+  event: CanonicalEventNormalized,
+): { readonly startedAtMs: number | null; readonly endedAtMs: number | null } {
+  return {
+    startedAtMs: parsedTimestamp(event.timing.providerRequestStartedAt ?? event.timing.startedAt),
+    endedAtMs: parsedTimestamp(event.timing.providerResponseEndedAt ?? event.timing.endedAt),
+  };
+}
+
+function boundedSummaryTimeLossInterval(
+  bounds: { readonly startedAtMs: number | null; readonly endedAtMs: number | null },
+  timeLossMs: number,
+): { readonly startedAtMs: number | null; readonly endedAtMs: number | null } {
+  if (bounds.startedAtMs === null || bounds.endedAtMs === null) return bounds;
+  const startedAtMs = Math.min(bounds.startedAtMs, bounds.endedAtMs);
+  const endedAtMs = Math.max(bounds.startedAtMs, bounds.endedAtMs);
+  const durationMs = Math.max(0, endedAtMs - startedAtMs);
+  if (durationMs <= timeLossMs) return { startedAtMs, endedAtMs };
+  return {
+    startedAtMs: endedAtMs - timeLossMs,
+    endedAtMs,
+  };
+}
+
+function summaryLogicalOperationKey(event: CanonicalEventNormalized): string {
+  const operationIdentity = event.request.operationId
+    ? `operation:${event.request.operationId}`
+    : event.request.bodyHash
+    ? `body:${event.request.apiKeyHash ?? "*"}:${event.request.bodyHash}`
+    : `request:${event.request.requestId}`;
+  return [
+    event.request.tenantId,
+    event.request.provider,
+    event.request.model,
+    operationIdentity,
+  ].join("\u0000");
+}
+
+function summaryTimeLossPriority(signal: LossSignal): number {
+  if (signal.code === "PROVIDER_DOWNTIME" || signal.failureClass === "downtime") return 80;
+  if (signal.code === "LATENCY_BILLED" || signal.failureClass === "latency") return 70;
+  return 50;
+}
+
+function allocateSummaryTimeLoss(
+  intervals: readonly SummaryTimeLossInterval[],
+): AllocatedSummaryTimeLossInterval[] {
+  const groups = new Map<string, SummaryTimeLossInterval[]>();
+  for (const interval of intervals) {
+    groups.set(interval.logicalOperationKey, [...(groups.get(interval.logicalOperationKey) ?? []), interval]);
+  }
+
+  const allocated = new Map<SummaryTimeLossInterval, AllocatedSummaryTimeLossInterval>();
+  for (const group of groups.values()) {
+    const covered: { start: number; end: number }[] = [];
+    const sorted = [...group].sort((left, right) =>
+      right.priority - left.priority ||
+      (left.startedAtMs ?? Number.POSITIVE_INFINITY) - (right.startedAtMs ?? Number.POSITIVE_INFINITY)
+    );
+    for (const interval of sorted) {
+      const publicTimeLossMs = uncoveredSummaryTimeLossMs(interval, covered);
+      if (interval.startedAtMs !== null && interval.endedAtMs !== null) {
+        covered.push({
+          start: Math.min(interval.startedAtMs, interval.endedAtMs),
+          end: Math.max(interval.startedAtMs, interval.endedAtMs),
+        });
+      }
+      allocated.set(interval, allocatedSummaryTimeLossInterval(interval, publicTimeLossMs));
+    }
+  }
+  return intervals.map((interval) => allocated.get(interval) ?? allocatedSummaryTimeLossInterval(interval, 0));
+}
+
+function uncoveredSummaryTimeLossMs(
+  interval: SummaryTimeLossInterval,
+  covered: readonly { readonly start: number; readonly end: number }[],
+): number {
+  if (interval.startedAtMs === null || interval.endedAtMs === null) return interval.rawTimeLossMs;
+  let segments = [{
+    start: Math.min(interval.startedAtMs, interval.endedAtMs),
+    end: Math.max(interval.startedAtMs, interval.endedAtMs),
+  }];
+  for (const cover of covered) {
+    segments = segments.flatMap((segment) => subtractSummaryInterval(segment, cover));
+    if (segments.length === 0) break;
+  }
+  return Math.min(
+    interval.rawTimeLossMs,
+    sum(segments.map((segment) => Math.max(0, segment.end - segment.start))),
+  );
+}
+
+function subtractSummaryInterval(
+  segment: { readonly start: number; readonly end: number },
+  cover: { readonly start: number; readonly end: number },
+): { readonly start: number; readonly end: number }[] {
+  if (cover.end <= segment.start || cover.start >= segment.end) return [segment];
+  const result: { start: number; end: number }[] = [];
+  if (cover.start > segment.start) {
+    result.push({ start: segment.start, end: Math.min(cover.start, segment.end) });
+  }
+  if (cover.end < segment.end) {
+    result.push({ start: Math.max(cover.end, segment.start), end: segment.end });
+  }
+  return result;
+}
+
+function allocatedSummaryTimeLossInterval(
+  interval: SummaryTimeLossInterval,
+  publicTimeLossMs: number,
+): AllocatedSummaryTimeLossInterval {
+  const ratio = interval.rawTimeLossMs > 0
+    ? Math.max(0, Math.min(1, publicTimeLossMs / interval.rawTimeLossMs))
+    : 0;
+  return {
+    ...interval,
+    publicTimeLossMs,
+    publicProviderRecognizedTimeLossMs: interval.providerRecognizedTimeLossMs * ratio,
+    publicRecognitionGapTimeMs: interval.recognitionGapTimeMs * ratio,
+    publicDollarTranslationUsd: roundUsd(interval.dollarTranslationUsd * ratio),
+  };
+}
+
+function parsedTimestamp(value: string | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function exposureTotalsForRows(rows: readonly ReportRow[]): readonly BenchExposure[] {
   const cacheRows = rows.filter(isExposureReportRow);
-  const amount = roundUsd(sum(cacheRows.map((row) => row.standardLossUsd)));
+  const amount = roundUsd(sum(cacheRows.map((row) => row.invoiceCheckExposureUsd ?? row.standardLossUsd)));
   const count = sum(cacheRows.map((row) => row.count));
   if (amount <= 0 || count <= 0) return [];
   return [{
@@ -1120,7 +1577,7 @@ function thresholdSnapshotForSignal(signal: LossSignal): Record<string, unknown>
   return {
     thresholdProposalId: signal.valueJson?.thresholdProposalId ?? inputs?.thresholdProposalId ?? null,
     thresholdSourceLabel: signal.valueJson?.thresholdSourceLabel ??
-      "The Inferock Standard default threshold proposal",
+      "Inferock provisional default (pending external calibration)",
     thresholdConfirmed: signal.valueJson?.thresholdConfirmed ?? false,
     acceptableStartMs: signal.valueJson?.acceptableStartMs ??
       inputs?.acceptableStartMs ??
@@ -1132,6 +1589,8 @@ function thresholdSnapshotForSignal(signal: LossSignal): Record<string, unknown>
       null,
     acceptableMs: signal.valueJson?.acceptableMs ?? inputs?.acceptableTotalMs ?? null,
     observedMs: signal.valueJson?.observedMs ?? inputs?.observedTotalMs ?? null,
+    timingAttribution: signal.valueJson?.timingAttribution ?? inputs?.timingAttribution ?? null,
+    clockLabel: signal.valueJson?.timingClockLabel ?? inputs?.timingClockLabel ?? null,
     outputTokens: inputs?.outputTokens ?? null,
     effectiveFrom: signal.valueJson?.thresholdEffectiveFrom ?? null,
     effectiveTo: signal.valueJson?.thresholdEffectiveTo ?? null,
@@ -1157,6 +1616,20 @@ function timeLossTraceForSignal(signal: LossSignal): Record<string, unknown> | u
     undefined;
 }
 
+function timeLossClockLabelForSignal(signal: LossSignal): string | null {
+  if (primaryValueKindForSignal(signal) !== "time_loss") return null;
+  const trace = timeLossTraceForSignal(signal);
+  const inputs = recordValue(trace?.inputs);
+  return stringValue(signal.valueJson?.timingClockLabel) ??
+    stringValue(inputs?.timingClockLabel) ??
+    (stringValue(signal.valueJson?.timingAttribution) === "provider_elapsed" ||
+        stringValue(inputs?.timingAttribution) === "provider_elapsed"
+      ? PROVIDER_LATENCY_CLOCK_LABEL
+      : signal.failureClass === "latency"
+        ? GATEWAY_LATENCY_CLOCK_LABEL
+        : null);
+}
+
 function mergeTimeLossTrace(
   existing: Record<string, unknown> | undefined,
   next: Record<string, unknown> | undefined,
@@ -1164,15 +1637,109 @@ function mergeTimeLossTrace(
   return existing ?? next;
 }
 
+function applyTimeLossIntervalUnionToRows(rows: Map<string, ReportRowAccumulator>): void {
+  for (const [key, row] of rows.entries()) {
+    const intervals = row.timeLossIntervals ?? [];
+    if (row.primaryValueKind !== "time_loss" || intervals.length === 0) continue;
+
+    const unionIntervals = unionTimeLossIntervals(intervals);
+    const timeLossMs = unionTimeLossDurationMs(intervals);
+    const providerRecognizedTimeLossMs = Math.min(row.providerRecognizedTimeLossMs, timeLossMs);
+    const recognitionGapTimeMs = Math.max(0, timeLossMs - providerRecognizedTimeLossMs);
+    const rateUsdPerHour = numericValue(row.rateSnapshot?.usdPerHour) ??
+      SLA_DEFAULTS.timeValueRate.usdPerHour;
+    const dollarTranslationUsd = roundUsd(dollarTranslationForTimeLoss(timeLossMs, rateUsdPerHour));
+    rows.set(key, {
+      ...row,
+      timeLossMs,
+      providerRecognizedTimeLossMs,
+      recognitionGapTimeMs,
+      dollarTranslationUsd,
+      timeLossTrace: {
+        ...(row.timeLossTrace ?? {}),
+        aggregation: {
+          formula: "union_duration(time_loss_intervals)",
+          intervals: intervals.map(timeLossIntervalTrace),
+          unionIntervals: unionIntervals.map(timeLossIntervalTrace),
+        },
+        outputs: {
+          ...(recordValue(row.timeLossTrace?.outputs) ?? {}),
+          timeLossMs,
+          providerRecognizedTimeLossMs,
+          recognitionGapTimeMs,
+          dollarTranslationUsd,
+        },
+      },
+    });
+  }
+}
+
+function timeLossIntervalForSignal(
+  event: CanonicalEventNormalized,
+  signal: LossSignal,
+  timeLossMs: number,
+): TimeLossInterval | null {
+  if (primaryValueKindForSignal(signal) !== "time_loss" || timeLossMs <= 0) return null;
+  const eventEndMs = Date.parse(event.timing.endedAt);
+  const trace = timeLossTraceForSignal(signal);
+  const inputs = recordValue(trace?.inputs);
+  const timingAttribution = stringValue(signal.valueJson?.timingAttribution) ??
+    stringValue(inputs?.timingAttribution);
+  const providerRequestStartedAt = stringValue(signal.valueJson?.providerRequestStartedAt) ??
+    stringValue(inputs?.providerRequestStartedAt);
+  const clockStartMs = timingAttribution === "provider_elapsed" && providerRequestStartedAt
+    ? Date.parse(providerRequestStartedAt)
+    : Date.parse(event.timing.startedAt);
+  const observedMs = numericValue(signal.valueJson?.observedMs) ??
+    numericValue(inputs?.observedTotalMs) ??
+    numericValue(event.timing.latencyMs);
+  const acceptableMs = numericValue(signal.valueJson?.acceptableMs) ??
+    numericValue(inputs?.acceptableTotalMs) ??
+    numericValue(signal.valueJson?.acceptableStartMs) ??
+    numericValue(inputs?.acceptableStartMs);
+
+  const endMs = Number.isFinite(clockStartMs) && observedMs !== null
+    ? clockStartMs + observedMs
+    : Number.isFinite(eventEndMs)
+      ? eventEndMs
+      : null;
+  if (endMs === null || !Number.isFinite(endMs)) return null;
+
+  const candidateStartMs = Number.isFinite(clockStartMs) && acceptableMs !== null
+    ? clockStartMs + acceptableMs
+    : endMs - timeLossMs;
+  const startMs = Math.abs(endMs - candidateStartMs - timeLossMs) <= 1
+    ? candidateStartMs
+    : endMs - timeLossMs;
+  if (!Number.isFinite(startMs) || startMs >= endMs) return null;
+  const groupKey = rowTimeLossIntervalGroupKey(event);
+  return groupKey ? { startMs, endMs, groupKey } : { startMs, endMs };
+}
+
+function rowTimeLossIntervalGroupKey(event: CanonicalEventNormalized): string | undefined {
+  return event.request.operationId || event.request.bodyHash
+    ? `request:${event.request.requestId}`
+    : undefined;
+}
+
+function timeLossIntervalTrace(interval: TimeLossInterval): Record<string, unknown> {
+  return {
+    start: new Date(interval.startMs).toISOString(),
+    end: new Date(interval.endMs).toISOString(),
+    durationMs: Math.max(0, interval.endMs - interval.startMs),
+    ...(interval.groupKey ? { groupKey: interval.groupKey } : {}),
+  };
+}
+
 function providerRecognitionLineForSignal(signal: LossSignal): string | null {
   const explicit = stringValue(signal.valueJson?.providerRecognitionLine) ??
     stringValue(signal.evidence.providerRecognitionLine);
-  if (explicit) return explicit;
+  if (explicit) return estimatedRecoverableDisplayText(explicit);
   if (signal.failureClass === "latency") {
     return latencyProviderRecognitionLine(signal);
   }
   if (signal.failureClass === "downtime") {
-    return "Provider-recognized: $0 / 0s - first-party credit terms unverified";
+    return "Estimated recoverable (our arithmetic): $0 / 0s - first-party credit terms unverified";
   }
   return null;
 }
@@ -1190,15 +1757,15 @@ function latencyProviderRecognitionLine(signal: LossSignal): string {
     signal.provider === "anthropic"
   ) {
     if (standardTier && (!sloSource || sloSource.startsWith("inferock-standard://"))) {
-      return "Provider-recognized: $0 / 0s without a first-party latency SLA";
+      return "Estimated recoverable (our arithmetic): $0 / 0s without a first-party latency SLA";
     }
-    return "Provider-recognized: no configured provider latency credit basis for this receipt";
+    return "Estimated recoverable (our arithmetic): no configured provider latency credit basis for this receipt";
   }
-  return "Provider-recognized: no configured provider latency credit basis for this receipt";
+  return "Estimated recoverable (our arithmetic): no configured provider latency credit basis for this receipt";
 }
 
 function applyDowntimeWindowsToRows(
-  rows: Map<string, ReportRow & { readonly howComputedSet: ReadonlySet<string> }>,
+  rows: Map<string, ReportRowAccumulator>,
   downtimeWindows: readonly DowntimeWindow[],
 ): void {
   if (downtimeWindows.length === 0) return;
@@ -1221,10 +1788,12 @@ function applyDowntimeWindowsToRows(
     primaryValueKind: "time_loss",
     standardLossUsd: 0,
     providerRecognizedUsd: 0,
+    providerRecognizedLabel: ESTIMATED_RECOVERABLE_LABEL,
     recognitionGapUsd: 0,
     unrecognizedUsd: 0,
     timeLossMs,
     providerRecognizedTimeLossMs,
+    providerRecognizedTimeLossLabel: ESTIMATED_RECOVERABLE_TIME_LABEL,
     recognitionGapTimeMs,
     dollarTranslationUsd: dollarTranslationForTimeLoss(
       timeLossMs,
@@ -1356,7 +1925,28 @@ function downtimeProviderRecognitionLine(windows: readonly DowntimeWindow[]): st
   if (windows.some((window) => window.creditTermsVerified)) {
     return "Credit path: service credit may be capped at eligible spend under verified cloud SLA provenance";
   }
-  return "Provider-recognized: $0 / 0s - first-party credit terms unverified";
+  return "Estimated recoverable (our arithmetic): $0 / 0s - first-party credit terms unverified";
+}
+
+function isLocalOriginErrorEvent(event: CanonicalEventNormalized): boolean {
+  if (eventErrorOrigin(event) !== "local") return false;
+  return event.response.statusCode >= 400 ||
+    Boolean(event.response.errorClass) ||
+    event.attempts.some((attempt) => attempt.status !== "success");
+}
+
+function eventErrorOrigin(event: CanonicalEventNormalized): "local" | "provider" | undefined {
+  const responseOrigin = errorOriginValue(recordValue(event.response)?.errorOrigin);
+  if (responseOrigin) return responseOrigin;
+  const finalAttempt = event.attempts.find((attempt) => attempt.finalSelected);
+  const finalOrigin = errorOriginValue(recordValue(finalAttempt)?.errorOrigin);
+  if (finalOrigin) return finalOrigin;
+  return event.attempts.map((attempt) => errorOriginValue(recordValue(attempt)?.errorOrigin))
+    .find((origin): origin is "local" | "provider" => origin !== undefined);
+}
+
+function errorOriginValue(value: unknown): "local" | "provider" | undefined {
+  return value === "local" || value === "provider" ? value : undefined;
 }
 
 function summarySignalSource(
@@ -1367,8 +1957,14 @@ function summarySignalSource(
   const scopedRecords = records
     .filter((record) => withinStoredRecordScope(record, window))
     .filter((record) => withinWindow(record.event, window));
-  const events = scopedRecords.map((record) => normalizeCanonicalEvent(record.event));
-  const suiteTaskIds = scopedRecords.flatMap((record) => record.suiteTaskId ? [record.suiteTaskId] : []);
+  const scopedEntries = scopedRecords.map((record) => ({
+    record,
+    event: normalizeCanonicalEvent(record.event),
+  }));
+  const localOriginErrorCount = scopedEntries.filter((entry) => isLocalOriginErrorEvent(entry.event)).length;
+  const measuredEntries = scopedEntries.filter((entry) => !isLocalOriginErrorEvent(entry.event));
+  const events = measuredEntries.map((entry) => entry.event);
+  const suiteTaskIds = measuredEntries.flatMap((entry) => entry.record.suiteTaskId ? [entry.record.suiteTaskId] : []);
   const eventsWithSignals = events.map((event): EventWithSignals => ({
     event,
     signals: eventLossSignals(event, context),
@@ -1385,6 +1981,7 @@ function summarySignalSource(
   );
   return {
     events,
+    localOriginErrorCount,
     suiteTaskIds,
     eventsWithSignals,
     signalEntries,
@@ -1560,6 +2157,7 @@ function billBoundedCappedSignal(
     callExpectedChargeUsd: input.callCapUsd,
     unclampedCallMoneyLossUsd: input.unclampedCallMoneyLossUsd,
     unclampedSignalStandardLossUsd: input.unclampedSignalStandardLossUsd,
+    application: "ex_post_clamp",
     standardPromise: "oss/public-root/docs/hard-questions.md#q1-can-the-headline-money-loss-exceed-my-provider-bill",
   };
 
@@ -1578,7 +2176,7 @@ function billBoundedCappedSignal(
         ...traceFormulas,
         billBoundedCapUsd:
           "per-call bill-bounded money loss: sum(call money-loss signals) <= expectedChargeUsd",
-        providerRecognizedLossUsd: "min(existing provider-recognized dollars, clamped standardLossUsd)",
+        providerRecognizedLossUsd: "min(existing estimated recoverable dollars, clamped standardLossUsd)",
         recognitionGapUsd: "clamped standardLossUsd - providerRecognizedLossUsd",
       },
       outputs: {
@@ -1604,7 +2202,7 @@ function billBoundedCapOneLine(input: {
   readonly providerRecognizedUsd: number;
   readonly recognitionGapUsd: number;
 }): string {
-  return `bill-bounded per-call cap applied: standard loss ${formatUsd(input.standardLossUsd)}; provider-recognized ${formatUsd(input.providerRecognizedUsd)} -> ${formatUsd(input.recognitionGapUsd)} recognition gap`;
+  return `bill-bounded ex-post clamp applied: standard loss ${formatMeasuredSpendUsd(input.standardLossUsd)}; estimated recoverable ${formatMeasuredSpendUsd(input.providerRecognizedUsd)} -> ${formatMeasuredSpendUsd(input.recognitionGapUsd)} recognition gap`;
 }
 
 function applyCrossSourceWholeCallFloorSupersession(
@@ -1688,7 +2286,298 @@ function eventLossSignals(event: CanonicalEventNormalized, context: SummaryConte
     ...runSecurityDetectors(event).flatMap((signal) => optionalSignal(securityLossSignal(event, signal))),
     ...benchFactualitySignals(event).map((signal) => factualityLossSignal(event, signal)),
   ];
-  return applyStandardLossEconomicsToSignals(event, dedupeSignals(signals));
+  return applyLatencyClockAttribution(
+    event,
+    applyStandardLossEconomicsToSignals(event, dedupeSignals(signals)),
+  );
+}
+
+function applyLatencyClockAttribution(
+  event: CanonicalEventNormalized,
+  signals: readonly LossSignal[],
+): LossSignal[] {
+  return signals.flatMap((signal) => {
+    const adjusted = latencyClockAdjustedSignal(event, signal);
+    return adjusted ? [adjusted] : [];
+  });
+}
+
+function latencyClockAdjustedSignal(
+  event: CanonicalEventNormalized,
+  signal: LossSignal,
+): LossSignal | null {
+  if (signal.code !== "LATENCY_BILLED" || primaryValueKindForSignal(signal) !== "time_loss") {
+    return signal;
+  }
+  const observation = latencyClockObservationForEvent(event);
+  const input = latencyRepriceInputForSignal(event, signal);
+  if (!input || observation.observedMs <= 0) {
+    return latencyClockLabeledSignal(event, signal, observation, null, null);
+  }
+
+  const repriced = recomputeLatencyTimeLoss({
+    observedMs: observation.observedMs,
+    outputTokens: input.outputTokens,
+    acceptableStartMs: input.acceptableStartMs,
+    acceptableMsPerOutputToken: input.acceptableMsPerOutputToken,
+    rateUsdPerHour: input.rateUsdPerHour,
+  });
+  if (repriced.timeLossMs <= 0) return null;
+  return latencyClockLabeledSignal(event, signal, observation, input, repriced);
+}
+
+function latencyClockObservationForEvent(event: CanonicalEventNormalized): {
+  readonly observedMs: number;
+  readonly timingAttribution: "provider_elapsed" | "gateway_total_elapsed";
+  readonly clockLabel: typeof PROVIDER_LATENCY_CLOCK_LABEL | typeof GATEWAY_LATENCY_CLOCK_LABEL;
+  readonly gatewayElapsedMs: number | null;
+  readonly providerElapsedMs: number | null;
+  readonly providerRequestStartedAt: string | null;
+} {
+  const providerElapsedMs = numericValue(event.timing.providerElapsedMs);
+  const gatewayElapsedMs = numericValue(event.timing.latencyMs);
+  if (providerElapsedMs !== null && providerElapsedMs >= 0) {
+    return {
+      observedMs: providerElapsedMs,
+      timingAttribution: "provider_elapsed",
+      clockLabel: PROVIDER_LATENCY_CLOCK_LABEL,
+      gatewayElapsedMs,
+      providerElapsedMs,
+      providerRequestStartedAt: stringValue(event.timing.providerRequestStartedAt),
+    };
+  }
+  return {
+    observedMs: gatewayElapsedMs ?? 0,
+    timingAttribution: "gateway_total_elapsed",
+    clockLabel: GATEWAY_LATENCY_CLOCK_LABEL,
+    gatewayElapsedMs,
+    providerElapsedMs: null,
+    providerRequestStartedAt: null,
+  };
+}
+
+function latencyRepriceInputForSignal(
+  event: CanonicalEventNormalized,
+  signal: LossSignal,
+): {
+  readonly acceptableStartMs: number;
+  readonly acceptableMsPerOutputToken: number;
+  readonly outputTokens: number;
+  readonly rateUsdPerHour: number;
+} | null {
+  const trace = timeLossTraceForSignal(signal);
+  const inputs = recordValue(trace?.inputs);
+  const thresholds = recordValue(signal.evidence.latencyThresholds);
+  const acceptableStartMs = numericValue(signal.valueJson?.acceptableStartMs) ??
+    numericValue(inputs?.acceptableStartMs) ??
+    numericValue(thresholds?.acceptableStartMs);
+  const acceptableMsPerOutputToken = numericValue(signal.valueJson?.acceptableMsPerOutputToken) ??
+    numericValue(inputs?.acceptableMsPerOutputToken) ??
+    numericValue(thresholds?.acceptableMsPerOutputToken);
+  if (acceptableStartMs === null || acceptableMsPerOutputToken === null) return null;
+  return {
+    acceptableStartMs,
+    acceptableMsPerOutputToken,
+    outputTokens: numericValue(inputs?.outputTokens) ?? event.usage.output,
+    rateUsdPerHour: numericValue(signal.valueJson?.dollarTranslationRateUsdPerHour) ??
+      numericValue(inputs?.rateUsdPerHour) ??
+      SLA_DEFAULTS.timeValueRate.usdPerHour,
+  };
+}
+
+function latencyClockLabeledSignal(
+  event: CanonicalEventNormalized,
+  signal: LossSignal,
+  observation: ReturnType<typeof latencyClockObservationForEvent>,
+  input: ReturnType<typeof latencyRepriceInputForSignal>,
+  repriced: ReturnType<typeof recomputeLatencyTimeLoss> | null,
+): LossSignal {
+  const trace = recordValue(signal.computationTrace) ??
+    recordValue(signal.evidence.computationTrace) ??
+    {};
+  const traceInputs = recordValue(trace.inputs);
+  const traceOutputs = recordValue(trace.outputs);
+  const traceFormulas = recordValue(trace.formulas);
+  const timeLossMs = repriced?.timeLossMs ?? timeLossForSignal(signal).timeLossMs;
+  const standardLossUsd = repriced?.dollarTranslationUsd ?? standardLossUsdForSignal(signal);
+  const recognitionGapUsd = standardLossUsd;
+  const providerRecognizedTimeLossMs = 0;
+  const recognitionGapTimeMs = Math.max(0, timeLossMs - providerRecognizedTimeLossMs);
+  const acceptableTotalMs = repriced?.acceptableTotalMs ??
+    numericValue(signal.valueJson?.acceptableMs) ??
+    numericValue(traceInputs?.acceptableTotalMs) ??
+    null;
+  const rateUsdPerHour = input?.rateUsdPerHour ??
+    numericValue(traceInputs?.rateUsdPerHour) ??
+    SLA_DEFAULTS.timeValueRate.usdPerHour;
+  const timeLossTrace = latencyClockTimeLossTrace(
+    event,
+    signal,
+    observation,
+    input,
+    timeLossMs,
+    standardLossUsd,
+    providerRecognizedTimeLossMs,
+    recognitionGapTimeMs,
+  );
+  const computationTrace = {
+    ...trace,
+    timeLossTrace,
+    inputs: {
+      ...(traceInputs ?? {}),
+      observedTotalMs: observation.observedMs,
+      timingAttribution: observation.timingAttribution,
+      timingClockLabel: observation.clockLabel,
+      gatewayElapsedMs: observation.gatewayElapsedMs,
+      providerElapsedMs: observation.providerElapsedMs,
+      providerRequestStartedAt: observation.providerRequestStartedAt,
+      ...(acceptableTotalMs !== null ? { acceptableTotalMs } : {}),
+      ...(input
+        ? {
+            acceptableStartMs: input.acceptableStartMs,
+            acceptableMsPerOutputToken: input.acceptableMsPerOutputToken,
+            outputTokens: input.outputTokens,
+            rateUsdPerHour,
+          }
+        : {}),
+    },
+    formulas: {
+      ...(traceFormulas ?? {}),
+      timeLossMs: "max(0, observedTotalMs - acceptableTotalMs)",
+      dollarTranslationUsd: "timeLossMs * rateUsdPerHour / 3600000",
+    },
+    outputs: {
+      ...(traceOutputs ?? {}),
+      timeLossMs,
+      excessMs: timeLossMs,
+      dollarTranslationUsd: standardLossUsd,
+      standardLossUsd,
+      providerRecognizedLossUsd: 0,
+      providerRecognizedTimeLossMs,
+      recognitionGapTimeMs,
+      recognitionGapUsd,
+    },
+    oneLine: latencyClockOneLine({
+      observedMs: observation.observedMs,
+      clockLabel: observation.clockLabel,
+      acceptableTotalMs,
+      timeLossMs,
+      rateUsdPerHour,
+      standardLossUsd,
+      recognitionGapUsd,
+    }),
+  };
+  return {
+    ...signal,
+    standardLossUsd,
+    providerRecognizedLossUsd: 0,
+    recognitionGapUsd,
+    computationTrace,
+    valueJson: {
+      ...(signal.valueJson ?? {}),
+      latencyMs: observation.observedMs,
+      timingAttribution: observation.timingAttribution,
+      timingClockLabel: observation.clockLabel,
+      gatewayElapsedMs: observation.gatewayElapsedMs,
+      providerElapsedMs: observation.providerElapsedMs,
+      providerRequestStartedAt: observation.providerRequestStartedAt,
+      observedMs: observation.observedMs,
+      timeLossMs,
+      excessMs: timeLossMs,
+      excessWaitMs: timeLossMs,
+      standardLossUsd,
+      providerRecognizedLossUsd: 0,
+      recognitionGapUsd,
+      dollarTranslationUsd: standardLossUsd,
+      providerRecognizedTimeLossMs,
+      recognitionGapTimeMs,
+      timeLossTrace,
+    },
+    evidence: {
+      ...signal.evidence,
+      latencyMs: observation.observedMs,
+      timingAttribution: observation.timingAttribution,
+      timingClockLabel: observation.clockLabel,
+      gatewayElapsedMs: observation.gatewayElapsedMs,
+      providerElapsedMs: observation.providerElapsedMs,
+      providerRequestStartedAt: observation.providerRequestStartedAt,
+      timeLossMs,
+      excessWaitMs: timeLossMs,
+      standardLossUsd,
+      recognitionGapUsd,
+      providerRecognizedLossUsd: 0,
+      providerRecognizedTimeLossMs,
+      recognitionGapTimeMs,
+      timeLossTrace,
+      computationTrace,
+      observedLatency: {
+        ...(recordValue(signal.evidence.observedLatency) ?? {}),
+        totalMs: observation.observedMs,
+        timingAttribution: observation.timingAttribution,
+        clockLabel: observation.clockLabel,
+      },
+    },
+  };
+}
+
+function latencyClockTimeLossTrace(
+  event: CanonicalEventNormalized,
+  signal: LossSignal,
+  observation: ReturnType<typeof latencyClockObservationForEvent>,
+  input: ReturnType<typeof latencyRepriceInputForSignal>,
+  timeLossMs: number,
+  dollarTranslationUsd: number,
+  providerRecognizedTimeLossMs: number,
+  recognitionGapTimeMs: number,
+): Record<string, unknown> {
+  const existingTrace = timeLossTraceForSignal(signal) ?? {};
+  const existingInputs = recordValue(existingTrace.inputs);
+  const existingOutputs = recordValue(existingTrace.outputs);
+  return {
+    ...existingTrace,
+    methodId: stringValue(existingTrace.methodId) ?? "latency_excess_v1",
+    inputs: {
+      ...(existingInputs ?? {}),
+      requestId: event.request.requestId,
+      observedTotalMs: observation.observedMs,
+      timingAttribution: observation.timingAttribution,
+      timingClockLabel: observation.clockLabel,
+      gatewayElapsedMs: observation.gatewayElapsedMs,
+      providerElapsedMs: observation.providerElapsedMs,
+      providerRequestStartedAt: observation.providerRequestStartedAt,
+      ...(input
+        ? {
+            acceptableStartMs: input.acceptableStartMs,
+            acceptableMsPerOutputToken: input.acceptableMsPerOutputToken,
+            acceptableTotalMs: input.acceptableStartMs + input.outputTokens * input.acceptableMsPerOutputToken,
+            outputTokens: input.outputTokens,
+            rateUsdPerHour: input.rateUsdPerHour,
+          }
+        : {}),
+    },
+    outputs: {
+      ...(existingOutputs ?? {}),
+      timeLossMs,
+      providerRecognizedTimeLossMs,
+      recognitionGapTimeMs,
+      dollarTranslationUsd,
+    },
+  };
+}
+
+function latencyClockOneLine(input: {
+  readonly observedMs: number;
+  readonly clockLabel: string;
+  readonly acceptableTotalMs: number | null;
+  readonly timeLossMs: number;
+  readonly rateUsdPerHour: number;
+  readonly standardLossUsd: number;
+  readonly recognitionGapUsd: number;
+}): string {
+  const acceptable = input.acceptableTotalMs === null
+    ? "threshold"
+    : `${formatApproxTimeLost(input.acceptableTotalMs)} acceptable`;
+  return `observed ${formatApproxTimeLost(input.observedMs)} (${input.clockLabel}) - ${acceptable} = ${formatApproxTimeLost(input.timeLossMs)} excess x $${input.rateUsdPerHour}/hr = ${formatUsd(input.standardLossUsd)} standard loss; estimated recoverable $0.00 -> ${formatUsd(input.recognitionGapUsd)} unrecognized`;
 }
 
 function detectBenchJsonModeBrokenOutput(event: CanonicalEventNormalized): LossSignal | null {
@@ -1731,7 +2620,21 @@ function detectBenchCacheRateAnomaly(
 ): LossSignal | null {
   const observedCharge = cacheObservedChargeForEvent(event, context);
   if (observedCharge === null) return null;
-  return buildCacheRateAnomalySignal(event, observedCharge);
+  return cacheRateAnomalyWithVisibleOvercharge(buildCacheRateAnomalySignal(event, observedCharge));
+}
+
+function cacheRateAnomalyWithVisibleOvercharge(signal: LossSignal | null): LossSignal | null {
+  if (!signal || signal.code !== "CACHE_RATE_ANOMALY") return signal;
+  if (numericValue(signal.valueJson?.overchargeUsd) !== null) return signal;
+  const overchargeUsd = numericValue(signal.evidence.overchargeUsd);
+  if (overchargeUsd === null) return signal;
+  return {
+    ...signal,
+    valueJson: {
+      ...(signal.valueJson ?? {}),
+      overchargeUsd,
+    },
+  };
 }
 
 function factualityLossSignal(
@@ -1909,6 +2812,7 @@ function measureRows(
       openability: streamTerminationOpenability(events),
       cleanLabel: "watched-clean: stream timing carried terminal evidence with no stream anomaly",
       normalUsageRationale: "Normal streaming traffic carried terminal timing evidence.",
+      signalLabel: streamTerminationSignalLabel(streamSignals),
     }),
     overlayCoverageMeasureRow({
       rowKey: "retry_amplification",
@@ -1976,6 +2880,18 @@ interface SignalLike {
   readonly requestId?: string;
   readonly provider?: string;
   readonly evidence?: Record<string, unknown>;
+}
+
+function streamTerminationSignalLabel(signals: readonly StreamTerminationSignal[]): string | undefined {
+  if (signals.length === 0) return undefined;
+  const localHarnessAbortCount = signals.filter((signal) =>
+    recordValue(signal.evidence)?.terminationAttribution === "local_harness" ||
+    recordValue(signal.valueJson)?.terminationAttribution === "local_harness"
+  ).length;
+  const base = `${signals.length} evidence-only overlay${signals.length === 1 ? "" : "s"} emitted`;
+  return localHarnessAbortCount > 0
+    ? `${base}; ${localHarnessAbortCount} local-harness abort${localHarnessAbortCount === 1 ? "" : "s"}`
+    : base;
 }
 
 function signalBackedMeasureRow(input: {
@@ -2316,6 +3232,7 @@ function overlayCoverageMeasureRow(input: {
   readonly openability: SurfaceOpenability;
   readonly cleanLabel: string;
   readonly normalUsageRationale: string;
+  readonly signalLabel?: string;
 }): BenchMeasureRow {
   return coverageMeasureRow({
     rowKey: input.rowKey,
@@ -2323,7 +3240,7 @@ function overlayCoverageMeasureRow(input: {
     signalCodes: input.signalCodes,
     signalCount: input.count,
     signalEvidenceGrade: input.count > 0 ? "triage_only" : "not_applicable",
-    signalLabel: `${input.count} evidence-only overlay${input.count === 1 ? "" : "s"} emitted`,
+    signalLabel: input.signalLabel ?? `${input.count} evidence-only overlay${input.count === 1 ? "" : "s"} emitted`,
     openability: input.openability,
     cleanLabel: input.cleanLabel,
     normalUsageRationale: input.normalUsageRationale,
@@ -2848,10 +3765,32 @@ function computationTraceLine(signal: LossSignal): string | null {
   if (!isRecord(trace)) return null;
   const oneLine = trace.oneLine;
   if (typeof oneLine !== "string" || oneLine.trim().length === 0) return null;
+  const normalized = billBoundedClampDisplayText(
+    wholeCallFloorDisplayText(signal, estimatedRecoverableDisplayText(oneLine)),
+  );
   if (signal.code === "DUPLICATE_REQUEST_ID" && (signal.standardLossUsd ?? 0) > 0) {
-    return `${oneLine} — verify against your invoice`;
+    return `${normalized} — verify against your invoice`;
   }
-  return oneLine;
+  return normalized;
+}
+
+function wholeCallFloorDisplayText(signal: LossSignal, line: string): string {
+  if (signal.standardLossMethod !== "call_cost_floor_v1") return line;
+  if (line.includes("full-call floor")) return line;
+  return line.replace(/^standard loss /u, "full-call floor standard loss ");
+}
+
+function billBoundedClampDisplayText(line: string): string {
+  return line.replace(
+    /^bill-bounded per-call cap applied:/u,
+    "bill-bounded ex-post clamp applied:",
+  );
+}
+
+function estimatedRecoverableDisplayText(line: string): string {
+  return line
+    .replaceAll("Provider-recognized:", "Estimated recoverable (our arithmetic):")
+    .replaceAll("provider-recognized", "estimated recoverable");
 }
 
 function sanitizationDeltaLines(signal: LossSignal): readonly string[] {
@@ -2914,6 +3853,19 @@ function standardLossUsdForSignal(signal: LossSignal): number {
     numericValue(traceOutput(signal, "standardLossUsd"));
   if (standardLossUsd !== null) return standardLossUsd;
   return 0;
+}
+
+function invoiceCheckExposureUsdForSignal(signal: LossSignal): number | null {
+  if (signal.code !== "CACHE_DISCOUNT_AT_RISK" && signal.failureClass !== "cache_discount_at_risk") {
+    return null;
+  }
+  return numericValue(signal.valueJson?.invoiceCheckExposureUsd) ??
+    numericValue(signal.valueJson?.cacheDiscountExposureUsd) ??
+    numericValue(signal.valueJson?.cacheDiscountAtRiskUsd) ??
+    numericValue(signal.evidence.invoiceCheckExposureUsd) ??
+    numericValue(signal.evidence.cacheDiscountAtRiskUsd) ??
+    numericValue(traceOutput(signal, "invoiceCheckExposureUsd")) ??
+    standardLossUsdForSignal(signal);
 }
 
 function providerRecognizedUsdForSignal(signal: LossSignal): number {
@@ -3219,6 +4171,10 @@ function uniqueStrings(values: readonly string[]): readonly string[] {
 }
 
 function numericValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function finiteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 

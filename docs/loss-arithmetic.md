@@ -18,7 +18,7 @@ When the call delivered output but charge evidence says the billed count exceede
 
 `loss = (billed_output_tokens - recounted_visible_tokens) × output_rate`
 
-The delivered call does not get a whole-call floor. The shipped example from the 2026-07-10 OpenAI `gpt-5.5` run is 64 `token_recount_mismatch` calls with `$0.011670` total money loss. Those calls delivered, so the receipt counted only the overbilled visible-output tokens, not the full calls.
+The delivered call does not get a whole-call floor. In 0.2.1, the OpenAI visible-output recount row also needs verified tokenizer evidence before it can become a refundable candidate. The historic 2026-07-10 OpenAI `gpt-5.5` rows still appear as `OPENAI_TOKEN_RECOUNT_MISMATCH` signals, but the stored events lack the 0.2.1 verified-tokenizer basis, so the current shipped receipt grades all 259 such rows as `triage_only` with `$0` money loss and `$0` provider-recognized recovery.
 
 ## 3. Retry Amplification Counts Extra Provider-Fault Attempts
 

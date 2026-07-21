@@ -75,6 +75,7 @@ function isTruncated(event: CanonicalEventV1): boolean {
 function truncationGate(event: CanonicalEventV1): TruncationGate {
   const cap = callerMaxTokenCap(event);
   const callerCapEvidence = callerCapEvidenceForEvent(event, cap);
+  const taskContractEvidence = registeredOutputSchemaTaskContractEvidence(event);
 
   if (event.response.finishReason === "model_context_window_exceeded") {
     return {
@@ -85,6 +86,8 @@ function truncationGate(event: CanonicalEventV1): TruncationGate {
         verdict: "model_context_window_exceeded_triage",
         callerCapVerdict: callerCapEvidence.verdict,
         recoverability: "triage_only_context_window_input_envelope",
+        standardLossEligible: false,
+        standardLossEligibility: "context_window_triage",
       }),
     };
   }
@@ -97,13 +100,35 @@ function truncationGate(event: CanonicalEventV1): TruncationGate {
         ...callerCapEvidence,
         verdict: "caller_cap_hit",
         recoverability: "triage_only_caller_cap_hit",
+        standardLossEligible: false,
+        standardLossEligibility: "caller_cap_hit_triage",
+      }),
+    };
+  }
+
+  if (!cap && !taskContractEvidence) {
+    return {
+      refundable: false,
+      liabilityParty: "unknown",
+      evidence: truncationEvidence(event, {
+        ...callerCapEvidence,
+        recoverability: "triage_only_ambiguous_truncation",
+        standardLossEligible: false,
+        standardLossEligibility: "ambiguous_truncation_triage",
       }),
     };
   }
 
   return {
     refundable: true,
-    evidence: truncationEvidence(event, callerCapEvidence),
+    evidence: truncationEvidence(event, {
+      ...callerCapEvidence,
+      standardLossEligible: true,
+      standardLossEligibility: taskContractEvidence
+        ? "task_contract_truncation"
+        : "provider_stopped_before_caller_cap",
+      ...(taskContractEvidence ? { taskContractEvidence } : {}),
+    }),
   };
 }
 
@@ -172,6 +197,16 @@ function callerMaxTokenCap(event: CanonicalEventV1): CallerMaxTokenCap | null {
   return {
     ...selected,
     candidates,
+  };
+}
+
+function registeredOutputSchemaTaskContractEvidence(event: CanonicalEventV1): Record<string, unknown> | null {
+  const outputSchemaVersion = event.meta.outputSchemaVersion;
+  if (!outputSchemaVersion) return null;
+  if (!getOutputSchema(event.request.tenantId, outputSchemaVersion)) return null;
+  return {
+    kind: "registered_output_schema",
+    outputSchemaVersion,
   };
 }
 

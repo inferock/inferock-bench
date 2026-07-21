@@ -54,6 +54,7 @@ async function runOpenAiSdkProbe(input: SdkRetryWorkerInput): Promise<void> {
     maxRetries: 2,
     defaultHeaders: {
       "x-inferock-operation-id": `${input.runId}:sdk-retry-worker`,
+      "x-inferock-request-origin": "sdk_retry_probe",
     },
   });
   await client.chat.completions.create({
@@ -74,6 +75,7 @@ async function runAnthropicSdkProbe(input: SdkRetryWorkerInput): Promise<void> {
     maxRetries: 2,
     defaultHeaders: {
       "x-inferock-operation-id": `${input.runId}:sdk-retry-worker`,
+      "x-inferock-request-origin": "sdk_retry_probe",
     },
   });
   await client.messages.create({

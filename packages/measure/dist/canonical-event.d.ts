@@ -3,6 +3,23 @@ export declare const CanonicalProvider: z.ZodEnum<["openai", "anthropic", "gemin
 declare const ServedModelSource: z.ZodEnum<["provider_response", "adapter_fallback"]>;
 export declare const CANONICAL_OPERATION_ID_MAX_LENGTH = 512;
 export declare function isCanonicalOperationId(value: string): boolean;
+declare const ErrorOrigin: z.ZodEnum<["local", "provider"]>;
+declare const WallClockDrift: z.ZodObject<{
+    kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+    wallClockElapsedMs: z.ZodNumber;
+    monotonicElapsedMs: z.ZodNumber;
+    driftMs: z.ZodNumber;
+}, "strict", z.ZodTypeAny, {
+    kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+    wallClockElapsedMs: number;
+    monotonicElapsedMs: number;
+    driftMs: number;
+}, {
+    kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+    wallClockElapsedMs: number;
+    monotonicElapsedMs: number;
+    driftMs: number;
+}>;
 /**
  * @contract-id canonical-event-v1
  */
@@ -38,18 +55,21 @@ export declare const CanonicalEventV1: z.ZodObject<{
         content: z.ZodString;
         toolCalls: z.ZodOptional<z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>, "many">>;
         errorClass: z.ZodOptional<z.ZodString>;
+        errorOrigin: z.ZodOptional<z.ZodEnum<["local", "provider"]>>;
     }, "strict", z.ZodTypeAny, {
         content: string;
         statusCode: number;
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     }, {
         content: string;
         statusCode: number;
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     }>;
     usage: z.ZodObject<{
         input: z.ZodNumber;
@@ -83,26 +103,94 @@ export declare const CanonicalEventV1: z.ZodObject<{
         startedAt: z.ZodString;
         endedAt: z.ZodString;
         latencyMs: z.ZodNumber;
+        monotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        monotonicClockSource: z.ZodOptional<z.ZodString>;
+        wallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         providerRequestStartedAt: z.ZodOptional<z.ZodString>;
         providerResponseEndedAt: z.ZodOptional<z.ZodString>;
         providerElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerMonotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerWallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         gatewayOverheadMs: z.ZodOptional<z.ZodNumber>;
+        clientConsumptionEndedAt: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     }, {
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     }>;
     meta: z.ZodObject<{
         attemptIndex: z.ZodNumber;
@@ -136,6 +224,7 @@ export declare const CanonicalEventV1: z.ZodObject<{
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     };
     meta: {
         attemptIndex: number;
@@ -155,10 +244,26 @@ export declare const CanonicalEventV1: z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     };
 }, {
     request: {
@@ -176,6 +281,7 @@ export declare const CanonicalEventV1: z.ZodObject<{
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     };
     meta: {
         attemptIndex: number;
@@ -195,10 +301,26 @@ export declare const CanonicalEventV1: z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     };
 }>;
 declare const UsageCategory: z.ZodObject<{
@@ -229,10 +351,46 @@ declare const AttemptRecord: z.ZodObject<{
         startedAt: z.ZodString;
         endedAt: z.ZodString;
         latencyMs: z.ZodNumber;
+        monotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        monotonicClockSource: z.ZodOptional<z.ZodString>;
+        wallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         providerRequestStartedAt: z.ZodOptional<z.ZodString>;
         providerResponseEndedAt: z.ZodOptional<z.ZodString>;
         providerElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerMonotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerWallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         gatewayOverheadMs: z.ZodOptional<z.ZodNumber>;
+        clientConsumptionEndedAt: z.ZodOptional<z.ZodString>;
     } & {
         firstByteAt: z.ZodOptional<z.ZodString>;
         firstTokenAt: z.ZodOptional<z.ZodString>;
@@ -243,10 +401,26 @@ declare const AttemptRecord: z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstByteAt?: string | undefined;
         firstTokenAt?: string | undefined;
         lastChunkAt?: string | undefined;
@@ -256,10 +430,26 @@ declare const AttemptRecord: z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstByteAt?: string | undefined;
         firstTokenAt?: string | undefined;
         lastChunkAt?: string | undefined;
@@ -267,6 +457,7 @@ declare const AttemptRecord: z.ZodObject<{
         timeToFirstTokenMs?: number | undefined;
     }>;
     errorClass: z.ZodOptional<z.ZodString>;
+    errorOrigin: z.ZodOptional<z.ZodEnum<["local", "provider"]>>;
     retryReason: z.ZodOptional<z.ZodString>;
     statusCode: z.ZodOptional<z.ZodNumber>;
     providerRequestId: z.ZodOptional<z.ZodString>;
@@ -280,10 +471,26 @@ declare const AttemptRecord: z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstByteAt?: string | undefined;
         firstTokenAt?: string | undefined;
         lastChunkAt?: string | undefined;
@@ -294,6 +501,7 @@ declare const AttemptRecord: z.ZodObject<{
     finalSelected: boolean;
     statusCode?: number | undefined;
     errorClass?: string | undefined;
+    errorOrigin?: "local" | "provider" | undefined;
     retryReason?: string | undefined;
     providerRequestId?: string | undefined;
     sanitizedHeaders?: Record<string, string> | undefined;
@@ -305,10 +513,26 @@ declare const AttemptRecord: z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstByteAt?: string | undefined;
         firstTokenAt?: string | undefined;
         lastChunkAt?: string | undefined;
@@ -319,6 +543,7 @@ declare const AttemptRecord: z.ZodObject<{
     finalSelected: boolean;
     statusCode?: number | undefined;
     errorClass?: string | undefined;
+    errorOrigin?: "local" | "provider" | undefined;
     retryReason?: string | undefined;
     providerRequestId?: string | undefined;
     sanitizedHeaders?: Record<string, string> | undefined;
@@ -627,6 +852,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         grounding: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         logprobs: z.ZodOptional<z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>, "many">>;
         errorClass: z.ZodOptional<z.ZodString>;
+        errorOrigin: z.ZodOptional<z.ZodEnum<["local", "provider"]>>;
     }, "strict", z.ZodTypeAny, {
         content: string;
         statusCode: number;
@@ -635,6 +861,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -662,6 +889,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -761,10 +989,46 @@ export declare const CanonicalEventV2: z.ZodObject<{
         startedAt: z.ZodString;
         endedAt: z.ZodString;
         latencyMs: z.ZodNumber;
+        monotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        monotonicClockSource: z.ZodOptional<z.ZodString>;
+        wallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         providerRequestStartedAt: z.ZodOptional<z.ZodString>;
         providerResponseEndedAt: z.ZodOptional<z.ZodString>;
         providerElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerMonotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerWallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         gatewayOverheadMs: z.ZodOptional<z.ZodNumber>;
+        clientConsumptionEndedAt: z.ZodOptional<z.ZodString>;
     } & {
         firstEventAt: z.ZodOptional<z.ZodString>;
         firstContentDeltaAt: z.ZodOptional<z.ZodString>;
@@ -785,10 +1049,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -806,10 +1086,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -831,10 +1127,46 @@ export declare const CanonicalEventV2: z.ZodObject<{
             startedAt: z.ZodString;
             endedAt: z.ZodString;
             latencyMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+            monotonicClockSource: z.ZodOptional<z.ZodString>;
+            wallClockDrift: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+                wallClockElapsedMs: z.ZodNumber;
+                monotonicElapsedMs: z.ZodNumber;
+                driftMs: z.ZodNumber;
+            }, "strict", z.ZodTypeAny, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }>>;
             providerRequestStartedAt: z.ZodOptional<z.ZodString>;
             providerResponseEndedAt: z.ZodOptional<z.ZodString>;
             providerElapsedMs: z.ZodOptional<z.ZodNumber>;
+            providerMonotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+            providerWallClockDrift: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+                wallClockElapsedMs: z.ZodNumber;
+                monotonicElapsedMs: z.ZodNumber;
+                driftMs: z.ZodNumber;
+            }, "strict", z.ZodTypeAny, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }>>;
             gatewayOverheadMs: z.ZodOptional<z.ZodNumber>;
+            clientConsumptionEndedAt: z.ZodOptional<z.ZodString>;
         } & {
             firstByteAt: z.ZodOptional<z.ZodString>;
             firstTokenAt: z.ZodOptional<z.ZodString>;
@@ -845,10 +1177,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -858,10 +1206,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -869,6 +1233,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
             timeToFirstTokenMs?: number | undefined;
         }>;
         errorClass: z.ZodOptional<z.ZodString>;
+        errorOrigin: z.ZodOptional<z.ZodEnum<["local", "provider"]>>;
         retryReason: z.ZodOptional<z.ZodString>;
         statusCode: z.ZodOptional<z.ZodNumber>;
         providerRequestId: z.ZodOptional<z.ZodString>;
@@ -882,10 +1247,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -896,6 +1277,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -907,10 +1289,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -921,6 +1319,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -995,6 +1394,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -1041,10 +1441,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -1065,10 +1481,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -1079,6 +1511,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -1150,6 +1583,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -1196,10 +1630,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -1220,10 +1670,26 @@ export declare const CanonicalEventV2: z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -1234,6 +1700,7 @@ export declare const CanonicalEventV2: z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -1544,6 +2011,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         grounding: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
         logprobs: z.ZodOptional<z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>, "many">>;
         errorClass: z.ZodOptional<z.ZodString>;
+        errorOrigin: z.ZodOptional<z.ZodEnum<["local", "provider"]>>;
     }, "strict", z.ZodTypeAny, {
         content: string;
         statusCode: number;
@@ -1552,6 +2020,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -1579,6 +2048,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -1678,10 +2148,46 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         startedAt: z.ZodString;
         endedAt: z.ZodString;
         latencyMs: z.ZodNumber;
+        monotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        monotonicClockSource: z.ZodOptional<z.ZodString>;
+        wallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         providerRequestStartedAt: z.ZodOptional<z.ZodString>;
         providerResponseEndedAt: z.ZodOptional<z.ZodString>;
         providerElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerMonotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerWallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         gatewayOverheadMs: z.ZodOptional<z.ZodNumber>;
+        clientConsumptionEndedAt: z.ZodOptional<z.ZodString>;
     } & {
         firstEventAt: z.ZodOptional<z.ZodString>;
         firstContentDeltaAt: z.ZodOptional<z.ZodString>;
@@ -1702,10 +2208,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -1723,10 +2245,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -1748,10 +2286,46 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             startedAt: z.ZodString;
             endedAt: z.ZodString;
             latencyMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+            monotonicClockSource: z.ZodOptional<z.ZodString>;
+            wallClockDrift: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+                wallClockElapsedMs: z.ZodNumber;
+                monotonicElapsedMs: z.ZodNumber;
+                driftMs: z.ZodNumber;
+            }, "strict", z.ZodTypeAny, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }>>;
             providerRequestStartedAt: z.ZodOptional<z.ZodString>;
             providerResponseEndedAt: z.ZodOptional<z.ZodString>;
             providerElapsedMs: z.ZodOptional<z.ZodNumber>;
+            providerMonotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+            providerWallClockDrift: z.ZodOptional<z.ZodObject<{
+                kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+                wallClockElapsedMs: z.ZodNumber;
+                monotonicElapsedMs: z.ZodNumber;
+                driftMs: z.ZodNumber;
+            }, "strict", z.ZodTypeAny, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }, {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            }>>;
             gatewayOverheadMs: z.ZodOptional<z.ZodNumber>;
+            clientConsumptionEndedAt: z.ZodOptional<z.ZodString>;
         } & {
             firstByteAt: z.ZodOptional<z.ZodString>;
             firstTokenAt: z.ZodOptional<z.ZodString>;
@@ -1762,10 +2336,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -1775,10 +2365,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -1786,6 +2392,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             timeToFirstTokenMs?: number | undefined;
         }>;
         errorClass: z.ZodOptional<z.ZodString>;
+        errorOrigin: z.ZodOptional<z.ZodEnum<["local", "provider"]>>;
         retryReason: z.ZodOptional<z.ZodString>;
         statusCode: z.ZodOptional<z.ZodNumber>;
         providerRequestId: z.ZodOptional<z.ZodString>;
@@ -1799,10 +2406,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -1813,6 +2436,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -1824,10 +2448,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -1838,6 +2478,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -1912,6 +2553,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -1958,10 +2600,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -1982,10 +2640,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -1996,6 +2670,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -2067,6 +2742,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         citations?: Record<string, unknown>[] | undefined;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
         rawToolCalls?: Record<string, unknown>[] | undefined;
@@ -2113,10 +2789,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         latencyMs: number;
         chunkCount: number;
         terminalStatus: "error" | "complete" | "unknown" | "aborted";
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
         firstEventAt?: string | undefined;
         firstContentDeltaAt?: string | undefined;
         firstByteAt?: string | undefined;
@@ -2137,10 +2829,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
             startedAt: string;
             endedAt: string;
             latencyMs: number;
+            monotonicElapsedMs?: number | undefined;
+            monotonicClockSource?: string | undefined;
+            wallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             providerRequestStartedAt?: string | undefined;
             providerResponseEndedAt?: string | undefined;
             providerElapsedMs?: number | undefined;
+            providerMonotonicElapsedMs?: number | undefined;
+            providerWallClockDrift?: {
+                kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+                wallClockElapsedMs: number;
+                monotonicElapsedMs: number;
+                driftMs: number;
+            } | undefined;
             gatewayOverheadMs?: number | undefined;
+            clientConsumptionEndedAt?: string | undefined;
             firstByteAt?: string | undefined;
             firstTokenAt?: string | undefined;
             lastChunkAt?: string | undefined;
@@ -2151,6 +2859,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         finalSelected: boolean;
         statusCode?: number | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
         retryReason?: string | undefined;
         providerRequestId?: string | undefined;
         sanitizedHeaders?: Record<string, string> | undefined;
@@ -2191,18 +2900,21 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         content: z.ZodString;
         toolCalls: z.ZodOptional<z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>, "many">>;
         errorClass: z.ZodOptional<z.ZodString>;
+        errorOrigin: z.ZodOptional<z.ZodEnum<["local", "provider"]>>;
     }, "strict", z.ZodTypeAny, {
         content: string;
         statusCode: number;
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     }, {
         content: string;
         statusCode: number;
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     }>;
     usage: z.ZodObject<{
         input: z.ZodNumber;
@@ -2236,26 +2948,94 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         startedAt: z.ZodString;
         endedAt: z.ZodString;
         latencyMs: z.ZodNumber;
+        monotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        monotonicClockSource: z.ZodOptional<z.ZodString>;
+        wallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         providerRequestStartedAt: z.ZodOptional<z.ZodString>;
         providerResponseEndedAt: z.ZodOptional<z.ZodString>;
         providerElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerMonotonicElapsedMs: z.ZodOptional<z.ZodNumber>;
+        providerWallClockDrift: z.ZodOptional<z.ZodObject<{
+            kind: z.ZodEnum<["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]>;
+            wallClockElapsedMs: z.ZodNumber;
+            monotonicElapsedMs: z.ZodNumber;
+            driftMs: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }, {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        }>>;
         gatewayOverheadMs: z.ZodOptional<z.ZodNumber>;
+        clientConsumptionEndedAt: z.ZodOptional<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     }, {
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     }>;
     meta: z.ZodObject<{
         attemptIndex: z.ZodNumber;
@@ -2307,6 +3087,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     };
     meta: {
         attemptIndex: number;
@@ -2326,10 +3107,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     };
 }, {
     request: {
@@ -2347,6 +3144,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     };
     meta: {
         attemptIndex: number;
@@ -2366,10 +3164,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     };
 }>, {
     request: {
@@ -2387,6 +3201,7 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         finishReason: string;
         toolCalls?: Record<string, unknown>[] | undefined;
         errorClass?: string | undefined;
+        errorOrigin?: "local" | "provider" | undefined;
     };
     meta: {
         attemptIndex: number;
@@ -2406,10 +3221,26 @@ export declare const CanonicalEventAny: z.ZodUnion<[z.ZodObject<{
         startedAt: string;
         endedAt: string;
         latencyMs: number;
+        monotonicElapsedMs?: number | undefined;
+        monotonicClockSource?: string | undefined;
+        wallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         providerRequestStartedAt?: string | undefined;
         providerResponseEndedAt?: string | undefined;
         providerElapsedMs?: number | undefined;
+        providerMonotonicElapsedMs?: number | undefined;
+        providerWallClockDrift?: {
+            kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+            wallClockElapsedMs: number;
+            monotonicElapsedMs: number;
+            driftMs: number;
+        } | undefined;
         gatewayOverheadMs?: number | undefined;
+        clientConsumptionEndedAt?: string | undefined;
     };
 }, unknown>]>;
 export type CanonicalEventV1 = z.infer<typeof CanonicalEventV1>;
@@ -2419,6 +3250,7 @@ export type CanonicalProviderName = z.infer<typeof CanonicalProvider>;
 export type ProviderName = Extract<CanonicalProviderName, "openai" | "anthropic" | "gemini" | "openrouter">;
 export type CanonicalAttemptRecord = z.infer<typeof AttemptRecord>;
 export type CanonicalUsageCategory = z.infer<typeof UsageCategory>;
+export type CanonicalErrorOrigin = z.infer<typeof ErrorOrigin>;
 export interface CanonicalEventNormalized extends CanonicalEventV1 {
     readonly schemaVersion: "v1" | "v2";
     readonly rawOriginalEvent: CanonicalEventAny;
@@ -2464,6 +3296,7 @@ export interface CanonicalEventNormalized extends CanonicalEventV1 {
         readonly citations?: readonly Record<string, unknown>[];
         readonly grounding?: Record<string, unknown>;
         readonly logprobs?: readonly Record<string, unknown>[];
+        readonly errorOrigin?: CanonicalErrorOrigin;
     };
     readonly usage: CanonicalEventV1["usage"] & {
         readonly raw?: unknown;
@@ -2483,7 +3316,13 @@ export interface CanonicalEventNormalized extends CanonicalEventV1 {
         readonly providerRequestStartedAt?: string;
         readonly providerResponseEndedAt?: string;
         readonly providerElapsedMs?: number;
+        readonly providerMonotonicElapsedMs?: number;
+        readonly providerWallClockDrift?: z.infer<typeof WallClockDrift>;
+        readonly monotonicElapsedMs?: number;
+        readonly monotonicClockSource?: string;
+        readonly wallClockDrift?: z.infer<typeof WallClockDrift>;
         readonly gatewayOverheadMs?: number;
+        readonly clientConsumptionEndedAt?: string;
         readonly timeToFirstEventMs?: number;
         readonly timeToFirstContentDeltaMs?: number;
         readonly timeToFirstByteMs?: number;
@@ -2496,5 +3335,6 @@ export interface CanonicalEventNormalized extends CanonicalEventV1 {
     readonly attempts: readonly CanonicalAttemptRecord[];
 }
 export declare function normalizeCanonicalEvent(event: CanonicalEventAny): CanonicalEventNormalized;
+export declare function canonicalEventErrorOrigin(event: Pick<CanonicalEventNormalized, "response" | "attempts"> | Pick<CanonicalEventV2, "response" | "attempts"> | Pick<CanonicalEventV1, "response">): CanonicalErrorOrigin | undefined;
 export {};
 //# sourceMappingURL=canonical-event.d.ts.map

@@ -25,6 +25,7 @@ import {
 } from "./types.js";
 import type { ProviderName } from "../provider.js";
 import { providerErrorReason } from "./provider-error.js";
+import type { WallClockDriftEvidence } from "./provider-call.js";
 
 export type HiddenTokenProbeKind =
   | "positive"
@@ -50,6 +51,9 @@ export interface HiddenTokenProviderCallResult {
   readonly requestId: string;
   readonly startedAt: string;
   readonly endedAt: string;
+  readonly monotonicElapsedMs?: number;
+  readonly monotonicClockSource?: string;
+  readonly wallClockDrift?: WallClockDriftEvidence;
   readonly statusCode: number;
   readonly rawUsage: JsonRecord;
   readonly content: string;
@@ -315,12 +319,17 @@ function supportsOpenAiReasoningNone(model: string): boolean {
   return /^gpt-5(?:\.|-|$)/.test(model) || /^o\d/.test(model);
 }
 
+function elapsedMs(startedMs: number, endedMs: number): number {
+  if (!Number.isFinite(startedMs) || !Number.isFinite(endedMs)) return 0;
+  return Math.max(0, endedMs - startedMs);
+}
+
 function canonicalHiddenTokenEvent(
   probe: HiddenTokenProbe,
   result: HiddenTokenProviderCallResult,
 ): CanonicalEventV2 {
   const usage = canonicalUsageFromRaw(probe, result.rawUsage);
-  const latencyMs = Math.max(0, Date.parse(result.endedAt) - Date.parse(result.startedAt));
+  const latencyMs = result.monotonicElapsedMs ?? elapsedMs(Date.parse(result.startedAt), Date.parse(result.endedAt));
   return {
     schemaVersion: "v2",
     request: {
@@ -348,6 +357,9 @@ function canonicalHiddenTokenEvent(
       startedAt: result.startedAt,
       endedAt: result.endedAt,
       latencyMs,
+      ...(result.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: result.monotonicElapsedMs } : {}),
+      ...(result.monotonicClockSource ? { monotonicClockSource: result.monotonicClockSource } : {}),
+      ...(result.wallClockDrift ? { wallClockDrift: result.wallClockDrift } : {}),
       chunkCount: 0,
       terminalStatus: result.statusCode >= 400 ? "error" : "complete",
     },
@@ -360,6 +372,9 @@ function canonicalHiddenTokenEvent(
         startedAt: result.startedAt,
         endedAt: result.endedAt,
         latencyMs,
+        ...(result.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: result.monotonicElapsedMs } : {}),
+        ...(result.monotonicClockSource ? { monotonicClockSource: result.monotonicClockSource } : {}),
+        ...(result.wallClockDrift ? { wallClockDrift: result.wallClockDrift } : {}),
       },
       statusCode: result.statusCode,
       finalSelected: true,

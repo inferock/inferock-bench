@@ -13,15 +13,18 @@ Use this as the proof card for the first 0.1.10 public component in the cumulati
 | What was sanitized out? | [Source Artifacts](#source-artifacts) and [Sanitization](#sanitization) |
 
 - Run id: `inferock-bench-0.1.10-real-traffic-2026-07-09`.
-- Package: `inferock-bench` 0.1.10.
+- Original capture package: `inferock-bench` 0.1.10.
+- Grading package used for this card: `inferock-bench` 0.2.3.
+- Run-card freshness: current-public-run-card; grading version: `inferock-bench` 0.2.3.
+- Regeneration note: regenerated 2026-07-21 with `inferock-bench` 0.2.3 grading from the stored real 2026-07-09 event store. The prior `TRUNCATED` money row no longer contributes bill-bounded money loss under current grading, so this card moves from 33 to 32 failure signals and from `$0.000371` money/provider-recognized loss to `$0.000000`. No provider calls were made during regeneration.
 - Scope: OpenAI, Anthropic, Gemini.
 - Run type: maintainer-owned development-key run, published to prove the artifact path and method. It is not an independent customer audit and not a provider ranking.
 - Measured calls: 107.
-- Failures/signals: 33.
+- Failures/signals: 32.
 - Provider-error events: 3.
 - Observed provider spend: `$1.71` (stored exact: `$1.713128`).
-- Bill-bounded money loss: `$0.00` (stored exact: `$0.000371`).
-- Provider-recognized: `$0.000371`.
+- Bill-bounded money loss: `$0.00` (stored exact: `$0.000000`).
+- Provider-recognized: `$0.000000`.
 - Recognition gap: `$0.00` (stored exact: `$0.000000`).
 - Time loss: `~0s`.
 - Provider-recognized time: `~0s`.
@@ -33,10 +36,10 @@ Use this as the proof card for the first 0.1.10 public component in the cumulati
 - Public asset provenance: [`../assets/PROVENANCE.md`](../assets/PROVENANCE.md).
 - Component paths below are private maintainer worktree artifacts, not public-verifiable raw logs; this card publishes sanitized aggregate facts and hashes only.
 - Harvested event records used for the re-render: `scratchpad/newrun/newrun/events.jsonl`.
-- Re-render method: copied the harvested event store into an isolated `INFEROCK_BENCH_HOME`, scrubbed provider-key environment variables, and ran `inferock-bench` 0.1.10 receipt commands against the event store.
-- Re-rendered aggregate receipt hash: `sha256:1a043d5673ec02599ce2bff22918173a2ed5f93f5727789ccaccd3a368db1c06` (`aggregate-receipt.json`, 36,445 bytes).
-- Re-rendered compact receipt hash after public path/watermark masking: `sha256:96a295d3d81e8c0f12bc8a0fccae530537faa7706e688478d5987e2cf2bf1258` (`receipt-compact.txt`, 3,071 bytes).
-- Re-rendered share-card hash: `sha256:12eb82f5af9f87bdf657e71a15d96a297954006fa306b8189cd2348979038d0d` (`receipt-share-card.txt`, 1,319 bytes).
+- Re-render method: copied the harvested event store into an isolated `INFEROCK_BENCH_HOME`, scrubbed provider-key environment variables, and ran `inferock-bench` 0.2.3 receipt commands against the event store.
+- Re-rendered aggregate receipt hash: `sha256:58b2b1a46ba327fa4a34ecbfc4bbfacb02ad55a77f6edfd833224374cff0e679` (`aggregate-receipt.json`, 36,531 bytes).
+- Re-rendered compact receipt hash after public path/watermark masking: `sha256:f7961704fa63252c0a58ab12ba5b93ae700a39c980e6eaffab33173d3338e134` (`receipt-compact.txt`, 3,222 bytes).
+- Re-rendered share-card hash: `sha256:833889adc84fe83686707aa2a13b14dc9318089e211ac97d61b1d2f0e26c6285` (`receipt-share-card.txt`, 1,389 bytes).
 - Harvested event-log hash before sanitization: `sha256:a4175aa23dad626256e9a7dd2c30b1ee82c9a786edd7c35ee547d72540de597b` (`events.jsonl`).
 
 Raw event logs can contain response content, tool schemas, provider IDs, timing, selected headers, and detector evidence. Do not post raw event logs. This card contains only aggregate rows and artifact hashes.
@@ -46,9 +49,9 @@ Raw event logs can contain response content, tool schemas, provider IDs, timing,
 | Ledger | Value | Meaning |
 | --- | ---: | --- |
 | Spent | `$1.713128` | Provider-priced spend observed by the run. |
-| Money loss | `$0.000371` | Bill-bounded loss tied to observed spend or charge evidence. It rounds to `$0.00` in the headline. |
+| Money loss | `$0.000000` | Bill-bounded loss tied to observed spend or charge evidence. It rounds to `$0.00` in the headline. |
 | Time loss | `~0s` | Time ledger impact; it is not added to dollars. |
-| Provider-recognized | `$0.000371` | Amount recognized by provider policy or provider-origin charge evidence in this run. |
+| Provider-recognized | `$0.000000` | Amount recognized by provider policy or provider-origin charge evidence in this run. |
 | Recognition gap | `$0.000000` | Bill-bounded money loss minus provider-recognized. |
 
 ## Invoice-Check Exposure
@@ -73,7 +76,6 @@ Provider names are shown because the aggregate rows are recoverable from stored 
 
 | Signal or exposure | Failure class | Evidence grade | Count | Primary ledger | Money loss | Provider-recognized | Recognition gap |
 | --- | --- | --- | ---: | --- | ---: | ---: | ---: |
-| `TRUNCATED` | `truncation` | `refundable_candidate` | 1 | bill-bounded money loss | `$0.000371` | `$0.000371` | `$0.000000` |
 | `ANTHROPIC_TOKEN_CROSSCHECK` | `anthropic_token_crosscheck` | `triage_only` | 12 | triage-only | `$0.000000` | `$0.000000` | `$0.000000` |
 | `PROVIDER_DOWNTIME` | `downtime` | `triage_only` | 1 | triage-only | `$0.000000` | `$0.000000` | `$0.000000` |
 | `CACHE_DISCOUNT_AT_RISK` | `cache_discount_at_risk` | `invoice-check exposure` | 19 | exposure | not included | not included | not included |
@@ -84,7 +86,7 @@ Provider names are shown because the aggregate rows are recoverable from stored 
 - Coverage summary method: `inferock-bench-coverage-summary-v1`.
 - Surfaces watched: 12 of 13.
 - Signals reported by coverage: 32.
-- Receipt failures/signals including exposure and provider-error rows: 33.
+- Receipt failures/signals including exposure and provider-error rows: 32.
 - Not-openable surfaces: 1.
 - Unopened surface: `Drift / regression` (`drift_regression`) because the drift canary baseline was still collecting, 0 of 3 prior baseline runs completed before current run.
 

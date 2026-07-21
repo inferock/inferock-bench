@@ -6,6 +6,21 @@ import {
 import { writePrivateTextFile } from "./private-files.js";
 import { isRecord, stringValue } from "./record.js";
 
+const ADDITIVE_TIMING_EXTENSION_FIELDS = [
+  "monotonicElapsedMs",
+  "monotonicClockSource",
+  "wallClockDrift",
+  "providerMonotonicElapsedMs",
+  "providerWallClockDrift",
+  "clientConsumptionEndedAt",
+] as const;
+const ADDITIVE_RESPONSE_EXTENSION_FIELDS = [
+  "errorOrigin",
+] as const;
+const ADDITIVE_ATTEMPT_EXTENSION_FIELDS = [
+  "errorOrigin",
+] as const;
+
 export interface StoredBenchEvent {
   readonly schemaVersion: "inferock-bench-event-v1";
   readonly capturedAt: string;
@@ -121,8 +136,8 @@ function parseStoredBenchEvent(line: string): StoredBenchEvent | undefined {
   if (!isRecord(parsed) || parsed.schemaVersion !== "inferock-bench-event-v1") return undefined;
   const capturedAt = stringValue(parsed.capturedAt);
   if (!capturedAt) return undefined;
-  const event = CanonicalEventAny.safeParse(parsed.event);
-  if (!event.success) return undefined;
+  const event = parseCanonicalStoredEvent(parsed.event);
+  if (!event) return undefined;
   const runId = stringValue(parsed.runId);
   const suiteTaskId = stringValue(parsed.suiteTaskId);
   const driftCanaryProtocolVersion = stringValue(parsed.driftCanaryProtocolVersion);
@@ -132,8 +147,82 @@ function parseStoredBenchEvent(line: string): StoredBenchEvent | undefined {
     ...(runId ? { runId } : {}),
     ...(suiteTaskId ? { suiteTaskId } : {}),
     ...(driftCanaryProtocolVersion ? { driftCanaryProtocolVersion } : {}),
-    event: event.data,
+    event,
   };
+}
+
+function parseCanonicalStoredEvent(value: unknown): CanonicalEventAnyType | undefined {
+  const parsed = CanonicalEventAny.safeParse(value);
+  if (parsed.success) return parsed.data;
+
+  const validationShape = omitAdditiveTimingExtensions(value);
+  if (validationShape === value) return undefined;
+  const fallback = CanonicalEventAny.safeParse(validationShape);
+  return fallback.success ? value as CanonicalEventAnyType : undefined;
+}
+
+function omitAdditiveTimingExtensions(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+
+  let changed = false;
+  const event: Record<string, unknown> = { ...value };
+  if (isRecord(value.timing)) {
+    event.timing = omitTimingExtensionFields(value.timing);
+    changed ||= event.timing !== value.timing;
+  }
+  if (isRecord(value.response)) {
+    event.response = omitResponseExtensionFields(value.response);
+    changed ||= event.response !== value.response;
+  }
+  if (Array.isArray(value.attempts)) {
+    const attempts = value.attempts.map((attempt) => {
+      if (!isRecord(attempt)) return attempt;
+      const timing = isRecord(attempt.timing) ? omitTimingExtensionFields(attempt.timing) : attempt.timing;
+      const attemptWithTiming = timing === attempt.timing ? attempt : { ...attempt, timing };
+      const next = omitAttemptExtensionFields(attemptWithTiming);
+      if (next === attempt) return attempt;
+      changed = true;
+      return next;
+    });
+    if (changed) event.attempts = attempts;
+  }
+  return changed ? event : value;
+}
+
+function omitTimingExtensionFields(timing: Record<string, unknown>): Record<string, unknown> {
+  let changed = false;
+  const next: Record<string, unknown> = { ...timing };
+  for (const field of ADDITIVE_TIMING_EXTENSION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(next, field)) {
+      delete next[field];
+      changed = true;
+    }
+  }
+  return changed ? next : timing;
+}
+
+function omitResponseExtensionFields(response: Record<string, unknown>): Record<string, unknown> {
+  let changed = false;
+  const next: Record<string, unknown> = { ...response };
+  for (const field of ADDITIVE_RESPONSE_EXTENSION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(next, field)) {
+      delete next[field];
+      changed = true;
+    }
+  }
+  return changed ? next : response;
+}
+
+function omitAttemptExtensionFields(attempt: Record<string, unknown>): Record<string, unknown> {
+  let changed = false;
+  const next: Record<string, unknown> = { ...attempt };
+  for (const field of ADDITIVE_ATTEMPT_EXTENSION_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(next, field)) {
+      delete next[field];
+      changed = true;
+    }
+  }
+  return changed ? next : attempt;
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

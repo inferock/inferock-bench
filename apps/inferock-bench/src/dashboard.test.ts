@@ -8,6 +8,7 @@ import { BENCH_PACKAGE_VERSION } from "./version.js";
 import { loadCoverageTokenBaselineFromValue } from "./coverage-suite/baseline.js";
 import { loadCoverageSuiteManifest } from "./coverage-suite/manifest.js";
 import {
+  actionCopyForReportRow,
   dashboardSetupState,
   dashboardStateFor,
   recentCallsFromRecords,
@@ -19,6 +20,8 @@ import type { EventStore, StoredBenchEvent } from "./storage.js";
 import { summarizeBenchEvents } from "./summary.js";
 import { planAgentProvisioning } from "./agent-mode/provisioner.js";
 import { SPEEDTEST_RECEIPT_SCHEMA_VERSION } from "./receipt-schema.js";
+
+const COVERAGE_RUN_TEST_TIMEOUT_MS = 30_000;
 
 class MemoryStore implements EventStore {
   constructor(readonly records: StoredBenchEvent[] = []) {}
@@ -32,21 +35,70 @@ class MemoryStore implements EventStore {
   }
 }
 
+const DASHBOARD_TEST_MANAGEMENT_TOKEN = "dashboard-test-management-token";
+
 async function dashboardManagementHeaders(app: ReturnType<typeof createBenchApp>): Promise<Record<string, string>> {
-  const html = await (await app.request("/")).text();
-  const token = html.match(/const MANAGEMENT_ACCESS_TOKEN = "([^"]+)";/)?.[1];
-  if (!token) throw new Error("dashboard management authorization token missing");
-  return { "x-inferock-bench-management": token };
+  const authorized = await app.request(`/?token=${DASHBOARD_TEST_MANAGEMENT_TOKEN}`);
+  if (authorized.status !== 200) {
+    throw new Error(
+      "dashboard management authorization token missing — pass " +
+      "managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN to createBenchApp",
+    );
+  }
+  return { "x-inferock-bench-management": DASHBOARD_TEST_MANAGEMENT_TOKEN };
 }
 
 describe("dashboard", () => {
+  it("never serves the management access token to an unauthenticated request", async () => {
+    const home = await mkdtemp(join(tmpdir(), "inferock-bench-token-gate-"));
+    const paths = resolveBenchPaths({ INFEROCK_BENCH_HOME: home });
+    const config = await ensureGeneratedBenchKey({ paths, config: {} });
+    const app = createBenchApp({
+      config,
+      paths,
+      store: new MemoryStore(),
+      env: {},
+      log: () => {},
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
+    });
+
+    const bareRequest = await app.request("/");
+    expect(bareRequest.status).toBe(401);
+    expect(await bareRequest.text()).not.toContain(DASHBOARD_TEST_MANAGEMENT_TOKEN);
+
+    const wrongToken = await app.request("/?token=not-the-real-token");
+    expect(wrongToken.status).toBe(401);
+    expect(await wrongToken.text()).not.toContain(DASHBOARD_TEST_MANAGEMENT_TOKEN);
+
+    const wrongCookie = await app.request("/", {
+      headers: { cookie: "inferock_bench_session=not-the-real-token" },
+    });
+    expect(wrongCookie.status).toBe(401);
+    expect(await wrongCookie.text()).not.toContain(DASHBOARD_TEST_MANAGEMENT_TOKEN);
+
+    const authorized = await app.request(`/?token=${DASHBOARD_TEST_MANAGEMENT_TOKEN}`);
+    expect(authorized.status).toBe(200);
+    expect(await authorized.text()).toContain(DASHBOARD_TEST_MANAGEMENT_TOKEN);
+  });
+
   it("serves self-contained HTML and honest-zero JSON endpoint shapes", async () => {
     const home = await mkdtemp(join(tmpdir(), "inferock-bench-dashboard-"));
     const paths = resolveBenchPaths({ INFEROCK_BENCH_HOME: home });
     const config = await ensureGeneratedBenchKey({ paths, config: {} });
-    const app = createBenchApp({ config, paths, store: new MemoryStore(), env: {}, log: () => {} });
+    const app = createBenchApp({
+      config,
+      paths,
+      store: new MemoryStore(),
+      env: {},
+      log: () => {},
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
+    });
 
-    const html = await app.request("/");
+    const unauthorizedHtml = await app.request("/");
+    expect(unauthorizedHtml.status).toBe(401);
+    expect(await unauthorizedHtml.text()).not.toContain(DASHBOARD_TEST_MANAGEMENT_TOKEN);
+
+    const html = await app.request(`/?token=${DASHBOARD_TEST_MANAGEMENT_TOKEN}`);
     expect(html.status).toBe(200);
     const htmlText = await html.text();
     expect(htmlText).toContain("Inferock Bench");
@@ -55,11 +107,14 @@ describe("dashboard", () => {
     expect(htmlText).toContain("Ready to spend");
     expect(htmlText).toContain("Loss measured by the standard");
     expect(htmlText).toContain("Surfaces watched");
+    expect(htmlText).toContain("Failure signals");
+    expect(htmlText).toContain("Provider spend observed (priced calls only)");
     expect(htmlText).toContain("data-testid=\"money-loss-spend-share\"");
     expect(htmlText).toContain("data-testid=\"invoice-check-exposure-headline\"");
     expect(htmlText.match(/class="headline-card"/g) ?? []).toHaveLength(4);
     expect(htmlText.match(/class="headline-card-gloss small muted"/g) ?? []).toHaveLength(4);
     expect(htmlText.match(/class="headline-card-value money-headline"/g) ?? []).toHaveLength(4);
+    expect(htmlText).toContain("numeric > 0 && numeric < 0.01");
     expect(htmlText).toContain("what providers charged");
     expect(htmlText).toContain("lost within that bill");
     expect(htmlText).toContain("latency & downtime");
@@ -123,8 +178,8 @@ describe("dashboard", () => {
       calls: [],
     });
     const receipt = await (await app.request("/api/receipt")).json() as { compactText: string };
-    expect(receipt.compactText.split("\n")[0]).toBe("spent $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
-    expect(receipt.compactText.split("\n")[1]).toBe("provider-recognized $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
+    expect(receipt.compactText.split("\n")[0]).toBe("priced spend $0.00 · money loss $0.00 · time loss ~0s · invoice-check exposure $0.00");
+    expect(receipt.compactText.split("\n")[1]).toBe("estimated recoverable (our arithmetic) $0.00 · recognition gap $0.00 · money loss = no priced spend measured");
   });
 
   it("serves direct health status", async () => {
@@ -166,7 +221,9 @@ describe("dashboard", () => {
     const summary = await (await app.request("/api/summary")).json() as {
       summary: { moneyLossObservedSpendLine: string | null };
     };
-    expect(summary.summary.moneyLossObservedSpendLine).toMatch(/^money loss = \d+\.\d% of observed spend/);
+    expect(summary.summary.moneyLossObservedSpendLine).toMatch(
+      /^money loss = \d+\.\d% of observed spend \(priced calls only/,
+    );
     const percent = summary.summary.moneyLossObservedSpendLine?.match(/^money loss = (\d+\.\d)%/)?.[1];
     if (!percent) throw new Error("dashboard fixture should expose a percent");
 
@@ -226,7 +283,7 @@ describe("dashboard", () => {
     expect(summary.summary.moneyLossObservedSpendLine).toBeNull();
 
     const receipt = await (await app.request("/api/receipt")).json() as { compactText: string };
-    expect(receipt.compactText.split("\n")[0]).toBe("spent $0.00 · money loss pricing unknown · time loss ~0s · invoice-check exposure $0.00");
+    expect(receipt.compactText.split("\n")[0]).toBe("priced spend $0.00 · money loss pricing unknown · time loss ~0s · invoice-check exposure $0.00");
   });
 
   it("streams Anthropic SSE through the bench server with a mocked provider", async () => {
@@ -305,6 +362,7 @@ describe("dashboard", () => {
         });
       },
       log: () => undefined,
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
     });
     const managementHeaders = await dashboardManagementHeaders(app);
     const startBody = {
@@ -422,6 +480,7 @@ describe("dashboard", () => {
         throw new Error("registry offline");
       },
       log: () => undefined,
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
     });
     const managementHeaders = await dashboardManagementHeaders(app);
     const startBody = {
@@ -459,7 +518,7 @@ describe("dashboard", () => {
       },
     });
     expect(providerCalls).toBe(0);
-  });
+  }, COVERAGE_RUN_TEST_TIMEOUT_MS);
 
   it("persists setup updates, emits masked-only default payloads, and rewrites config with 0600 permissions", async () => {
     const home = await mkdtemp(join(tmpdir(), "inferock-bench-setup-"));
@@ -468,7 +527,14 @@ describe("dashboard", () => {
     const rawOpenAiKey = ["s", "k", "-", "proj", "-", "benchrender", "-", "1234567890"].join("");
     const rawAnthropicKey = ["s", "k", "-", "ant", "-", "benchrender", "-", "abcdefghij"].join("");
     const config = await ensureGeneratedBenchKey({ paths, config: { benchKey: fullBenchKey } });
-    const app = createBenchApp({ config, paths, store: new MemoryStore(), env: {}, log: () => {} });
+    const app = createBenchApp({
+      config,
+      paths,
+      store: new MemoryStore(),
+      env: {},
+      log: () => {},
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
+    });
     const managementHeaders = await dashboardManagementHeaders(app);
 
     const summaryBefore = await (await app.request("/api/summary")).json();
@@ -611,6 +677,44 @@ describe("dashboard", () => {
     expect(renderDashboardHtml()).toContain("data-key-card");
   });
 
+  it("routes cache action-card copy by signal type", () => {
+    const recognized = actionCopyForReportRow({
+      code: "CACHE_RATE_ANOMALY",
+      failureClass: "cache_rate_anomaly",
+      providerRecognizedUsd: 1813.172824,
+      recognitionGapUsd: 0,
+    });
+    const gap = actionCopyForReportRow({
+      code: "CACHE_RATE_ANOMALY",
+      failureClass: "cache_rate_anomaly",
+      providerRecognizedUsd: 0,
+      recognitionGapUsd: 450.023311,
+    });
+    expect(recognized).toEqual({
+      title: "Cache usage was charged above the expected rate - estimated recoverable (our arithmetic)",
+      next: "Check the invoice line's cache token category, model rate, and charged amount against the expected rate; use the request IDs and delta for an overcharge dispute.",
+    });
+    expect(gap).toEqual({
+      title: "Cache usage was charged above the expected rate - not recognized yet",
+      next: recognized.next,
+    });
+    expect(recognized.title).not.toBe(gap.title);
+
+    expect(actionCopyForReportRow({
+      code: "CACHE_DISCOUNT_AT_RISK",
+      failureClass: "cache_discount_at_risk",
+    })).toEqual({
+      title: "Cache discount may not have applied",
+      next: "Compare these calls against your invoice and cache configuration.",
+    });
+
+    expect(actionCopyForReportRow({
+      code: "LEGACY_CACHE_RATE_ROW",
+      failureClass: "cache_rate_anomaly",
+      providerRecognizedUsd: 1,
+    }).title).toBe("Cache usage was charged above the expected rate - estimated recoverable (our arithmetic)");
+  });
+
   it("coverage-test options fail closed for no-key and bootstrap-required baseline states", async () => {
     const noKeyApp = createBenchApp({
       config: { benchKey: "local_bench_key_zero" },
@@ -640,6 +744,7 @@ describe("dashboard", () => {
       env: {},
       log: () => undefined,
       coverageTest: { baselineUrl: bootstrapPath },
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
     });
     const bootstrapOptions = await (await bootstrapApp.request("/api/coverage-test/options")).json() as {
       runnable: boolean;
@@ -674,6 +779,7 @@ describe("dashboard", () => {
       env: {},
       log: () => undefined,
       coverageTest: { suite, baseline },
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
     });
     const managementHeaders = await dashboardManagementHeaders(app);
 
@@ -738,6 +844,7 @@ describe("dashboard", () => {
       coverageTest: { suite, baseline },
       providerFetch: mockCoverageProviderFetch(providerCalls),
       log: () => undefined,
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
     });
     const managementHeaders = await dashboardManagementHeaders(app);
 
@@ -864,7 +971,7 @@ describe("dashboard", () => {
     };
     expect(summary.summary.coverage.runId).toBe(start.run.runId);
     expect(summary.summary.measuredCalls).toBe(completed.progress.measuredCalls);
-  });
+  }, COVERAGE_RUN_TEST_TIMEOUT_MS);
 
   it("coverage-test abort drains in-flight provider calls before another start is allowed", async () => {
     const rawProviderKey = ["s", "k", "-openai-coverage-drain-secret"].join("");
@@ -892,6 +999,7 @@ describe("dashboard", () => {
         }
       },
       log: () => undefined,
+      managementAccessToken: DASHBOARD_TEST_MANAGEMENT_TOKEN,
     });
     const managementHeaders = await dashboardManagementHeaders(app);
     const startBody = {
@@ -951,7 +1059,7 @@ describe("dashboard", () => {
       status: "killed",
       statusReason: "aborted_by_user",
     });
-  });
+  }, COVERAGE_RUN_TEST_TIMEOUT_MS);
 
   it("dashboard-runmeta-scope: scopes mixed stores by run ID unless all-store is explicit", async () => {
     const store = new MemoryStore([

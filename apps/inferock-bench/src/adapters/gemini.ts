@@ -3,10 +3,12 @@ import {
   canonicalAttempts,
   canonicalRequest,
   canonicalTiming,
+  captureMonotonicTimestamp,
   createStreamTimingCapture,
   providerRequestIdFromHeaders,
-  recordStreamChunk,
-  recordStreamToken,
+  recordParsedSseEvent,
+  recordStreamByte,
+  recordStreamContentDelta,
   sanitizedProviderHeaders,
   streamTiming,
 } from "./canonical-v2.js";
@@ -208,21 +210,24 @@ function observeGeminiStream(input: AdapterStreamInput): ReadableStream<Uint8Arr
   return input.body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller): void {
-        const observedAt = new Date();
+        const observedAt = captureMonotonicTimestamp();
+        recordStreamByte(state.timing, observedAt);
         let observedContentDelta = false;
         for (const message of parser.push(decoder.decode(chunk, { stream: true }))) {
-          observedContentDelta = applyGeminiStreamMessage(state, message.data, input.statusCode, observedAt) ||
+          recordParsedSseEvent(state.timing, observedAt);
+          observedContentDelta = applyGeminiStreamMessage(state, message.data, input.statusCode) ||
             observedContentDelta;
         }
-        if (observedContentDelta) recordStreamToken(state.timing, observedAt);
+        if (observedContentDelta) recordStreamContentDelta(state.timing, observedAt);
         controller.enqueue(chunk);
       },
       flush(): void {
-        const observedAt = new Date();
+        const observedAt = captureMonotonicTimestamp();
         const tail = decoder.decode();
         for (const message of [...parser.push(tail), ...parser.end()]) {
-          if (applyGeminiStreamMessage(state, message.data, input.statusCode, observedAt)) {
-            recordStreamToken(state.timing, observedAt);
+          recordParsedSseEvent(state.timing, observedAt);
+          if (applyGeminiStreamMessage(state, message.data, input.statusCode)) {
+            recordStreamContentDelta(state.timing, observedAt);
           }
         }
         if (state.timing.terminalStatus === "unknown") {
@@ -238,11 +243,9 @@ function applyGeminiStreamMessage(
   state: GeminiStreamState,
   data: string,
   statusCode: number,
-  observedAt: Date,
 ): boolean {
   const parsed = parseJsonRecord(data);
   if (!parsed) return false;
-  recordStreamChunk(state.timing, observedAt);
 
   if (isRecord(parsed.error)) {
     const rawErrorType = geminiErrorStatus(parsed.error, parsed, statusCode);
@@ -282,7 +285,13 @@ function finalizeGeminiStream(
   input: AdapterStreamInput,
   state: GeminiStreamState,
 ): AdapterCanonicalResult {
-  const endedAt = new Date();
+  const endedAt = captureMonotonicTimestamp();
+  const terminalInput = {
+    ...input,
+    endedAtMonotonicNs: endedAt.monotonicNs,
+    providerResponseEndedAt: endedAt.wallTime,
+    providerResponseEndedAtMonotonicNs: endedAt.monotonicNs,
+  };
   const servedModel = state.modelVersion ?? input.requestModel;
   const servedModelSource = state.modelVersion ? "provider_response" : "adapter_fallback";
   const providerRequestId = providerRequestIdFromHeaders(input.headers);
@@ -312,12 +321,12 @@ function finalizeGeminiStream(
         ...(state.errorClass ? { errorClass: state.errorClass } : {}),
       },
       usage: geminiUsageToCanonical(state.usage),
-      timing: streamTiming(input.startedAt, endedAt, state.timing, { ...input, providerResponseEndedAt: endedAt }),
+      timing: streamTiming(input.startedAt, endedAt.wallTime, state.timing, terminalInput),
       attempts: canonicalAttempts(
-        { ...input, providerResponseEndedAt: endedAt },
+        terminalInput,
         GEMINI_PROVIDER,
         servedModel,
-        endedAt,
+        endedAt.wallTime,
         terminalStatus,
         state.errorClass,
       ),

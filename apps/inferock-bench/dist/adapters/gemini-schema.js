@@ -1,5 +1,4 @@
 // Copied from apps/proxy/src/adapters/gemini-schema.ts for inferock-bench Track C.
-// Reuse approved by .claude/plans/oss-wave-2026-07.md "Track C Reuse Boundary".
 import { isRecord } from "../record.js";
 const GEMINI_SCHEMA_SUPPORTED_KEYWORDS = new Set([
     "type",

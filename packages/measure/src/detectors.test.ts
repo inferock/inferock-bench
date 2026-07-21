@@ -148,8 +148,8 @@ describe("broken-output detector", () => {
       schemaVersion: "v1",
       schema: expectedObjectSchema,
     });
-    // Caller-cap correction: this legacy v1-style event has no generation capture,
-    // so truncation remains refundable only with explicit missing-cap evidence.
+    // The registered output schema is task-contract evidence; the detector still
+    // discloses that caller-cap capture is missing.
     const event = buildCanonicalEvent({
       request: {
         tenantId: TENANT_ID,
@@ -180,6 +180,8 @@ describe("broken-output detector", () => {
         generationCaptured: false,
         callerCapCaptured: false,
         verdict: "no_captured_caller_cap",
+        standardLossEligible: true,
+        standardLossEligibility: "task_contract_truncation",
       },
     });
   });

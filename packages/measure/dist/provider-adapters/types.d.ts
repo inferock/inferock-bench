@@ -1,4 +1,4 @@
-import type { CanonicalAttemptRecord, CanonicalEventV2, ProviderName } from "../canonical-event.js";
+import type { CanonicalAttemptRecord, CanonicalErrorOrigin, CanonicalEventV2, ProviderName } from "../canonical-event.js";
 import type { JsonRecord } from "./record.js";
 export interface ProviderFetchRequest {
     readonly url: string;
@@ -34,8 +34,14 @@ export interface AdapterCanonicalInput {
     readonly responseBody: string;
     readonly startedAt: Date;
     readonly endedAt: Date;
+    readonly startedAtMonotonicNs?: bigint;
+    readonly endedAtMonotonicNs?: bigint;
+    readonly monotonicClockSource?: string;
     readonly providerRequestStartedAt?: Date;
     readonly providerResponseEndedAt?: Date;
+    readonly providerRequestStartedAtMonotonicNs?: bigint;
+    readonly providerResponseEndedAtMonotonicNs?: bigint;
+    readonly errorOrigin?: CanonicalErrorOrigin;
     readonly attemptIndex: number;
     readonly previousAttempts?: readonly CanonicalAttemptRecord[];
 }
@@ -59,11 +65,24 @@ export interface AdapterStreamInput {
     readonly headers: Headers;
     readonly body: ReadableStream<Uint8Array>;
     readonly startedAt: Date;
+    readonly startedAtMonotonicNs?: bigint;
+    readonly endedAtMonotonicNs?: bigint;
+    readonly monotonicClockSource?: string;
     readonly providerRequestStartedAt?: Date;
     readonly providerResponseEndedAt?: Date;
+    readonly providerRequestStartedAtMonotonicNs?: bigint;
+    readonly providerResponseEndedAtMonotonicNs?: bigint;
+    readonly errorOrigin?: CanonicalErrorOrigin;
     readonly attemptIndex: number;
     readonly previousAttempts?: readonly CanonicalAttemptRecord[];
+    readonly clientConsumptionTiming?: ClientConsumptionTiming;
     readonly onTerminal: (result: AdapterCanonicalResult) => void;
+}
+export interface ClientConsumptionTiming {
+    endedAt?: Date;
+    endedAtMonotonicNs?: bigint;
+    abortOrigin?: "client" | "local_harness";
+    abortReason?: string;
 }
 export interface AdapterCanonicalResult {
     readonly event: CanonicalEventV2;

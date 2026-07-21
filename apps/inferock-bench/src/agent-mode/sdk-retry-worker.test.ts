@@ -56,6 +56,7 @@ describe("sdk retry worker", () => {
         status: "completed",
       });
       expect(JSON.stringify(store.records[0]?.event.request)).toContain('"x-stainless-retry-count":"0"');
+      expect(JSON.stringify(store.records[0]?.event.request)).toContain('"x-inferock-request-origin":"sdk_retry_probe"');
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error?: Error) => error ? reject(error) : resolve());

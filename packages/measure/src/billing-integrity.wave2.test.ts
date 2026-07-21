@@ -19,6 +19,7 @@ import {
   countOpenAiOutputTokens,
   detectOpenAiTokenRecount,
 } from "./billing-integrity.js";
+import { applyStandardLossEconomicsToSignals } from "./standard-loss.js";
 
 const TOKENIZER_VARIANCE_TOLERANCE = 0.03;
 const GPT_54_MINI_INPUT_RATE_USD_PER_MILLION = 0.75;
@@ -597,16 +598,30 @@ describe("billing integrity Wave 2 overcharge economics", () => {
       },
     });
 
-    expect(buildCacheRateAnomalySignal(event, {
-      chargedUsd: 0.01,
+    const signal = buildCacheRateAnomalySignal(event, {
+      chargedUsd: 0.002,
       source: "manual_admin",
       dashboardEligible: false,
-    })).toMatchObject({
+    });
+    expect(signal).toMatchObject({
       code: "CACHE_RATE_ANOMALY",
       status: "triage_only",
       evidenceGrade: "triage_only",
       creditCandidate: false,
       providerRecoverableLossUsd: null,
+      valueJson: {
+        overchargeUsd: 0.0005,
+        dashboardEligible: false,
+      },
+    });
+
+    const [priced] = applyStandardLossEconomicsToSignals(event, signal ? [signal] : []);
+    expect(priced).toMatchObject({
+      status: "candidate",
+      evidenceGrade: "unrecognized_standard_loss",
+      standardLossUsd: 0.0005,
+      providerRecognizedLossUsd: 0,
+      recognitionGapUsd: 0.0005,
     });
   });
 });

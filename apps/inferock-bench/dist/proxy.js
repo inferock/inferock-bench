@@ -1,13 +1,15 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import { isCanonicalOperationId, } from "@inferock/measure/canonical-event";
 import { openAiResponsesAdapter } from "@inferock/measure/provider-adapters/openai-responses";
 import { anthropicAdapter, ANTHROPIC_VERSION } from "./adapters/anthropic.js";
 import { geminiAdapter } from "./adapters/gemini.js";
 import { openAiAdapter } from "./adapters/openai.js";
+import { captureMonotonicTimestamp } from "./adapters/canonical-v2.js";
 import { openRouterAdapter, openRouterEndpointEvidenceForRequest, } from "./adapters/openrouter.js";
 import { acceptedBenchKeysFromConfig, applyProviderKeyUpdate, ensureReliabilityIndexAsked, providerApiKey, providerBaseUrl, } from "./config.js";
-import { receiptPayload, recentCallsFromRecords, renderDashboardHtml, revealBenchKeyPayload, summaryPayload, } from "./dashboard.js";
+import { receiptPayload, recentCallsFromRecords, renderDashboardHtml, renderUnauthorizedDashboardShell, revealBenchKeyPayload, summaryPayload, } from "./dashboard.js";
 import { createCoverageTestController, } from "./coverage-test-dashboard.js";
 import { isProviderName } from "./provider.js";
 import { isOpenRouterPinningError } from "./openrouter-pins.js";
@@ -36,7 +38,7 @@ export function createBenchApp(options) {
     const app = new Hono();
     const state = { firstSuccessfulCallMeasured: false };
     let activeConfig = options.config;
-    const managementAccessToken = randomBytes(32).toString("base64url");
+    const managementAccessToken = options.managementAccessToken ?? randomBytes(32).toString("base64url");
     const coverageTest = createCoverageTestController({
         config: () => activeConfig,
         env: options.env,
@@ -70,9 +72,28 @@ export function createBenchApp(options) {
     const readInput = () => ({
         allowExternalHost: options.allowExternalManagementHost ?? false,
     });
-    app.get("/", () => new Response(renderDashboardHtml({ managementAccessToken }), {
-        headers: { "content-type": "text/html; charset=utf-8" },
-    }));
+    app.get("/", (c) => {
+        const queryToken = c.req.query("token");
+        const cookieToken = getCookie(c, MANAGEMENT_SESSION_COOKIE);
+        const providedToken = queryToken ?? cookieToken;
+        const authorized = typeof providedToken === "string" && secretEqual(providedToken, managementAccessToken);
+        if (!authorized) {
+            return new Response(renderUnauthorizedDashboardShell(), {
+                status: 401,
+                headers: { "content-type": "text/html; charset=utf-8" },
+            });
+        }
+        if (queryToken !== undefined && queryToken !== cookieToken) {
+            setCookie(c, MANAGEMENT_SESSION_COOKIE, managementAccessToken, {
+                httpOnly: true,
+                sameSite: "Strict",
+                path: "/",
+            });
+        }
+        return new Response(renderDashboardHtml({ managementAccessToken }), {
+            headers: { "content-type": "text/html; charset=utf-8" },
+        });
+    });
     app.get("/health", (c) => c.json({ ok: true, service: "inferock-bench" }));
     app.get("/api/summary", async (c) => {
         const read = validLocalReadRequest(c, readInput());
@@ -299,7 +320,7 @@ async function handleProviderRoute(c, route, options, state) {
     if (scopedModelError) {
         return localJsonError(scopedModelError.status, scopedModelError.code, scopedModelError.message);
     }
-    const startedAt = new Date();
+    const startedAt = captureMonotonicTimestamp();
     const requestIdentity = requestIdentityFromHeaders(c.req.raw.headers);
     const requestId = requestIdentity.localRequestId;
     const operationId = operationIdFromHeaders(c.req.raw.headers, requestIdentity.clientOperationId);
@@ -339,7 +360,7 @@ async function handleProviderRoute(c, route, options, state) {
         : body;
     const budgetLease = acquireBenchKeyCallBudget(acceptedBenchKey.grant);
     if (!budgetLease.ok) {
-        const endedAt = new Date();
+        const endedAt = captureMonotonicTimestamp();
         const responseBody = localJsonErrorBody(budgetLease.code, budgetLease.message);
         const result = route.adapter.toCanonicalEvent({
             tenantId: "local",
@@ -355,11 +376,15 @@ async function handleProviderRoute(c, route, options, state) {
             headers: new Headers({ "content-type": "application/json" }),
             responseBody,
             baseUrl,
-            startedAt,
-            endedAt,
+            startedAt: startedAt.wallTime,
+            endedAt: endedAt.wallTime,
+            startedAtMonotonicNs: startedAt.monotonicNs,
+            endedAtMonotonicNs: endedAt.monotonicNs,
+            monotonicClockSource: startedAt.monotonicClockSource,
+            errorOrigin: "local",
             attemptIndex: 0,
         });
-        await captureMeasuredCall(result, options, state, false, log, annotation);
+        await captureMeasuredCall(resultWithErrorOrigin(result, "local"), options, state, false, log, annotation);
         return localJsonError(429, budgetLease.code, budgetLease.message);
     }
     const providerEvidence = route.provider === "openrouter"
@@ -371,13 +396,13 @@ async function handleProviderRoute(c, route, options, state) {
         })
         : undefined;
     let response;
-    const providerRequestStartedAt = new Date();
+    const providerRequestStartedAt = captureMonotonicTimestamp();
     try {
         response = await providerFetch(providerRequest.url, providerRequest.init);
     }
     catch {
         budgetLease.release();
-        const endedAt = new Date();
+        const endedAt = captureMonotonicTimestamp();
         const result = route.adapter.toCanonicalEvent({
             tenantId: "local",
             requestId,
@@ -392,13 +417,18 @@ async function handleProviderRoute(c, route, options, state) {
             headers: new Headers(),
             responseBody: providerTransportErrorBody(route.provider),
             baseUrl,
-            startedAt,
-            endedAt,
-            providerRequestStartedAt,
+            startedAt: startedAt.wallTime,
+            endedAt: endedAt.wallTime,
+            startedAtMonotonicNs: startedAt.monotonicNs,
+            endedAtMonotonicNs: endedAt.monotonicNs,
+            monotonicClockSource: startedAt.monotonicClockSource,
+            providerRequestStartedAt: providerRequestStartedAt.wallTime,
+            providerRequestStartedAtMonotonicNs: providerRequestStartedAt.monotonicNs,
+            errorOrigin: "local",
             attemptIndex: 0,
             ...(providerEvidence ? { providerEvidence } : {}),
         });
-        await captureMeasuredCall(result, options, state, responseIsSuccessful(result.event), log, annotation);
+        await captureMeasuredCall(resultWithErrorOrigin(result, "local"), options, state, false, log, annotation);
         return localJsonError(502, "provider_transport_error", "Provider request failed before a response was received.");
     }
     const responseHeaders = passThroughHeaders(response.headers);
@@ -407,6 +437,8 @@ async function handleProviderRoute(c, route, options, state) {
             budgetLease.release();
             return localJsonError(502, "provider_stream_missing", "Provider stream response had no body.");
         }
+        const clientConsumptionTiming = {};
+        const providerStreamClient = providerStreamClientDrain(clientConsumptionTiming, log, clientAbortAttributionForRequest(annotation, c.req.raw.headers));
         const streamInput = {
             tenantId: "local",
             requestId,
@@ -421,17 +453,30 @@ async function handleProviderRoute(c, route, options, state) {
             headers: response.headers,
             body: response.body,
             baseUrl,
-            startedAt,
-            providerRequestStartedAt,
+            startedAt: startedAt.wallTime,
+            startedAtMonotonicNs: startedAt.monotonicNs,
+            monotonicClockSource: startedAt.monotonicClockSource,
+            providerRequestStartedAt: providerRequestStartedAt.wallTime,
+            providerRequestStartedAtMonotonicNs: providerRequestStartedAt.monotonicNs,
+            ...(response.status >= 400 ? { errorOrigin: "provider" } : {}),
             attemptIndex: 0,
             ...(providerEvidence ? { providerEvidence } : {}),
+            clientConsumptionTiming,
             onTerminal: (result) => {
-                void captureMeasuredCall(result, options, state, response.status < 400, log, annotation)
-                    .finally(() => budgetLease.release())
-                    .catch((error) => log(captureErrorMessage(error)));
+                budgetLease.release();
+                void captureMeasuredStreamAfterClientConsumption({
+                    result: resultWithInferredErrorOrigin(result),
+                    clientConsumptionTiming,
+                    clientDone: providerStreamClient.clientDone,
+                    responseSuccessful: response.status < 400,
+                    options,
+                    state,
+                    log,
+                    annotation,
+                });
             },
         };
-        return new Response(route.adapter.observeStream(streamInput), {
+        return new Response(providerStreamClient.stream(route.adapter.observeStream(streamInput)), {
             status: response.status,
             headers: responseHeaders,
         });
@@ -441,7 +486,7 @@ async function handleProviderRoute(c, route, options, state) {
         responseBody = await response.text();
     }
     catch {
-        const endedAt = new Date();
+        const endedAt = captureMonotonicTimestamp();
         budgetLease.release();
         const result = route.adapter.toCanonicalEvent({
             tenantId: "local",
@@ -457,17 +502,23 @@ async function handleProviderRoute(c, route, options, state) {
             headers: response.headers,
             responseBody: providerTransportErrorBody(route.provider),
             baseUrl,
-            startedAt,
-            endedAt,
-            providerRequestStartedAt,
-            providerResponseEndedAt: endedAt,
+            startedAt: startedAt.wallTime,
+            endedAt: endedAt.wallTime,
+            startedAtMonotonicNs: startedAt.monotonicNs,
+            endedAtMonotonicNs: endedAt.monotonicNs,
+            monotonicClockSource: startedAt.monotonicClockSource,
+            providerRequestStartedAt: providerRequestStartedAt.wallTime,
+            providerRequestStartedAtMonotonicNs: providerRequestStartedAt.monotonicNs,
+            providerResponseEndedAt: endedAt.wallTime,
+            providerResponseEndedAtMonotonicNs: endedAt.monotonicNs,
+            errorOrigin: "local",
             attemptIndex: 0,
             ...(providerEvidence ? { providerEvidence } : {}),
         });
-        await captureMeasuredCall(result, options, state, false, log, annotation);
+        await captureMeasuredCall(resultWithErrorOrigin(result, "local"), options, state, false, log, annotation);
         return localJsonError(502, "provider_body_read_error", "Provider response body could not be read.");
     }
-    const endedAt = new Date();
+    const endedAt = captureMonotonicTimestamp();
     const canonicalInput = {
         tenantId: "local",
         requestId,
@@ -482,14 +533,20 @@ async function handleProviderRoute(c, route, options, state) {
         headers: response.headers,
         responseBody,
         baseUrl,
-        startedAt,
-        endedAt,
-        providerRequestStartedAt,
-        providerResponseEndedAt: endedAt,
+        startedAt: startedAt.wallTime,
+        endedAt: endedAt.wallTime,
+        startedAtMonotonicNs: startedAt.monotonicNs,
+        endedAtMonotonicNs: endedAt.monotonicNs,
+        monotonicClockSource: startedAt.monotonicClockSource,
+        providerRequestStartedAt: providerRequestStartedAt.wallTime,
+        providerRequestStartedAtMonotonicNs: providerRequestStartedAt.monotonicNs,
+        providerResponseEndedAt: endedAt.wallTime,
+        providerResponseEndedAtMonotonicNs: endedAt.monotonicNs,
+        ...(response.status >= 400 ? { errorOrigin: "provider" } : {}),
         attemptIndex: 0,
         ...(providerEvidence ? { providerEvidence } : {}),
     };
-    const result = route.adapter.toCanonicalEvent(canonicalInput);
+    const result = resultWithInferredErrorOrigin(route.adapter.toCanonicalEvent(canonicalInput));
     try {
         await captureMeasuredCall(result, options, state, response.status < 400, log, annotation);
     }
@@ -500,6 +557,205 @@ async function handleProviderRoute(c, route, options, state) {
         status: response.status,
         headers: responseHeaders,
     });
+}
+function providerStreamClientDrain(clientConsumptionTiming, log, clientAbortAttribution) {
+    let resolveClientDone = () => undefined;
+    const clientDone = new Promise((resolve) => {
+        resolveClientDone = resolve;
+    });
+    const markClientDone = () => {
+        if (clientConsumptionTiming.endedAt)
+            return;
+        const endedAt = captureMonotonicTimestamp();
+        clientConsumptionTiming.endedAt = endedAt.wallTime;
+        clientConsumptionTiming.endedAtMonotonicNs = endedAt.monotonicNs;
+        resolveClientDone();
+    };
+    return {
+        clientDone,
+        stream(providerObservedStream) {
+            const pending = [];
+            let controller;
+            let providerDone = false;
+            let providerError;
+            let clientDoneOrCancelled = false;
+            const deliver = () => {
+                if (!controller || clientDoneOrCancelled)
+                    return;
+                while (pending.length > 0 && (controller.desiredSize ?? 1) > 0) {
+                    const chunk = pending.shift();
+                    if (chunk)
+                        controller.enqueue(chunk);
+                }
+                if (pending.length > 0)
+                    return;
+                if (providerError !== undefined) {
+                    clientDoneOrCancelled = true;
+                    markClientDone();
+                    controller.error(providerError);
+                    controller = undefined;
+                    return;
+                }
+                if (providerDone) {
+                    clientDoneOrCancelled = true;
+                    markClientDone();
+                    controller.close();
+                    controller = undefined;
+                }
+            };
+            const pump = async () => {
+                const reader = providerObservedStream.getReader();
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done)
+                            break;
+                        if (!clientDoneOrCancelled) {
+                            pending.push(value);
+                            deliver();
+                        }
+                    }
+                    providerDone = true;
+                    deliver();
+                }
+                catch (error) {
+                    providerError = error;
+                    deliver();
+                }
+            };
+            void pump().catch((error) => log(captureErrorMessage(error)));
+            return new ReadableStream({
+                start(nextController) {
+                    controller = nextController;
+                    deliver();
+                },
+                pull() {
+                    deliver();
+                },
+                cancel() {
+                    pending.length = 0;
+                    clientDoneOrCancelled = true;
+                    controller = undefined;
+                    clientConsumptionTiming.abortOrigin = clientAbortAttribution.origin;
+                    clientConsumptionTiming.abortReason = clientAbortAttribution.reason;
+                    markClientDone();
+                },
+            });
+        },
+    };
+}
+async function captureMeasuredStreamAfterClientConsumption(input) {
+    try {
+        await input.clientDone;
+        await captureMeasuredCall(resultWithClientConsumptionTiming(input.result, input.clientConsumptionTiming), input.options, input.state, input.responseSuccessful, input.log, input.annotation);
+    }
+    catch (error) {
+        input.log(captureErrorMessage(error));
+    }
+}
+function resultWithClientConsumptionTiming(result, clientConsumptionTiming) {
+    if (!clientConsumptionTiming.endedAt)
+        return result;
+    const clientConsumptionEndedAt = clientConsumptionTiming.endedAt.toISOString();
+    const responseRecord = result.event.response;
+    const responseStopDetails = stopDetailsWithClientAbort(responseRecord.stopDetails, clientConsumptionTiming);
+    const resultWithTiming = {
+        ...result,
+        event: {
+            ...result.event,
+            response: {
+                ...result.event.response,
+                ...(responseStopDetails ? { stopDetails: responseStopDetails } : {}),
+            },
+            timing: {
+                ...result.event.timing,
+                clientConsumptionEndedAt,
+            },
+            attempts: result.event.attempts.map((attempt) => attempt.finalSelected
+                ? {
+                    ...attempt,
+                    timing: {
+                        ...attempt.timing,
+                        clientConsumptionEndedAt,
+                    },
+                }
+                : attempt),
+        },
+    };
+    return resultWithTiming;
+}
+function stopDetailsWithClientAbort(existingStopDetails, clientConsumptionTiming) {
+    if (!clientConsumptionTiming.abortOrigin)
+        return undefined;
+    const stopDetails = isRecord(existingStopDetails) ? { ...existingStopDetails } : {};
+    return {
+        ...stopDetails,
+        clientAbort: {
+            origin: clientConsumptionTiming.abortOrigin,
+            reason: clientConsumptionTiming.abortReason ?? "downstream_client_cancel",
+            ...(clientConsumptionTiming.endedAt
+                ? { clientConsumptionEndedAt: clientConsumptionTiming.endedAt.toISOString() }
+                : {}),
+        },
+    };
+}
+function clientAbortAttributionForRequest(annotation, headers) {
+    const requestOrigin = optionalHeader(headers.get("x-inferock-request-origin"));
+    if (annotation?.workloadClass === "coding_agent") {
+        return {
+            origin: "local_harness",
+            reason: requestOrigin === "sdk_retry_probe" ? "sdk_retry_probe_cancelled" : "coding_agent_request_cancelled",
+        };
+    }
+    if (requestOrigin === "sdk_retry_probe") {
+        return {
+            origin: "local_harness",
+            reason: "sdk_retry_probe_cancelled",
+        };
+    }
+    return {
+        origin: "client",
+        reason: "downstream_client_cancel",
+    };
+}
+function resultWithInferredErrorOrigin(result) {
+    const finalAttempt = result.event.attempts.find((attempt) => attempt.finalSelected);
+    const responseRecord = result.event.response;
+    const attemptRecord = finalAttempt;
+    const responseOrigin = isRecord(result.event.response)
+        ? errorOriginValue(responseRecord.errorOrigin)
+        : undefined;
+    const attemptOrigin = isRecord(finalAttempt)
+        ? errorOriginValue(attemptRecord?.errorOrigin)
+        : undefined;
+    const existingOrigin = responseOrigin ?? attemptOrigin;
+    if (existingOrigin)
+        return resultWithErrorOrigin(result, existingOrigin);
+    if (result.event.response.statusCode >= 400 ||
+        result.event.response.errorClass ||
+        finalAttempt?.status === "error" ||
+        finalAttempt?.status === "transport_error") {
+        return resultWithErrorOrigin(result, "provider");
+    }
+    return result;
+}
+function resultWithErrorOrigin(result, errorOrigin) {
+    return {
+        ...result,
+        event: {
+            ...result.event,
+            response: {
+                ...result.event.response,
+                errorOrigin,
+            },
+            attempts: result.event.attempts.map((attempt) => attempt.finalSelected
+                ? { ...attempt, errorOrigin }
+                : attempt),
+        },
+    };
+}
+function errorOriginValue(value) {
+    return value === "local" || value === "provider" ? value : undefined;
 }
 function providerApiKeyHash(apiKey) {
     return `sha256:${createHash("sha256").update(apiKey, "utf8").digest("hex")}`;
@@ -590,6 +846,7 @@ async function captureMeasuredCall(result, options, state, successful, log, anno
     log(renderLiveCounter(summary));
 }
 const MANAGEMENT_ACCESS_HEADER = "x-inferock-bench-management";
+const MANAGEMENT_SESSION_COOKIE = "inferock_bench_session";
 function validManagementRequest(c, input) {
     if (!managementHostAndOriginAllowed(c, input.allowExternalHost)) {
         return {
@@ -601,6 +858,9 @@ function validManagementRequest(c, input) {
     }
     const accessToken = optionalHeader(c.req.raw.headers.get(MANAGEMENT_ACCESS_HEADER));
     if (accessToken && secretEqual(accessToken, input.managementAccessToken))
+        return { ok: true };
+    const cookieToken = getCookie(c, MANAGEMENT_SESSION_COOKIE);
+    if (cookieToken && secretEqual(cookieToken, input.managementAccessToken))
         return { ok: true };
     const key = localBenchKeyFromHeaders(c.req.raw.headers);
     if (key && acceptedBenchKeysFromConfig(input.config, input.env ?? process.env).some((accepted) => secretEqual(key, accepted))) {
@@ -909,12 +1169,6 @@ function shouldPassThroughStream(body, response) {
     return body.stream === true &&
         response.body !== null &&
         (response.headers.get("content-type") ?? "").toLowerCase().includes("text/event-stream");
-}
-function responseIsSuccessful(event) {
-    if (!isRecord(event) || !isRecord(event.response))
-        return false;
-    const statusCode = event.response.statusCode;
-    return typeof statusCode === "number" && statusCode < 400;
 }
 function localJsonError(status, code, message) {
     return new Response(localJsonErrorBody(code, message), {

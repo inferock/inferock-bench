@@ -174,6 +174,8 @@ describe("inferock-bench openRouterAdapter", () => {
       selectedUpstreamMetadataModel: MISTRAL_PROVIDER_VARIANT,
       metadataStatus: "captured",
       metadataFieldPath: "$.openrouter_metadata.endpoints.available",
+      endpointEvidenceFetchMs: expect.any(Number),
+      endpointEvidenceFetchTimingAttribution: "openrouter_endpoint_evidence_fetch",
       selectedEndpointMatchedPinnedSnapshot: true,
       endpointPriceSnapshot: {
         prompt: "0.0000005",

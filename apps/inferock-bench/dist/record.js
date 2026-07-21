@@ -1,5 +1,4 @@
 // Copied from apps/proxy/src/record.ts for inferock-bench Track C.
-// Reuse approved by .claude/plans/oss-wave-2026-07.md "Track C Reuse Boundary".
 export function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }

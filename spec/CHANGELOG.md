@@ -4,6 +4,8 @@ Use this file to tie any public receipt claim to the standard version and rule s
 
 | Need | Read |
 | --- | --- |
+| SPDX identifier correction, FSL wording sweep, display fixes, and release gates | [v0.2.3 - 2026-07-21](#v023---2026-07-21) |
+| Local dashboard token now gated behind the CLI-issued URL token | [v0.2.2 - 2026-07-20](#v022---2026-07-20) |
 | License text, refusal regex tightening, and measurement-honesty context | [v0.2.1 - 2026-07-19](#v021---2026-07-19) |
 | Local security hardening and packaging guardrail | [v0.2.0 - 2026-07-19](#v020---2026-07-19) |
 | Money-loss clamp to observed spend | [v0.1.11 - 2026-07-18](#v0111---2026-07-18) |
@@ -11,6 +13,26 @@ Use this file to tie any public receipt claim to the standard version and rule s
 | As-built provider-plane documentation correction | [v0.1.8 - 2026-07-08](#v018---2026-07-08) |
 | Current time-loss and receipt-ledger changes | [v0.1.6 - 2026-07-05](#v016---2026-07-05) |
 | Initial public draft scope | [v0.1.0 - 2026-07-02](#v010---2026-07-02) |
+
+## v0.2.3 - 2026-07-21
+
+Updated:
+
+- Corrected the FSL SPDX identifier reference from `FSL-1.1-Apache-2.0` to the LICENSE's own `FSL-1.1-ALv2`.
+- Swept FSL wording so FSL-licensed code is described as source-available under FSL-1.1, not OSI open source.
+- Batch A truth fixes: latency evidence now reports the honest `coldStartExcluded` value, `SERVED_MODEL_MISMATCH` carries the public launch-safe posture, internal path comments were stripped from public surfaces, and the npm README includes the conflict-of-interest disclosure.
+- Batch B display fixes: the projection hero now shows the organic recognized portion with a penny-exact largest-remainder display partition, and `CACHE_RATE_ANOMALY` action cards route by signal type.
+- Batch C release gates: checks now cover tarball-contents parity, adversarial dimension doc parity, render-state freshness, and docs-command smoke.
+
+## v0.2.2 - 2026-07-20
+
+`@inferock/measure` 0.2.2 is a lockstep co-release with no code changes; the
+security fix below is entirely in `inferock-bench`.
+
+Security:
+
+- The local dashboard page (`GET /`) now requires the one-time token that `inferock-bench start` prints in its `Dashboard:` URL (`?token=...`) before it renders the dashboard or embeds the local management authorization token. A bare unauthenticated request to the dashboard root returns a minimal shell without that token. Previously the dashboard root served the token to any local request, which could then be replayed against `/api/key` (full local bench-key reveal) and `/api/setup` (provider-key overwrite). The token is carried for the session in an HttpOnly, same-origin cookie after the first tokened load.
+- Documented, rather than newly enforced, two remaining local-boundary limits so the threat model and key-handling pages match shipped behavior: the read-only local endpoints (`/api/summary`, `/api/rows`, `/api/calls`, `/api/receipt`, and the coverage-test read routes) are same-origin-gated but not credential-gated; and a real-agent run is not sandboxed from the local filesystem — the ephemeral bench key limits what the proxy hands the agent process, not what that process can read as your OS user.
 
 ## v0.2.1 - 2026-07-19
 

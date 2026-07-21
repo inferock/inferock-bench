@@ -11,7 +11,11 @@ Use this page when a vulnerability could expose keys, route requests incorrectly
 
 ## Reporting a vulnerability
 
-Email `founders@opiusai.com` with the subject `inferock-bench security report`.
+Please do not open a public issue for an unpatched vulnerability. For a private
+channel, open a **private GitHub Security Advisory** on the public repo
+(Security → Advisories → Report a vulnerability) — this keeps the report and our
+back-and-forth private until a fix ships. Email `security@opiusai.com` (subject
+`inferock-bench security report`) is equally fine if you prefer.
 
 Please include:
 
@@ -20,13 +24,21 @@ Please include:
 - What you believe an attacker can read, write, send, or bypass.
 - Whether the issue affects the local benchmark, `@inferock/measure`, The Inferock Standard, or the export pipeline.
 
-Please do not open a public issue for an unpatched vulnerability. If email is not workable for your disclosure process, open a private GitHub Security Advisory if the public repo has advisories enabled.
-
 ## What we support
 
 We support the latest public `inferock-bench` release and the current generated public repo. Older releases are best-effort unless the fix is small and the risk is high.
 
-This is a small team. We will try to acknowledge credible private reports within three business days, triage high-risk key or request-routing issues first, and keep you updated when there is a meaningful change. That is an expectation, not a paid SLA.
+This is a small team. We prioritize high-risk key or request-routing issues first and keep you updated when there is a meaningful change. That is a best-effort support policy, not a paid SLA.
+
+## Coordinated disclosure
+We practice coordinated disclosure. When you report privately, we will work out
+a disclosure timing with you rather than race to publish, and we will credit you
+in the advisory and release notes unless you would rather we did not. If a
+vulnerability is being actively exploited we may need to publish and patch
+quickly, and we will tell you.
+We are a small team and do not commit to a fixed response clock. We prioritize
+key-handling and request-routing issues first and will keep you updated as there
+is meaningful progress.
 
 ## Scope
 

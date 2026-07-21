@@ -42,6 +42,7 @@ Canonical event v1 has no required top-level `schemaVersion`. The parser accepts
 | `response` | `content` | Yes | String |
 | `response` | `toolCalls` | No | Array of JSON records |
 | `response` | `errorClass` | No | Non-empty string |
+| `response` | `errorOrigin` | No | `local` or `provider` |
 | `usage` | `input` | Yes | Non-negative number |
 | `usage` | `output` | Yes | Non-negative number |
 | `usage.cache` | `read` | No | Non-negative number |
@@ -49,10 +50,16 @@ Canonical event v1 has no required top-level `schemaVersion`. The parser accepts
 | `timing` | `startedAt` | Yes | Date-time string with offset |
 | `timing` | `endedAt` | Yes | Date-time string with offset |
 | `timing` | `latencyMs` | Yes | Non-negative number |
+| `timing` | `monotonicElapsedMs` | No | Non-negative number |
+| `timing` | `monotonicClockSource` | No | Non-empty string |
+| `timing` | `wallClockDrift` | No | Wall-clock drift record |
 | `timing` | `providerRequestStartedAt` | No | Date-time string with offset |
 | `timing` | `providerResponseEndedAt` | No | Date-time string with offset |
 | `timing` | `providerElapsedMs` | No | Non-negative number |
+| `timing` | `providerMonotonicElapsedMs` | No | Non-negative number |
+| `timing` | `providerWallClockDrift` | No | Wall-clock drift record |
 | `timing` | `gatewayOverheadMs` | No | Non-negative number |
+| `timing` | `clientConsumptionEndedAt` | No | Date-time string with offset |
 | `meta` | `attemptIndex` | Yes | Non-negative integer |
 | `meta` | `schemaVersion` | Yes | `v1` |
 | `meta` | `outputSchemaVersion` | No | Non-empty string |
@@ -127,8 +134,13 @@ Request security context records include `captureVersion: "request_secret_digest
 | `grounding` | No | JSON record |
 | `logprobs` | No | Array of JSON records |
 | `errorClass` | No | Non-empty string |
+| `errorOrigin` | No | `local` or `provider` |
 
 Provider safety records require `kind`, with values `refusal`, `content_filter`, `safety`, or `moderation`. They may include `source`, `reason`, and `raw`.
+
+Pinned OpenRouter events may include `response.stopDetails.openRouter.endpointEvidenceFetchMs`, a monotonic elapsed duration for fetching `/models/{model}/endpoints` evidence before the provider generation request. Measurement defaults treat that fetch as a non-provider diagnostic segment (`openrouter_endpoint_evidence_fetch`), not as provider-attributed latency.
+
+Stream client-cancel evidence may appear at `response.stopDetails.clientAbort` with `origin` (`client` or `local_harness`), `reason`, and `clientConsumptionEndedAt`. `local_harness` identifies bench/agent budget aborts or SDK retry probe cancellation and is diagnostic evidence, not provider-fault evidence.
 
 ### Usage
 
@@ -154,10 +166,16 @@ Usage category records require `category` and `tokens`. They may include `source
 | `startedAt` | Yes | Date-time string with offset |
 | `endedAt` | Yes | Date-time string with offset |
 | `latencyMs` | Yes | Non-negative number |
+| `monotonicElapsedMs` | No | Non-negative number |
+| `monotonicClockSource` | No | Non-empty string |
+| `wallClockDrift` | No | Wall-clock drift record |
 | `providerRequestStartedAt` | No | Date-time string with offset |
 | `providerResponseEndedAt` | No | Date-time string with offset |
 | `providerElapsedMs` | No | Non-negative number |
+| `providerMonotonicElapsedMs` | No | Non-negative number |
+| `providerWallClockDrift` | No | Wall-clock drift record |
 | `gatewayOverheadMs` | No | Non-negative number |
+| `clientConsumptionEndedAt` | No | Date-time string with offset |
 | `chunkCount` | Yes | Non-negative integer |
 | `terminalStatus` | Yes | `complete`, `error`, `aborted`, or `unknown` |
 | `firstEventAt` | No | Date-time string with offset |
@@ -171,6 +189,18 @@ Usage category records require `category` and `tokens`. They may include `source
 | `timeToFirstTokenMs` | No | Non-negative number |
 | `maxInterChunkGapMs` | No | Non-negative number |
 | `maxStreamGapMs` | No | Non-negative number |
+
+`latencyMs` and the first-result duration fields are elapsed durations, not wall-clock timestamp subtraction claims. New proxy captures populate them from a monotonic clock when available and copy the same value into `monotonicElapsedMs`; wall-clock fields such as `startedAt`, `endedAt`, and `firstEventAt` remain timestamp labels. `providerElapsedMs` follows the same rule for the provider request/response segment and may be mirrored in `providerMonotonicElapsedMs`. The provider request segment starts at the provider fetch boundary, so cold start, DNS, TCP, TLS, and other connection setup time are included when they occur; no warmup or first-call exclusion is currently applied. For streamed calls, `endedAt` is the provider stream terminal boundary; `clientConsumptionEndedAt` is a separate downstream-client delivery/cancel boundary and is not provider-attributed latency.
+
+`wallClockDrift` and `providerWallClockDrift` are present when wall-clock timestamp subtraction disagrees with monotonic elapsed capture by an implausible amount or moves backward. A drift record carries `kind` (`negative_wall_clock_elapsed` or `implausible_wall_clock_drift`), `wallClockElapsedMs`, `monotonicElapsedMs`, and `driftMs`.
+
+Streaming boundary definitions:
+
+- `firstByteAt` is the first provider response-body byte/chunk arrival observed by the gateway/provider reader, before SSE frame parsing. `timeToFirstByteMs` is elapsed time from `startedAt` to that byte/chunk boundary.
+- `firstEventAt` is the first parsed SSE frame/message emitted by the stream parser after enough bytes arrive to parse an event. It may be a control, terminal, error, or content event. `timeToFirstEventMs` is elapsed time from `startedAt` to that parsed-event boundary.
+- `firstContentDeltaAt` is the first parsed SSE event that carries a non-empty visible/refusal/generated content delta recognized by the adapter. `timeToFirstContentDeltaMs` is elapsed time from `startedAt` to that content boundary.
+- `firstTokenAt` is a provider token boundary only when the provider exposes one directly. For current SSE adapters that do not expose tokenizer-level timestamps, it is a compatibility alias for `firstContentDeltaAt`; `timeToFirstTokenMs` follows the same compatibility rule and must not be read as a tokenizer-native measurement.
+- `chunkCount`, `lastChunkAt`, `maxInterChunkGapMs`, and `maxStreamGapMs` describe parsed SSE frame/message observations for canonical streaming adapters, not raw TCP packet counts.
 
 The v2 normalizer treats `firstByteAt` as `firstEventAt` when the latter is absent, treats `firstTokenAt` as `firstContentDeltaAt` when the latter is absent, and applies the same compatibility mapping to the corresponding duration fields. It treats `maxStreamGapMs` as `maxInterChunkGapMs` when the latter is absent.
 
@@ -187,12 +217,15 @@ The v2 normalizer treats `firstByteAt` as `firstEventAt` when the latter is abse
 | `timing` | Yes | Attempt timing record |
 | `finalSelected` | Yes | Boolean |
 | `errorClass` | No | Non-empty string |
+| `errorOrigin` | No | `local` or `provider` |
 | `retryReason` | No | Non-empty string |
 | `statusCode` | No | Integer from 100 through 599 |
 | `providerRequestId` | No | Non-empty string |
 | `sanitizedHeaders` | No | Record of string values |
 
-Attempt timing requires `startedAt`, `endedAt`, and `latencyMs`. It may include `providerRequestStartedAt`, `providerResponseEndedAt`, `providerElapsedMs`, `gatewayOverheadMs`, `firstByteAt`, `firstTokenAt`, `lastChunkAt`, `timeToFirstByteMs`, and `timeToFirstTokenMs`.
+Attempt timing requires `startedAt`, `endedAt`, and `latencyMs`. It may include `monotonicElapsedMs`, `monotonicClockSource`, `wallClockDrift`, `providerRequestStartedAt`, `providerResponseEndedAt`, `providerElapsedMs`, `providerMonotonicElapsedMs`, `providerWallClockDrift`, `gatewayOverheadMs`, `clientConsumptionEndedAt`, `firstByteAt`, `firstTokenAt`, `lastChunkAt`, `timeToFirstByteMs`, and `timeToFirstTokenMs`.
+
+`errorOrigin` marks whether an error was generated locally by the harness/proxy before a provider response was measured, or whether it came from provider response evidence. Local-origin errors are diagnostic and are excluded from provider-measured call, latency, retry, and public-incidence denominators; they may be reported in a separate local-origin error bucket.
 
 ### Retrieval
 
@@ -214,7 +247,7 @@ Service-tier and geography evidence may appear in `response.serviceTier`, `usage
 
 Billing evidence uses `usage.input`, `usage.output`, optional cache usage, usage categories, `usage.raw`, `usage.usageSource`, and `usage.pricingStatus`.
 
-Timing evidence uses gateway timing fields and optional streaming timing fields. Provider-specific timing headers, when captured, belong in sanitized headers unless promoted into explicit canonical timing fields.
+Timing evidence uses gateway timing fields, optional streaming timing fields, and explicit canonical provider timing fields when captured. Latency displays prefer `providerElapsedMs` when present; gateway-only figures must be labeled as gateway-clock because they may include customer network or proxy overhead. Provider-specific timing headers belong in sanitized headers unless promoted into explicit canonical timing fields.
 
 Tool evidence uses `request.toolDeclarations`, `response.toolCalls`, and `response.rawToolCalls`.
 
@@ -222,7 +255,7 @@ Tool evidence uses `request.toolDeclarations`, `response.toolCalls`, and `respon
 
 Every public signal requires the core event identity fields: tenant, provider, request identifier, model identity, response status, finish reason, usage, timing, and attempt index.
 
-Provider-recognized recoverable dollar signals additionally require known pricing, provider-origin observed charge evidence, or a signal-specific documented zero-charge rule. Without that evidence, the signal must use `triage_only` or `pricing_unknown` posture.
+Current receipt rollups label `providerRecognized*` compatibility fields as estimated recoverable amounts from Inferock arithmetic, not as provider action. A signal may claim provider-origin recognition only when known pricing, provider-origin observed charge evidence, or a signal-specific documented zero-charge rule supports that stronger posture; without that evidence, the signal must use `triage_only` or `pricing_unknown`.
 
 Optional evidence surfaces strengthen particular signal classes:
 

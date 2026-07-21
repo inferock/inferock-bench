@@ -34,7 +34,16 @@ const CacheUsage = z
   .strict();
 
 const ToolCall = JsonRecord;
+const ErrorOrigin = z.enum(["local", "provider"]);
 const EventSource = z.enum(["proxy", "drift_replay"]);
+const WallClockDrift = z
+  .object({
+    kind: z.enum(["negative_wall_clock_elapsed", "implausible_wall_clock_drift"]),
+    wallClockElapsedMs: z.number(),
+    monotonicElapsedMs: z.number().nonnegative(),
+    driftMs: z.number(),
+  })
+  .strict();
 
 const CanonicalEventV1Request = z
   .object({
@@ -55,6 +64,7 @@ const CanonicalEventV1Response = z
     content: z.string(),
     toolCalls: z.array(ToolCall).optional(),
     errorClass: z.string().min(1).optional(),
+    errorOrigin: ErrorOrigin.optional(),
   })
   .strict();
 
@@ -71,10 +81,16 @@ const CanonicalEventV1Timing = z
     startedAt: DateTime,
     endedAt: DateTime,
     latencyMs: z.number().nonnegative(),
+    monotonicElapsedMs: z.number().nonnegative().optional(),
+    monotonicClockSource: z.string().min(1).optional(),
+    wallClockDrift: WallClockDrift.optional(),
     providerRequestStartedAt: DateTime.optional(),
     providerResponseEndedAt: DateTime.optional(),
     providerElapsedMs: z.number().nonnegative().optional(),
+    providerMonotonicElapsedMs: z.number().nonnegative().optional(),
+    providerWallClockDrift: WallClockDrift.optional(),
     gatewayOverheadMs: z.number().nonnegative().optional(),
+    clientConsumptionEndedAt: DateTime.optional(),
   })
   .strict();
 
@@ -220,6 +236,7 @@ const AttemptRecord = z
     status: AttemptStatus,
     timing: AttemptTiming,
     errorClass: z.string().min(1).optional(),
+    errorOrigin: ErrorOrigin.optional(),
     retryReason: z.string().min(1).optional(),
     statusCode: z.number().int().min(100).max(599).optional(),
     providerRequestId: z.string().min(1).optional(),
@@ -288,6 +305,7 @@ export const CanonicalEventV2 = z
         grounding: JsonRecord.optional(),
         logprobs: z.array(JsonRecord).optional(),
         errorClass: z.string().min(1).optional(),
+        errorOrigin: ErrorOrigin.optional(),
       })
       .strict(),
     usage: CanonicalEventV1Usage.extend({
@@ -325,6 +343,7 @@ export type CanonicalProviderName = z.infer<typeof CanonicalProvider>;
 export type ProviderName = Extract<CanonicalProviderName, "openai" | "anthropic" | "gemini" | "openrouter">;
 export type CanonicalAttemptRecord = z.infer<typeof AttemptRecord>;
 export type CanonicalUsageCategory = z.infer<typeof UsageCategory>;
+export type CanonicalErrorOrigin = z.infer<typeof ErrorOrigin>;
 
 export interface CanonicalEventNormalized extends CanonicalEventV1 {
   readonly schemaVersion: "v1" | "v2";
@@ -371,6 +390,7 @@ export interface CanonicalEventNormalized extends CanonicalEventV1 {
     readonly citations?: readonly Record<string, unknown>[];
     readonly grounding?: Record<string, unknown>;
     readonly logprobs?: readonly Record<string, unknown>[];
+    readonly errorOrigin?: CanonicalErrorOrigin;
   };
   readonly usage: CanonicalEventV1["usage"] & {
     readonly raw?: unknown;
@@ -390,7 +410,13 @@ export interface CanonicalEventNormalized extends CanonicalEventV1 {
     readonly providerRequestStartedAt?: string;
     readonly providerResponseEndedAt?: string;
     readonly providerElapsedMs?: number;
+    readonly providerMonotonicElapsedMs?: number;
+    readonly providerWallClockDrift?: z.infer<typeof WallClockDrift>;
+    readonly monotonicElapsedMs?: number;
+    readonly monotonicClockSource?: string;
+    readonly wallClockDrift?: z.infer<typeof WallClockDrift>;
     readonly gatewayOverheadMs?: number;
+    readonly clientConsumptionEndedAt?: string;
     readonly timeToFirstEventMs?: number;
     readonly timeToFirstContentDeltaMs?: number;
     readonly timeToFirstByteMs?: number;
@@ -454,6 +480,7 @@ function normalizeV1(event: CanonicalEventV1): CanonicalEventNormalized {
         status: attemptStatus,
         timing: event.timing,
         ...(event.response.errorClass ? { errorClass: event.response.errorClass } : {}),
+        ...(event.response.errorOrigin ? { errorOrigin: event.response.errorOrigin } : {}),
         finalSelected: true,
       },
     ],
@@ -529,6 +556,20 @@ function normalizedV2Timing(eventTiming: CanonicalEventV2["timing"]): CanonicalE
       ? { maxInterChunkGapMs: eventTiming.maxStreamGapMs }
       : {}),
   };
+}
+
+export function canonicalEventErrorOrigin(
+  event: Pick<CanonicalEventNormalized, "response" | "attempts"> |
+    Pick<CanonicalEventV2, "response" | "attempts"> |
+    Pick<CanonicalEventV1, "response">,
+): CanonicalErrorOrigin | undefined {
+  if (event.response.errorOrigin) return event.response.errorOrigin;
+  if (!("attempts" in event)) return undefined;
+
+  const finalAttempt = event.attempts.find((attempt) => attempt.finalSelected);
+  if (finalAttempt?.errorOrigin) return finalAttempt.errorOrigin;
+
+  return event.attempts.find((attempt) => attempt.errorOrigin)?.errorOrigin;
 }
 
 function usageCategoriesFromV1(event: CanonicalEventV1): CanonicalUsageCategory[] {

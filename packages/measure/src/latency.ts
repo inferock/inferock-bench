@@ -15,6 +15,12 @@ import {
 } from "./time-loss.js";
 import type { LossSignal } from "./types.js";
 
+type EventWithProviderTiming = CanonicalEventV1 & {
+  readonly timing: CanonicalEventV1["timing"] & {
+    readonly providerRequestStartedAt?: string;
+  };
+};
+
 export const DEFAULT_LATENCY_THRESHOLD_MS = 30_000;
 export const DEFAULT_LATENCY_IMPACT_TPS_FLOOR = 5;
 
@@ -120,6 +126,14 @@ interface ProviderLatencyObservation {
   readonly providerRequestStartedAt: string;
   readonly providerResponseEndedAt: string;
 }
+
+type TimingWithMonotonicEvidence = CanonicalEventV1["timing"] & {
+  readonly monotonicElapsedMs?: number;
+  readonly monotonicClockSource?: string;
+  readonly wallClockDrift?: Record<string, unknown>;
+  readonly providerMonotonicElapsedMs?: number;
+  readonly providerWallClockDrift?: Record<string, unknown>;
+};
 
 export function latencyPercentileBucket(percentileRank: number): LatencyPercentileBucket {
   const bounded = Math.max(0, Math.min(1, percentileRank));
@@ -323,7 +337,7 @@ export function detectLatencyBilled(
       endedAt: observation.providerResponseEndedAt,
       providerRequestStartedAt: observation.providerRequestStartedAt,
       providerResponseEndedAt: observation.providerResponseEndedAt,
-      coldStartExcluded: true,
+      coldStartExcluded: false,
       creditBasis: policy.creditBasis,
       pricingStatus,
       pricingVersion,
@@ -380,8 +394,7 @@ function detectInferockStandardDefaultLatency(
     pricingVersion: null,
     pricingStatus: "not_priced",
     valueJson: {
-      latencyMs: event.timing.latencyMs,
-      timingAttribution: "gateway_total_elapsed",
+      ...defaultLatencyTimingEvidence(event, evaluation),
       sloMs: policy.totalSloMs,
       excessWaitMs: evaluation.excessMs,
       ...latencyTimeLossValueJson(event, policy, evaluation),
@@ -406,8 +419,7 @@ function defaultLatencyEvidence(
   const recognitionGapUsd = standardLossUsd - providerRecognizedLossUsd;
   const timeLossTrace = latencyTimeLossTrace(event, policy, evaluation);
   return {
-    latencyMs: event.timing.latencyMs,
-    timingAttribution: "gateway_total_elapsed",
+    ...defaultLatencyTimingEvidence(event, evaluation),
     sloMs: policy.totalSloMs,
     excessWaitMs: evaluation.excessMs,
     sloSource: policy.sloSource,
@@ -419,7 +431,7 @@ function defaultLatencyEvidence(
     workloadClass: event.request.workloadClass ?? policy.workloadClass,
     startedAt: event.timing.startedAt,
     endedAt: event.timing.endedAt,
-    coldStartExcluded: true,
+    coldStartExcluded: false,
     creditBasis: policy.creditBasis,
     providerRecognizedLossUsd,
     standardLossUsd,
@@ -440,8 +452,8 @@ function defaultLatencyEvidence(
       standardVersion: SLA_STANDARD_VERSION,
       timeLossTrace,
       inputs: {
-        observedTotalMs: evaluation.observed.totalMs,
-        timingAttribution: "gateway_total_elapsed",
+        observedDefaultLatencyMs: evaluation.observed.totalMs,
+        ...defaultLatencyTimingEvidence(event, evaluation),
         acceptableTotalMs: evaluation.acceptableTotalMs,
         acceptableStartMs: thresholds.acceptableStartMs,
         acceptableMsPerOutputToken: thresholds.acceptableMsPerOutputToken,
@@ -454,7 +466,7 @@ function defaultLatencyEvidence(
       formulas: {
         acceptableTotalMs:
           "acceptableStartMs + outputTokens * acceptableMsPerOutputToken",
-        excessMs: "max(0, observedTotalMs - acceptableTotalMs)",
+        excessMs: "max(0, observedDefaultLatencyMs - acceptableTotalMs)",
         timeLossMs: "excessMs",
         dollarTranslationUsd: "timeLossMs * rateUsdPerHour / 3600000",
         standardLossUsd: "excessMs * rateUsdPerHour / 3600000",
@@ -482,11 +494,11 @@ function defaultLatencyEvidence(
         thresholds: SLA_DEFAULTS.latencySegments[evaluation.segment.segmentId].sourceIds,
         rate: SLA_DEFAULTS.timeValueRate.sourceIds,
       },
-      oneLine: `observed ${formatSeconds(evaluation.observed.totalMs)} - ${
+      oneLine: `observed ${formatSeconds(evaluation.observed.totalMs)} (${evaluation.observed.clockLabel}) - ${
         formatSeconds(evaluation.acceptableTotalMs)
       } acceptable (${evaluation.segment.label}) = ${formatSeconds(evaluation.excessMs)} excess x $${
         SLA_DEFAULTS.timeValueRate.usdPerHour
-      }/hr = $${standardLossUsd.toFixed(2)} standard loss; provider-recognized $${providerRecognizedLossUsd.toFixed(2)} -> $${recognitionGapUsd.toFixed(2)} unrecognized`,
+      }/hr = $${standardLossUsd.toFixed(2)} standard loss; estimated recoverable $${providerRecognizedLossUsd.toFixed(2)} -> $${recognitionGapUsd.toFixed(2)} unrecognized`,
     },
   };
 }
@@ -502,12 +514,12 @@ function latencyTimeLossValueJson(
     timeLossKind: "latency_excess",
     timeLossPrimary: true,
     timeLossMethodId: TIME_LOSS_METHOD_LATENCY_EXCESS,
-    timingAttribution: "gateway_total_elapsed",
+    ...defaultLatencyTimingEvidence(event, evaluation),
     observedMs: evaluation.observed.totalMs,
     acceptableMs: evaluation.acceptableTotalMs,
     excessMs: evaluation.excessMs,
     thresholdProposalId: policy.policyId,
-    thresholdSourceLabel: "The Inferock Standard default threshold proposal",
+    thresholdSourceLabel: "Inferock provisional default (pending external calibration)",
     thresholdConfirmed: false,
     thresholdEffectiveFrom: policy.effectiveFrom,
     thresholdEffectiveTo: policy.effectiveTo,
@@ -576,8 +588,8 @@ function latencyTimeLossTrace(
     standardVersion: SLA_STANDARD_VERSION,
     inputs: {
       requestId: event.request.requestId,
-      observedTotalMs: evaluation.observed.totalMs,
-      timingAttribution: "gateway_total_elapsed",
+      observedDefaultLatencyMs: evaluation.observed.totalMs,
+      ...defaultLatencyTimingEvidence(event, evaluation),
       acceptableTotalMs: evaluation.acceptableTotalMs,
       acceptableStartMs: thresholds.acceptableStartMs,
       acceptableMsPerOutputToken: thresholds.acceptableMsPerOutputToken,
@@ -589,7 +601,7 @@ function latencyTimeLossTrace(
     },
     formulas: {
       acceptableTotalMs: "acceptableStartMs + outputTokens * acceptableMsPerOutputToken",
-      timeLossMs: "max(0, observedTotalMs - acceptableTotalMs)",
+      timeLossMs: "max(0, observedDefaultLatencyMs - acceptableTotalMs)",
       dollarTranslationUsd: "timeLossMs * rateUsdPerHour / 3600000",
     },
     outputs: {
@@ -607,7 +619,7 @@ function latencyProviderRecognitionLine(
   refundableCandidate: boolean,
 ): string {
   if (refundableCandidate) {
-    return "Provider-recognized: configured provider latency credit basis for this receipt";
+    return "Estimated recoverable (our arithmetic): configured provider latency credit basis for this receipt";
   }
   const serviceTier = serviceTierForEvent(event);
   const standardTier = serviceTier === "default" ||
@@ -618,9 +630,9 @@ function latencyProviderRecognitionLine(
     event.request.provider === policy.provider &&
     (event.request.provider === "openai" || event.request.provider === "anthropic")
   ) {
-    return "Provider-recognized: $0 / 0s without a first-party latency SLA";
+    return "Estimated recoverable (our arithmetic): $0 / 0s without a first-party latency SLA";
   }
-  return "Provider-recognized: no configured provider latency credit basis for this receipt";
+  return "Estimated recoverable (our arithmetic): no configured provider latency credit basis for this receipt";
 }
 
 function serviceTierForEvent(event: CanonicalEventV1): string | null {
@@ -636,21 +648,68 @@ function serviceTierForEvent(event: CanonicalEventV1): string | null {
 }
 
 function providerLatencyObservation(event: CanonicalEventV1): ProviderLatencyObservation | null {
-  const timing = event.timing;
+  const timing = event.timing as TimingWithMonotonicEvidence;
+  const observedMs = finiteNonNegative(timing.providerMonotonicElapsedMs) ?? timing.providerElapsedMs;
   if (
-    timing.providerElapsedMs === undefined ||
-    !Number.isFinite(timing.providerElapsedMs) ||
+    observedMs === undefined ||
+    !Number.isFinite(observedMs) ||
     timing.providerRequestStartedAt === undefined ||
     timing.providerResponseEndedAt === undefined
   ) {
     return null;
   }
   return {
-    observedMs: timing.providerElapsedMs,
+    observedMs,
     timingAttribution: "provider_elapsed",
     providerRequestStartedAt: timing.providerRequestStartedAt,
     providerResponseEndedAt: timing.providerResponseEndedAt,
   };
+}
+
+function defaultLatencyTimingEvidence(
+  event: CanonicalEventV1,
+  evaluation: LatencyDefaultEvaluation,
+): Record<string, unknown> {
+  const timing = (event as EventWithProviderTiming).timing;
+  return {
+    latencyMs: evaluation.observed.totalMs,
+    observedDefaultLatencyMs: evaluation.observed.totalMs,
+    timingAttribution: evaluation.observed.timingAttribution,
+    timingClockLabel: evaluation.observed.clockLabel,
+    gatewayTotalMs: evaluation.observed.gatewayTotalMs,
+    gatewayElapsedMs: evaluation.observed.gatewayTotalMs,
+    providerElapsedMs: evaluation.observed.providerElapsedMs,
+    providerRequestStartedAt: timing.providerRequestStartedAt ?? null,
+    ...(evaluation.observed.gatewayOverheadMs !== null
+      ? { gatewayOverheadMs: evaluation.observed.gatewayOverheadMs }
+      : {}),
+    ...(evaluation.observed.openRouterEvidenceFetchMs !== null
+      ? { openRouterEvidenceFetchMs: evaluation.observed.openRouterEvidenceFetchMs }
+      : {}),
+    ...(evaluation.observed.nonProviderDiagnosticSegments.length > 0
+      ? { nonProviderDiagnosticSegments: evaluation.observed.nonProviderDiagnosticSegments }
+      : {}),
+    ...monotonicLatencyEvidence(event),
+  };
+}
+
+function monotonicLatencyEvidence(event: CanonicalEventV1): Record<string, unknown> {
+  const timing = event.timing as TimingWithMonotonicEvidence;
+  return {
+    ...(finiteNonNegative(timing.monotonicElapsedMs) !== undefined
+      ? { monotonicElapsedMs: timing.monotonicElapsedMs }
+      : {}),
+    ...(timing.monotonicClockSource ? { monotonicClockSource: timing.monotonicClockSource } : {}),
+    ...(timing.wallClockDrift ? { wallClockDrift: timing.wallClockDrift } : {}),
+    ...(finiteNonNegative(timing.providerMonotonicElapsedMs) !== undefined
+      ? { providerMonotonicElapsedMs: timing.providerMonotonicElapsedMs }
+      : {}),
+    ...(timing.providerWallClockDrift ? { providerWallClockDrift: timing.providerWallClockDrift } : {}),
+  };
+}
+
+function finiteNonNegative(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 function latencyImpactPartitionKey(sample: NoSloLatencyImpactSample): string {

@@ -116,6 +116,12 @@ interface ClassifierRefusalEvidence {
   readonly model?: RefusalClassifierVerdict["model"];
 }
 
+interface RefusalStandardLossEligibility {
+  readonly eligible: boolean;
+  readonly reason: "classifier_refusal" | "task_contract_refusal" | "regex_only_triage";
+  readonly taskContractEvidence?: Record<string, unknown>;
+}
+
 export interface ObservedChargeEvidence {
   readonly chargedUsd: number;
   readonly currency?: string;
@@ -279,22 +285,42 @@ function buildClassifierRefusalSignal(
   if (!classifierEvidence || !expectsCompletion(event)) return null;
   if (tokensBilledForEvent(event) === 0) return null;
 
+  const standardLossEligibility = classifierRefusalStandardLossEligibility(event, classifierEvidence);
+  const eligibleEvidence = {
+    standardLossEligible: standardLossEligibility.eligible,
+    standardLossEligibility: standardLossEligibility.reason,
+    ...(standardLossEligibility.taskContractEvidence
+      ? { taskContractEvidence: standardLossEligibility.taskContractEvidence }
+      : {}),
+  };
+  const ineligiblePricingFields = standardLossEligibility.eligible
+    ? {}
+    : {
+        expectedChargeUsd: null,
+        pricingVersion: null,
+        pricingStatus: "not_priced" as const,
+      };
+
   return buildLossSignal({
     code: "REFUSAL_BILLED",
     detector: "refusal",
     event,
-    failureClass: "refusal",
+    failureClass: standardLossEligibility.eligible ? "refusal" : null,
     status: "triage_only",
     evidenceGrade: "triage_only",
+    severity: standardLossEligibility.eligible ? "loss" : "warning",
     dispute: false,
     liabilityParty: "unknown",
     creditCandidate: false,
-    valueKind: "money",
-    recoverableBasis: "whole_call",
+    valueKind: standardLossEligibility.eligible ? "money" : "triage",
+    recoverableBasis: standardLossEligibility.eligible ? "whole_call" : null,
+    observedChargeUsd: null,
     providerRecoverableLossUsd: 0,
+    ...ineligiblePricingFields,
     valueJson: {
       refusalDetectionSource: classifierEvidence.source,
       refusalDetectionMechanism: classifierEvidence.mechanism,
+      ...eligibleEvidence,
       ...(classifierEvidence.score !== undefined ? { classifierScore: classifierEvidence.score } : {}),
       ...(classifierEvidence.model ? { classifierModel: classifierEvidence.model } : {}),
     },
@@ -306,10 +332,37 @@ function buildClassifierRefusalSignal(
       chargeEvidence: "provider_usage",
       refusalDetectionSource: classifierEvidence.source,
       refusalDetectionMechanism: classifierEvidence.mechanism,
+      ...eligibleEvidence,
       ...(classifierEvidence.score !== undefined ? { classifierScore: classifierEvidence.score } : {}),
       ...(classifierEvidence.model ? { classifierModel: classifierEvidence.model } : {}),
     },
   });
+}
+
+function classifierRefusalStandardLossEligibility(
+  event: CanonicalEventV1,
+  classifierEvidence: ClassifierRefusalEvidence,
+): RefusalStandardLossEligibility {
+  if (classifierEvidence.mechanism !== "regex") {
+    return { eligible: true, reason: "classifier_refusal" };
+  }
+
+  const taskContractEvidence = registeredOutputSchemaTaskContractEvidence(event);
+  if (taskContractEvidence) {
+    return { eligible: true, reason: "task_contract_refusal", taskContractEvidence };
+  }
+
+  return { eligible: false, reason: "regex_only_triage" };
+}
+
+function registeredOutputSchemaTaskContractEvidence(event: CanonicalEventV1): Record<string, unknown> | null {
+  const outputSchemaVersion = event.meta.outputSchemaVersion;
+  if (!outputSchemaVersion) return null;
+  if (!hasOutputSchema(event.request.tenantId, outputSchemaVersion)) return null;
+  return {
+    kind: "registered_output_schema",
+    outputSchemaVersion,
+  };
 }
 
 export function buildAnthropicPreOutputRefusalBilledInvariantSignal(

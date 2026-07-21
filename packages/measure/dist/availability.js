@@ -1,3 +1,4 @@
+import { canonicalEventErrorOrigin } from "./canonical-event.js";
 import { tokensBilledForEvent } from "./pricing.js";
 import { buildLossSignal } from "./signal.js";
 import { TIME_LOSS_METHOD_DOWNTIME_WINDOW } from "./time-loss.js";
@@ -40,6 +41,8 @@ function hasProviderCapacityEvidence(text) {
     return PROVIDER_UNAVAILABILITY_TERMS.some((term) => text.includes(term));
 }
 export function classifyProviderDowntime(event) {
+    if (canonicalEventErrorOrigin(event) === "local")
+        return null;
     const statusCode = event.response.statusCode;
     if (statusCode === 401 || statusCode === 403)
         return null;
@@ -709,7 +712,7 @@ function providerDowntimeRecognitionLine(event) {
     if (slaProvider && PROVIDER_SLA_THRESHOLDS[slaProvider]?.creditTermsVerified) {
         return "Credit path: service credit may be capped at eligible spend under verified cloud SLA provenance";
     }
-    return "Provider-recognized: $0 / 0s - first-party credit terms unverified";
+    return "Estimated recoverable (our arithmetic): $0 / 0s - first-party credit terms unverified";
 }
 function logicalOperationKey(event) {
     const metadata = event;

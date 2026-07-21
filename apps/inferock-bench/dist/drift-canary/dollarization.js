@@ -82,7 +82,7 @@ export function dollarizeDriftCanaryRegression(input) {
                 ],
                 grading: "https://github.com/openai/simple-evals MIT exact-match pattern attribution; no copied code",
             },
-            oneLine: `drift canary floor ${standardLossUsd.toFixed(6)} USD; provider-recognized 0.000000 USD -> ${recognitionGapUsd.toFixed(6)} USD recognition gap`,
+            oneLine: `drift canary floor ${standardLossUsd.toFixed(6)} USD; estimated recoverable 0.000000 USD -> ${recognitionGapUsd.toFixed(6)} USD recognition gap`,
         },
     };
 }

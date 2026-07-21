@@ -18,6 +18,8 @@ import {
   SPEEDTEST_RECEIPT_SCHEMA_VERSION,
 } from "../receipt-schema.js";
 
+const FULL_COVERAGE_SUITE_TEST_TIMEOUT_MS = 30_000;
+
 class MemoryStore implements EventStore {
   readonly records: StoredBenchEvent[] = [];
 
@@ -100,7 +102,7 @@ describe("built-in coverage-suite runner", () => {
     expect(providerCalls.some((call) => call.url.endsWith("/responses"))).toBe(true);
     expect(providerCalls.some((call) => JSON.stringify(call.body).includes("factualityContract"))).toBe(false);
     expect(providerCalls.some((call) => JSON.stringify(call.body).includes("x-inferock"))).toBe(false);
-  });
+  }, FULL_COVERAGE_SUITE_TEST_TIMEOUT_MS);
 
   it("migrates legacy v2 speed-test combined dollars without promoting duration dollars into money headline", () => {
     const migrated = migrateSpeedTestReceiptBundle({

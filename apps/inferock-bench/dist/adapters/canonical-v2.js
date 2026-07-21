@@ -1,5 +1,4 @@
 // Copied from apps/proxy/src/adapters/canonical-v2.ts for inferock-bench Track C.
-// Reuse approved by .claude/plans/oss-wave-2026-07.md "Track C Reuse Boundary".
 import { createHash } from "node:crypto";
 import { OPENROUTER_PLANE } from "@inferock/measure/pricing";
 import { asRecord, booleanValue, isRecord, stringValue, } from "../record.js";
@@ -43,6 +42,15 @@ const REQUEST_BODY_HASH_CANONICALIZATION = "normalized_json_v1";
 const GEMINI_DEVELOPER_API_HOST = "generativelanguage.googleapis.com";
 const GEMINI_DEVELOPER_API_PLANE = "gemini_developer_api";
 const OPENROUTER_API_HOST = "openrouter.ai";
+const MONOTONIC_CLOCK_SOURCE = "process.hrtime.bigint";
+const WALL_CLOCK_DRIFT_IMPLAUSIBLE_MS = 1_000;
+export function captureMonotonicTimestamp() {
+    return {
+        wallTime: new Date(),
+        monotonicNs: process.hrtime.bigint(),
+        monotonicClockSource: MONOTONIC_CLOCK_SOURCE,
+    };
+}
 export function canonicalRequest(input, provider, providerSurface) {
     const providerRequestId = providerRequestIdFromHeaders(input.headers);
     const requestHeaders = sanitizedRequestHeaders(input.requestHeaders);
@@ -162,11 +170,14 @@ function geminiStructuredOutputRequestEvidence(body) {
     };
 }
 export function canonicalTiming(startedAt, endedAt, terminalStatus, providerTiming) {
+    const totalDuration = durationEvidence(timestampFromDate(startedAt, providerTiming?.startedAtMonotonicNs, providerTiming?.monotonicClockSource), timestampFromDate(endedAt, providerTiming?.endedAtMonotonicNs, providerTiming?.monotonicClockSource));
     return {
         startedAt: startedAt.toISOString(),
         endedAt: endedAt.toISOString(),
-        latencyMs: elapsedMs(startedAt, endedAt),
-        ...providerTimingFields(startedAt, endedAt, providerTiming),
+        latencyMs: totalDuration.elapsedMs,
+        ...monotonicDurationFields(totalDuration),
+        ...providerTimingFields(totalDuration.elapsedMs, providerTiming),
+        ...clientConsumptionTimingFields(providerTiming?.clientConsumptionTiming),
         chunkCount: 0,
         terminalStatus,
     };
@@ -177,41 +188,53 @@ export function createStreamTimingCapture() {
         terminalStatus: "unknown",
     };
 }
-export function recordStreamChunk(capture, observedAt) {
-    if (!capture.firstEventAt)
-        capture.firstEventAt = observedAt;
+export function recordStreamByte(capture, observedAt) {
+    const observed = timestampFromInput(observedAt);
     if (!capture.firstByteAt)
-        capture.firstByteAt = observedAt;
+        capture.firstByteAt = observed;
+}
+export function recordParsedSseEvent(capture, observedAt) {
+    const observed = timestampFromInput(observedAt);
+    if (!capture.firstEventAt)
+        capture.firstEventAt = observed;
     if (capture.previousChunkAt) {
-        const gapMs = elapsedMs(capture.previousChunkAt, observedAt);
+        const gapMs = durationEvidence(capture.previousChunkAt, observed).elapsedMs;
         capture.maxInterChunkGapMs = Math.max(capture.maxInterChunkGapMs ?? 0, gapMs);
         capture.maxStreamGapMs = Math.max(capture.maxStreamGapMs ?? 0, gapMs);
     }
-    capture.previousChunkAt = observedAt;
-    capture.lastChunkAt = observedAt;
+    capture.previousChunkAt = observed;
+    capture.lastChunkAt = observed;
     capture.chunkCount += 1;
 }
-export function recordStreamToken(capture, observedAt) {
+export function recordStreamContentDelta(capture, observedAt) {
+    const observed = timestampFromInput(observedAt);
     if (!capture.firstContentDeltaAt)
-        capture.firstContentDeltaAt = observedAt;
+        capture.firstContentDeltaAt = observed;
     if (!capture.firstTokenAt)
-        capture.firstTokenAt = observedAt;
+        capture.firstTokenAt = observed;
 }
 export function streamTiming(startedAt, endedAt, capture, providerTiming) {
+    const started = timestampFromDate(startedAt, providerTiming?.startedAtMonotonicNs, providerTiming?.monotonicClockSource);
+    const ended = timestampFromDate(endedAt, providerTiming?.endedAtMonotonicNs, providerTiming?.monotonicClockSource);
+    const totalDuration = durationEvidence(started, ended);
     return {
         startedAt: startedAt.toISOString(),
         endedAt: endedAt.toISOString(),
-        latencyMs: elapsedMs(startedAt, endedAt),
-        ...providerTimingFields(startedAt, endedAt, providerTiming),
-        ...(capture.firstEventAt ? { firstEventAt: capture.firstEventAt.toISOString() } : {}),
-        ...(capture.firstContentDeltaAt ? { firstContentDeltaAt: capture.firstContentDeltaAt.toISOString() } : {}),
-        ...(capture.firstByteAt ? { firstByteAt: capture.firstByteAt.toISOString() } : {}),
-        ...(capture.firstTokenAt ? { firstTokenAt: capture.firstTokenAt.toISOString() } : {}),
-        ...(capture.lastChunkAt ? { lastChunkAt: capture.lastChunkAt.toISOString() } : {}),
-        ...(capture.firstEventAt ? { timeToFirstEventMs: elapsedMs(startedAt, capture.firstEventAt) } : {}),
-        ...(capture.firstContentDeltaAt ? { timeToFirstContentDeltaMs: elapsedMs(startedAt, capture.firstContentDeltaAt) } : {}),
-        ...(capture.firstByteAt ? { timeToFirstByteMs: elapsedMs(startedAt, capture.firstByteAt) } : {}),
-        ...(capture.firstTokenAt ? { timeToFirstTokenMs: elapsedMs(startedAt, capture.firstTokenAt) } : {}),
+        latencyMs: totalDuration.elapsedMs,
+        ...monotonicDurationFields(totalDuration),
+        ...providerTimingFields(totalDuration.elapsedMs, providerTiming),
+        ...clientConsumptionTimingFields(providerTiming?.clientConsumptionTiming),
+        ...(capture.firstEventAt ? { firstEventAt: capture.firstEventAt.wallTime.toISOString() } : {}),
+        ...(capture.firstContentDeltaAt ? { firstContentDeltaAt: capture.firstContentDeltaAt.wallTime.toISOString() } : {}),
+        ...(capture.firstByteAt ? { firstByteAt: capture.firstByteAt.wallTime.toISOString() } : {}),
+        ...(capture.firstTokenAt ? { firstTokenAt: capture.firstTokenAt.wallTime.toISOString() } : {}),
+        ...(capture.lastChunkAt ? { lastChunkAt: capture.lastChunkAt.wallTime.toISOString() } : {}),
+        ...(capture.firstEventAt ? { timeToFirstEventMs: durationEvidence(started, capture.firstEventAt).elapsedMs } : {}),
+        ...(capture.firstContentDeltaAt
+            ? { timeToFirstContentDeltaMs: durationEvidence(started, capture.firstContentDeltaAt).elapsedMs }
+            : {}),
+        ...(capture.firstByteAt ? { timeToFirstByteMs: durationEvidence(started, capture.firstByteAt).elapsedMs } : {}),
+        ...(capture.firstTokenAt ? { timeToFirstTokenMs: durationEvidence(started, capture.firstTokenAt).elapsedMs } : {}),
         chunkCount: capture.chunkCount,
         ...(capture.maxInterChunkGapMs !== undefined ? { maxInterChunkGapMs: capture.maxInterChunkGapMs } : {}),
         ...(capture.maxStreamGapMs !== undefined ? { maxStreamGapMs: capture.maxStreamGapMs } : {}),
@@ -225,14 +248,26 @@ export function finalAttemptRecord(input) {
         model: input.model,
         status: input.status,
         timing: canonicalAttemptTiming(input.startedAt, input.endedAt, {
+            ...(input.startedAtMonotonicNs !== undefined ? { startedAtMonotonicNs: input.startedAtMonotonicNs } : {}),
+            ...(input.endedAtMonotonicNs !== undefined ? { endedAtMonotonicNs: input.endedAtMonotonicNs } : {}),
+            ...(input.monotonicClockSource ? { monotonicClockSource: input.monotonicClockSource } : {}),
             ...(input.providerRequestStartedAt ? { providerRequestStartedAt: input.providerRequestStartedAt } : {}),
             ...(input.providerResponseEndedAt ? { providerResponseEndedAt: input.providerResponseEndedAt } : {}),
+            ...(input.providerRequestStartedAtMonotonicNs !== undefined
+                ? { providerRequestStartedAtMonotonicNs: input.providerRequestStartedAtMonotonicNs }
+                : {}),
+            ...(input.providerResponseEndedAtMonotonicNs !== undefined
+                ? { providerResponseEndedAtMonotonicNs: input.providerResponseEndedAtMonotonicNs }
+                : {}),
+            ...(input.clientConsumptionTiming ? { clientConsumptionTiming: input.clientConsumptionTiming } : {}),
         }),
         ...(input.errorClass ? { errorClass: input.errorClass } : {}),
+        ...(input.errorOrigin ? { errorOrigin: input.errorOrigin } : {}),
         finalSelected: true,
     };
 }
 export function canonicalAttempts(input, provider, model, endedAt, status, errorClass) {
+    const clientConsumptionTiming = clientConsumptionTimingFromInput(input);
     return [
         ...(input.previousAttempts ?? []),
         finalAttemptRecord({
@@ -241,12 +276,26 @@ export function canonicalAttempts(input, provider, model, endedAt, status, error
             attemptIndex: input.attemptIndex,
             startedAt: input.startedAt,
             endedAt,
+            ...(input.startedAtMonotonicNs !== undefined ? { startedAtMonotonicNs: input.startedAtMonotonicNs } : {}),
+            ...(input.endedAtMonotonicNs !== undefined ? { endedAtMonotonicNs: input.endedAtMonotonicNs } : {}),
+            ...(input.monotonicClockSource ? { monotonicClockSource: input.monotonicClockSource } : {}),
             ...(input.providerRequestStartedAt ? { providerRequestStartedAt: input.providerRequestStartedAt } : {}),
             ...(input.providerResponseEndedAt ? { providerResponseEndedAt: input.providerResponseEndedAt } : {}),
+            ...(input.providerRequestStartedAtMonotonicNs !== undefined
+                ? { providerRequestStartedAtMonotonicNs: input.providerRequestStartedAtMonotonicNs }
+                : {}),
+            ...(input.providerResponseEndedAtMonotonicNs !== undefined
+                ? { providerResponseEndedAtMonotonicNs: input.providerResponseEndedAtMonotonicNs }
+                : {}),
+            ...(clientConsumptionTiming ? { clientConsumptionTiming } : {}),
             status,
             ...(errorClass ? { errorClass } : {}),
+            ...(input.errorOrigin ? { errorOrigin: input.errorOrigin } : {}),
         }),
     ];
+}
+function clientConsumptionTimingFromInput(input) {
+    return "clientConsumptionTiming" in input ? input.clientConsumptionTiming : undefined;
 }
 export function providerRequestIdFromHeaders(headers) {
     return headers.get("x-request-id") ??
@@ -268,10 +317,17 @@ export function sanitizedProviderHeaders(headers) {
 function sanitizedRequestHeaders(headers) {
     if (!headers)
         return undefined;
-    const stainlessRetryCount = headers.get("x-stainless-retry-count");
-    return stainlessRetryCount === null
-        ? undefined
-        : { "x-stainless-retry-count": stainlessRetryCount };
+    const sanitized = {};
+    for (const name of [
+        "x-stainless-retry-count",
+        "x-inferock-request-origin",
+        "x-inferock-abort-origin",
+    ]) {
+        const value = headers.get(name);
+        if (value !== null)
+            sanitized[name] = value;
+    }
+    return Object.keys(sanitized).length > 0 ? sanitized : undefined;
 }
 function extractRequestFields(body, providerSurface) {
     if (providerSurface === "chat_completions")
@@ -409,29 +465,89 @@ function openAiParallelToolCalls(body) {
     return booleanValue(body.parallel_tool_calls) ?? true;
 }
 function canonicalAttemptTiming(startedAt, endedAt, providerTiming) {
+    const totalDuration = durationEvidence(timestampFromDate(startedAt, providerTiming?.startedAtMonotonicNs, providerTiming?.monotonicClockSource), timestampFromDate(endedAt, providerTiming?.endedAtMonotonicNs, providerTiming?.monotonicClockSource));
     return {
         startedAt: startedAt.toISOString(),
         endedAt: endedAt.toISOString(),
-        latencyMs: elapsedMs(startedAt, endedAt),
-        ...providerTimingFields(startedAt, endedAt, providerTiming),
+        latencyMs: totalDuration.elapsedMs,
+        ...monotonicDurationFields(totalDuration),
+        ...providerTimingFields(totalDuration.elapsedMs, providerTiming),
+        ...clientConsumptionTimingFields(providerTiming?.clientConsumptionTiming),
     };
 }
-function providerTimingFields(startedAt, endedAt, providerTiming) {
+function providerTimingFields(totalElapsedMs, providerTiming) {
     const providerRequestStartedAt = providerTiming?.providerRequestStartedAt;
     const providerResponseEndedAt = providerTiming?.providerResponseEndedAt;
+    const providerDuration = providerRequestStartedAt && providerResponseEndedAt
+        ? durationEvidence(timestampFromDate(providerRequestStartedAt, providerTiming?.providerRequestStartedAtMonotonicNs, providerTiming?.monotonicClockSource), timestampFromDate(providerResponseEndedAt, providerTiming?.providerResponseEndedAtMonotonicNs, providerTiming?.monotonicClockSource))
+        : undefined;
     return {
         ...(providerRequestStartedAt ? { providerRequestStartedAt: providerRequestStartedAt.toISOString() } : {}),
         ...(providerResponseEndedAt ? { providerResponseEndedAt: providerResponseEndedAt.toISOString() } : {}),
-        ...(providerRequestStartedAt && providerResponseEndedAt
+        ...(providerDuration
             ? {
-                providerElapsedMs: elapsedMs(providerRequestStartedAt, providerResponseEndedAt),
-                gatewayOverheadMs: Math.max(0, elapsedMs(startedAt, endedAt) - elapsedMs(providerRequestStartedAt, providerResponseEndedAt)),
+                providerElapsedMs: providerDuration.elapsedMs,
+                ...(providerDuration.monotonicElapsedMs !== undefined
+                    ? { providerMonotonicElapsedMs: providerDuration.monotonicElapsedMs }
+                    : {}),
+                ...(providerDuration.wallClockDrift ? { providerWallClockDrift: providerDuration.wallClockDrift } : {}),
+                gatewayOverheadMs: Math.max(0, totalElapsedMs - providerDuration.elapsedMs),
             }
             : {}),
     };
 }
-function elapsedMs(startedAt, endedAt) {
-    return Math.max(0, endedAt.getTime() - startedAt.getTime());
+function timestampFromInput(value) {
+    return value instanceof Date ? { wallTime: value } : value;
+}
+function timestampFromDate(wallTime, monotonicNs, monotonicClockSource) {
+    return {
+        wallTime,
+        ...(monotonicNs !== undefined ? { monotonicNs } : {}),
+        ...(monotonicClockSource ? { monotonicClockSource } : {}),
+    };
+}
+function durationEvidence(startedAt, endedAt) {
+    const wallClockElapsedMs = endedAt.wallTime.getTime() - startedAt.wallTime.getTime();
+    if (startedAt.monotonicNs === undefined || endedAt.monotonicNs === undefined) {
+        return { elapsedMs: Math.max(0, wallClockElapsedMs) };
+    }
+    const rawMonotonicElapsedMs = Number(endedAt.monotonicNs - startedAt.monotonicNs) / 1_000_000;
+    const monotonicElapsedMs = Math.max(0, rawMonotonicElapsedMs);
+    const driftMs = wallClockElapsedMs - monotonicElapsedMs;
+    const driftKind = wallClockElapsedMs < 0
+        ? "negative_wall_clock_elapsed"
+        : Math.abs(driftMs) > WALL_CLOCK_DRIFT_IMPLAUSIBLE_MS
+            ? "implausible_wall_clock_drift"
+            : undefined;
+    return {
+        elapsedMs: monotonicElapsedMs,
+        monotonicElapsedMs,
+        monotonicClockSource: endedAt.monotonicClockSource ?? startedAt.monotonicClockSource ?? MONOTONIC_CLOCK_SOURCE,
+        ...(driftKind
+            ? {
+                wallClockDrift: {
+                    kind: driftKind,
+                    wallClockElapsedMs,
+                    monotonicElapsedMs,
+                    driftMs,
+                },
+            }
+            : {}),
+    };
+}
+function monotonicDurationFields(duration) {
+    return {
+        ...(duration.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: duration.monotonicElapsedMs } : {}),
+        ...(duration.monotonicClockSource ? { monotonicClockSource: duration.monotonicClockSource } : {}),
+        ...(duration.wallClockDrift ? { wallClockDrift: duration.wallClockDrift } : {}),
+    };
+}
+function clientConsumptionTimingFields(clientConsumptionTiming) {
+    return {
+        ...(clientConsumptionTiming?.endedAt
+            ? { clientConsumptionEndedAt: clientConsumptionTiming.endedAt.toISOString() }
+            : {}),
+    };
 }
 function isEvidenceHeader(name) {
     return name === "retry-after" ||

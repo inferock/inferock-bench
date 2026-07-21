@@ -64,6 +64,7 @@ export async function runProviderParallelCoverageSuite(
   const startedAt = input.startedAt ?? new Date().toISOString();
   const consentedAt = input.consentedAt ?? startedAt;
   const providers = uniqueProviders(input.estimate.selectedModels.map((model) => model.provider));
+  const enclosingParallelProviderCount = providers.length;
   const agentExecutable = input.estimate.generator === "agent"
     ? await resolveAgentExecutable(input)
     : undefined;
@@ -71,7 +72,7 @@ export async function runProviderParallelCoverageSuite(
     const providerRunId = providers.length === 1 ? runId : `${runId}/${provider}`;
     const providerEstimate = estimateForProvider(input, provider);
     if (agentExecutable) {
-      return await runAgentCoverageSuite({
+      const result = await runAgentCoverageSuite({
         runId: providerRunId,
         provider,
         suite: input.suite,
@@ -95,6 +96,7 @@ export async function runProviderParallelCoverageSuite(
           ? async (event) => input.onProgress?.({ ...event, provider })
           : undefined,
       });
+      return withProviderScope(result, provider, enclosingParallelProviderCount);
     }
     const result = await runBuiltInCoverageSuite({
       runId: providerRunId,
@@ -113,22 +115,7 @@ export async function runProviderParallelCoverageSuite(
         ? async (event) => input.onProgress?.({ ...event, provider })
         : undefined,
     });
-    return {
-      ...result,
-      receipt: {
-        ...result.receipt,
-        run: {
-          ...result.receipt.run,
-          providerId: provider,
-        },
-        providerScope: {
-          provider,
-          selectedProviders: [provider],
-          parallelProviderCount: 1,
-          localContentionPossible: false,
-        },
-      },
-    };
+    return withProviderScope(result, provider, enclosingParallelProviderCount);
   });
   const providerResults = await Promise.all(jobs);
   const receipt = providerResults.length === 1
@@ -145,6 +132,29 @@ export async function runProviderParallelCoverageSuite(
     runId,
     providerResults,
     receipt,
+  };
+}
+
+function withProviderScope(
+  result: BuiltInCoverageSuiteRunResult,
+  provider: ProviderName,
+  enclosingParallelProviderCount: number,
+): BuiltInCoverageSuiteRunResult {
+  return {
+    ...result,
+    receipt: {
+      ...result.receipt,
+      run: {
+        ...result.receipt.run,
+        providerId: provider,
+      },
+      providerScope: {
+        provider,
+        selectedProviders: [provider],
+        parallelProviderCount: enclosingParallelProviderCount,
+        localContentionPossible: enclosingParallelProviderCount > 1,
+      },
+    },
   };
 }
 

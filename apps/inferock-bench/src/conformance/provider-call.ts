@@ -16,14 +16,27 @@ export interface StreamSseProbe {
 
 export interface StreamSseRawFrame {
   readonly observedAt: string;
+  readonly observedMonotonicElapsedMs?: number;
   readonly event?: string;
   readonly data: string;
+}
+
+export interface WallClockDriftEvidence {
+  readonly kind: "negative_wall_clock_elapsed" | "implausible_wall_clock_drift";
+  readonly wallClockElapsedMs: number;
+  readonly monotonicElapsedMs: number;
+  readonly driftMs: number;
 }
 
 export interface StreamSseProviderCallResult {
   readonly requestId: string;
   readonly startedAt: string;
   readonly endedAt: string;
+  readonly monotonicElapsedMs?: number;
+  readonly monotonicClockSource?: string;
+  readonly wallClockDrift?: WallClockDriftEvidence;
+  readonly firstByteAt?: string;
+  readonly timeToFirstByteMs?: number;
   readonly statusCode: number;
   readonly headers?: Readonly<Record<string, string>>;
   readonly frames: readonly StreamSseRawFrame[];

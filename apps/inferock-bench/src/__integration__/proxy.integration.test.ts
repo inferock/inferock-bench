@@ -90,7 +90,14 @@ describe("inferock-bench proxy", () => {
           statusCode: 429,
           rawErrorType: "agent_call_budget_exhausted",
           errorClass: "http_429:agent_call_budget_exhausted",
+          errorOrigin: "local",
         },
+        attempts: [
+          expect.objectContaining({
+            finalSelected: true,
+            errorOrigin: "local",
+          }),
+        ],
       },
     });
   });
@@ -158,6 +165,11 @@ describe("inferock-bench proxy", () => {
     expect(event.response.providerRequestId).toBe("provider-request-local");
     expect(event.response.sanitizedHeaders?.["openai-processing-ms"]).toBe("12");
     expect(event.usage.usageSource).toBe("provider");
+    expect(event.timing).toMatchObject({
+      monotonicElapsedMs: expect.any(Number),
+      monotonicClockSource: "process.hrtime.bigint",
+      providerMonotonicElapsedMs: expect.any(Number),
+    });
     expect(logs).toContain("first call measured ✓");
     expect(logs.indexOf("first call measured ✓")).toBeLessThan(logs.indexOf("first-call follow-up"));
   });
@@ -988,6 +1000,134 @@ describe("inferock-bench proxy", () => {
     expect(stored.timing.terminalStatus).toBe("complete");
   });
 
+  it("bench-proxy-stream-backpressure-provider-clean: provider stream timing closes before slow client consumption", async () => {
+    const store = new MemoryStore();
+    const encoder = new TextEncoder();
+    const chunks = [
+      `data: {"id":"chatcmpl-backpressure","model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"delta":{"content":"he"},"finish_reason":null}]}\n\n`,
+      `data: {"id":"chatcmpl-backpressure","model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"delta":{"content":"llo"},"finish_reason":null}]}\n\n`,
+      `data: {"id":"chatcmpl-backpressure","model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"completion_tokens":1,"total_tokens":5}}\n\n`,
+      "data: [DONE]\n\n",
+    ];
+    const sseBody = chunks.join("");
+    let providerReadCompleted = false;
+    const providerFetch: ProviderFetch = async () =>
+      new Response(streamFromChunks(chunks.map((chunk) => encoder.encode(chunk)), () => {
+        providerReadCompleted = true;
+      }), {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-request-id": "provider-backpressure-clean",
+        },
+      });
+    const app = createBenchApp({
+      config: {},
+      store,
+      env: {
+        INFEROCK_BENCH_KEY: "local",
+        INFEROCK_BENCH_OPENAI_API_KEY: "provider-openai",
+      },
+      providerFetch,
+      log: () => undefined,
+    });
+
+    const response = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer local",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-2024-07-18",
+        messages: [{ role: "user", content: "hello" }],
+        stream: true,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await waitUntil(() => providerReadCompleted, "expected provider stream to drain before client read");
+    expect(store.records).toHaveLength(0);
+    await sleep(50);
+
+    expect(await response.text()).toBe(sseBody);
+    await waitForRecord(store, 1);
+    const event = store.records[0]?.event;
+    assertCanonicalV2(event);
+    const providerEndedAt = Date.parse(event.timing.providerResponseEndedAt ?? "");
+    const clientEndedAt = Date.parse(event.timing.clientConsumptionEndedAt ?? "");
+    expect(event.response.content).toBe("hello");
+    expect(event.timing.endedAt).toBe(event.timing.providerResponseEndedAt);
+    expect(Number.isFinite(providerEndedAt)).toBe(true);
+    expect(Number.isFinite(clientEndedAt)).toBe(true);
+    expect(clientEndedAt - providerEndedAt).toBeGreaterThanOrEqual(25);
+    expect(event.attempts[0]?.timing.clientConsumptionEndedAt).toBe(event.timing.clientConsumptionEndedAt);
+  });
+
+  it("bench-proxy-local-agent-stream-cancel: records local-harness abort origin on client cancellation", async () => {
+    const store = new MemoryStore();
+    const encoder = new TextEncoder();
+    const grant: AdditionalBenchKeyGrant = {
+      key: ["ibl", "_agent_stream_cancel"].join(""),
+      annotation: { runId: "agent-stream-cancel", workloadClass: "coding_agent" },
+      provider: "openai",
+      models: ["gpt-4o-mini-2024-07-18"],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      callBudget: createBenchKeyCallBudget({ maxCalls: 2, concurrencyLimit: 1 }),
+    };
+    const chunks = [
+      `data: {"id":"chatcmpl-local-cancel","model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"delta":{"content":"he"},"finish_reason":null}]}\n\n`,
+      `data: {"id":"chatcmpl-local-cancel","model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"delta":{"content":"llo"},"finish_reason":null}]}\n\n`,
+      `data: {"id":"chatcmpl-local-cancel","model":"gpt-4o-mini-2024-07-18","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"completion_tokens":1,"total_tokens":5}}\n\n`,
+      "data: [DONE]\n\n",
+    ];
+    const providerFetch: ProviderFetch = async () =>
+      new Response(streamFromChunks(chunks.map((chunk) => encoder.encode(chunk)), () => undefined), {
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream",
+          "x-request-id": "provider-local-cancel",
+        },
+      });
+    const app = createBenchApp({
+      config: { benchKey: "local", openaiApiKey: "provider-openai" },
+      store,
+      env: {},
+      additionalBenchKeys: [grant],
+      providerFetch,
+      log: () => undefined,
+    });
+
+    const response = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "x-api-key": grant.key,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-2024-07-18",
+        messages: [{ role: "user", content: "hello" }],
+        stream: true,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const reader = response.body?.getReader();
+    expect(reader).toBeDefined();
+    expect((await reader?.read())?.done).toBe(false);
+    await reader?.cancel();
+    await waitForRecord(store, 1);
+    const event = store.records[0]?.event;
+    assertCanonicalV2(event);
+    const stopDetails = event.response.stopDetails as Record<string, unknown> | undefined;
+    expect(stopDetails?.clientAbort).toMatchObject({
+      origin: "local_harness",
+      reason: "coding_agent_request_cancelled",
+    });
+    expect(event.timing.clientConsumptionEndedAt).toBeDefined();
+    expect(event.attempts[0]?.timing.clientConsumptionEndedAt).toBe(event.timing.clientConsumptionEndedAt);
+  });
+
   it("ignores OpenAI Responses moderation:null as provider safety evidence", async () => {
     const { event } = await requestResponsesFixture({
       fixtureName: "moderation-null.json",
@@ -1106,6 +1246,25 @@ function streamFromText(text: string): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     start(controller): void {
       controller.enqueue(new TextEncoder().encode(text));
+      controller.close();
+    },
+  });
+}
+
+function streamFromChunks(
+  chunks: readonly Uint8Array[],
+  onClose: () => void,
+): ReadableStream<Uint8Array> {
+  let index = 0;
+  return new ReadableStream<Uint8Array>({
+    pull(controller): void {
+      const chunk = chunks[index];
+      if (chunk) {
+        index += 1;
+        controller.enqueue(chunk);
+        return;
+      }
+      onClose();
       controller.close();
     },
   });

@@ -2,7 +2,9 @@
 
 # SLA Defaults
 
-Standard version: `sla-defaults-2026-07-03-user-approved`
+Standard version: `sla-defaults-2026-07-20-maintainer-signed`
+
+Sign-off: `Inferock maintainers`, 2026-07-20. These numbers ship as a maintainer-signed provisional default pending external calibration; customers can override the threshold and time-value assumptions in their receipts.
 
 These defaults are part of the Inferock Standard. They define standard loss owed by the standard, not a promise that the provider has already recognized or will automatically pay it.
 
@@ -48,9 +50,9 @@ Receipts render time loss with an approximate display label while preserving exa
 <!-- ssot-fact:sla.time_value_rate.default_usd_per_hour -->
 Default rate: `$92/hour`.
 
-Source note: This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-recognized. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.
+Source note: This default is the Inferock proposed time-value assumption, computed from BLS software-developer wage data and BLS private-industry benefit share (`BLS-OOH`, `BLS-OEWS-2080`, `BLS-ECEC`). It is not customer-confirmed and not provider-confirmed. Receipts must preserve the override key `time_value_usd_per_hour` so customers can replace it with their own loaded rate or set it to zero.
 
-Label: `Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-recognized loss (default — override)`.
+Label: `Inferock DEFAULT ASSUMPTION - not customer-confirmed, not provider-confirmed loss (default — override)`.
 
 ## Why time is dollarized — the founder rationale (recorded 2026-07)
 

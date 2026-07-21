@@ -45,7 +45,7 @@ describe("availability detector", () => {
         timeLossKind: "downtime_event_evidence",
         timeLossMs: 0,
         providerRecognizedCreditUsd: 0,
-        providerRecognitionLine: "Provider-recognized: $0 / 0s - first-party credit terms unverified",
+        providerRecognitionLine: "Estimated recoverable (our arithmetic): $0 / 0s - first-party credit terms unverified",
       },
       evidence: {
         statusCode: 503,
@@ -54,7 +54,7 @@ describe("availability detector", () => {
         providerReceiptPresent: true,
         receiptFields: ["response.providerRequestId"],
         tokensBilled: 105,
-        providerRecognitionLine: "Provider-recognized: $0 / 0s - first-party credit terms unverified",
+        providerRecognitionLine: "Estimated recoverable (our arithmetic): $0 / 0s - first-party credit terms unverified",
       },
     });
   });
@@ -507,6 +507,32 @@ describe("availability detector", () => {
       },
     });
     expect(identifyDowntimeWindows([first, second])).toEqual([]);
+  });
+
+  it("downtime-local-origin-error: excludes local synthetic failures from provider downtime", () => {
+    const event = eventWithRequestMetadata(buildCanonicalEvent({
+      request: {
+        requestId: "req-local-origin-server-error",
+        provider: "openai",
+        model: "gpt-4o-mini",
+      },
+      response: {
+        statusCode: 500,
+        finishReason: "error",
+        content: "server_error",
+        errorClass: "http_500:server_error",
+        errorOrigin: "local",
+      },
+      usage: {
+        input: 100,
+        output: 0,
+      },
+      timing: timing("2026-06-14T12:02:00.000Z", 1_000),
+    }), { operationId: "op-local-origin-server-error" });
+
+    expect(classifyProviderDowntime(event)).toBeNull();
+    expect(detectProviderDowntime(event)).toBeNull();
+    expect(identifyDowntimeWindows([event, event])).toEqual([]);
   });
 
   it("downtime-transport-before-status-502: treats proxy transport failures as ambiguous triage", () => {

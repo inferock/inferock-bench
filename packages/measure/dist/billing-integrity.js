@@ -252,6 +252,7 @@ export function buildCacheDiscountAtRiskSignal(event) {
     const methodMetadata = {
         methodId: "cache_discount_at_risk_v1",
         formula: "cache_read_tokens * (full_input_rate - cache_read_rate)",
+        outputField: "invoiceCheckExposureUsd",
         invoiceVerification: "verify_against_invoice",
         sourceRefs: {
             pricing: "@inferock/measure/pricing",
@@ -280,6 +281,9 @@ export function buildCacheDiscountAtRiskSignal(event) {
             fullInputRateUsdPerMillion,
             cacheReadRateUsdPerMillion,
             cacheDiscountAtRiskUsd,
+            invoiceCheckExposureUsd: cacheDiscountAtRiskUsd,
+            invoiceCheckExposureLabel: "invoice-check exposure",
+            ledgerPlacement: "invoice_check_exposure_not_headline_money_loss",
             invoiceVerification: "verify_against_invoice",
             invoiceVerificationLabel: "verify against your invoice",
             methodMetadata,
@@ -289,9 +293,9 @@ export function buildCacheDiscountAtRiskSignal(event) {
             fullInputRateUsdPerMillion,
             cacheReadRateUsdPerMillion,
             cacheDiscountAtRiskUsd,
-            standardLossUsd: cacheDiscountAtRiskUsd,
-            providerRecognizedLossUsd: 0,
-            recognitionGapUsd: cacheDiscountAtRiskUsd,
+            invoiceCheckExposureUsd: cacheDiscountAtRiskUsd,
+            invoiceCheckExposureLabel: "invoice-check exposure",
+            ledgerPlacement: "invoice_check_exposure_not_headline_money_loss",
             methodId: "cache_discount_at_risk_v1",
             methodMetadata,
         },
@@ -361,6 +365,12 @@ export function buildCacheRateAnomalySignal(event, observedCharge) {
                     observedAt: observedCharge.observedAt,
                     dashboardEligible: observedCharge.dashboardEligible === true,
                 }),
+        },
+        valueJson: {
+            overchargeUsd: recoverableLossUsd,
+            expectedUsd,
+            chargedUsd: roundUsd(chargedUsd),
+            dashboardEligible,
         },
     });
 }

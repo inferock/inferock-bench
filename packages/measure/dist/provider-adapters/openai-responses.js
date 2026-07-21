@@ -1,4 +1,4 @@
-import { canonicalAttempts, canonicalRequest, canonicalTiming, createStreamTimingCapture, providerRequestIdFromHeaders, recordStreamChunk, recordStreamToken, sanitizedProviderHeaders, streamTiming, } from "./canonical-v2.js";
+import { canonicalAttempts, canonicalRequest, canonicalTiming, captureMonotonicTimestamp, createStreamTimingCapture, providerRequestIdFromHeaders, recordParsedSseEvent, recordStreamByte, recordStreamContentDelta, sanitizedProviderHeaders, streamTiming, } from "./canonical-v2.js";
 import { asRecord, collectRateLimitHeaders, booleanValue, isRecord, joinUrl, numberValue, parseJsonRecord, recordArray, stringValue, } from "./record.js";
 import { SseAccumulator } from "./sse.js";
 /**
@@ -154,21 +154,24 @@ function observeOpenAiResponsesStream(input) {
     };
     return input.body.pipeThrough(new TransformStream({
         transform(chunk, controller) {
-            const observedAt = new Date();
+            const observedAt = captureMonotonicTimestamp();
+            recordStreamByte(state.timing, observedAt);
             let observedVisibleDelta = false;
             for (const message of parser.push(decoder.decode(chunk, { stream: true }))) {
-                observedVisibleDelta = applyResponsesStreamMessage(state, message, input.statusCode, observedAt) || observedVisibleDelta;
+                recordParsedSseEvent(state.timing, observedAt);
+                observedVisibleDelta = applyResponsesStreamMessage(state, message, input.statusCode) || observedVisibleDelta;
             }
             if (observedVisibleDelta)
-                recordStreamToken(state.timing, observedAt);
+                recordStreamContentDelta(state.timing, observedAt);
             controller.enqueue(chunk);
         },
         flush() {
-            const observedAt = new Date();
+            const observedAt = captureMonotonicTimestamp();
             const tail = decoder.decode();
             for (const message of [...parser.push(tail), ...parser.end()]) {
-                if (applyResponsesStreamMessage(state, message, input.statusCode, observedAt)) {
-                    recordStreamToken(state.timing, observedAt);
+                recordParsedSseEvent(state.timing, observedAt);
+                if (applyResponsesStreamMessage(state, message, input.statusCode)) {
+                    recordStreamContentDelta(state.timing, observedAt);
                 }
             }
             if (state.timing.terminalStatus === "unknown") {
@@ -178,11 +181,10 @@ function observeOpenAiResponsesStream(input) {
         },
     }));
 }
-function applyResponsesStreamMessage(state, message, statusCode, observedAt) {
+function applyResponsesStreamMessage(state, message, statusCode) {
     const parsed = parseJsonRecord(message.data);
     if (!parsed)
         return false;
-    recordStreamChunk(state.timing, observedAt);
     const eventType = stringValue(parsed.type) ?? message.event;
     const response = asRecord(parsed.response);
     if (response)
@@ -302,7 +304,13 @@ function applyStreamResponseObject(state, response, statusCode) {
     }
 }
 function finalizeResponsesStream(input, state) {
-    const endedAt = new Date();
+    const endedAt = captureMonotonicTimestamp();
+    const terminalInput = {
+        ...input,
+        endedAtMonotonicNs: endedAt.monotonicNs,
+        providerResponseEndedAt: endedAt.wallTime,
+        providerResponseEndedAtMonotonicNs: endedAt.monotonicNs,
+    };
     const providerRequestId = providerRequestIdFromHeaders(input.headers);
     const sanitizedHeaders = sanitizedProviderHeaders(input.headers);
     const responseEvidence = state.response
@@ -323,8 +331,8 @@ function finalizeResponsesStream(input, state) {
                 sanitizedHeaders,
             }),
             usage: responsesUsageToCanonical(mergedEvidence.usage),
-            timing: streamTiming(input.startedAt, endedAt, state.timing, { ...input, providerResponseEndedAt: endedAt }),
-            attempts: canonicalAttempts({ ...input, providerResponseEndedAt: endedAt }, "openai", mergedEvidence.servedModel, endedAt, attemptStatus, errorClass),
+            timing: streamTiming(input.startedAt, endedAt.wallTime, state.timing, terminalInput),
+            attempts: canonicalAttempts(terminalInput, "openai", mergedEvidence.servedModel, endedAt.wallTime, attemptStatus, errorClass),
         },
     };
 }

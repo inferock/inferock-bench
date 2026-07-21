@@ -1,3 +1,4 @@
+import { canonicalEventErrorOrigin } from "./canonical-event.js";
 import { classifyProviderDowntime } from "./availability.js";
 import { lookupPriceForEvent, roundUsd } from "./pricing.js";
 import { SLA_DEFAULTS } from "./sla-defaults.js";
@@ -14,7 +15,6 @@ const RETRY_HEADER_NAMES = new Set([
     "retry-after-ms",
     "x-should-retry",
 ]);
-const PROVIDER_FAULT_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504, 529]);
 const RETRY_METHOD_SOURCE_REFS = {
     stainlessRetryCountHeader: "https://www.stainless.com/changelog/x-stainless-retry-count-header/",
     openAiPythonBaseClient: "https://github.com/openai/openai-python/blob/main/src/openai/_base_client.py",
@@ -28,6 +28,8 @@ const RETRY_METHOD_SOURCE_REFS = {
 export function runRetryAmplificationDetectors(event) {
     const evidenceEvent = event;
     if (evidenceEvent.schemaVersion !== "v2")
+        return [];
+    if (canonicalEventErrorOrigin(evidenceEvent) === "local")
         return [];
     const sdkRetryCount = sdkRetryCountForEvent(evidenceEvent);
     const retryAttempts = retryAttemptsForEvent(evidenceEvent);
@@ -292,111 +294,16 @@ export function retryCountForEvent(event) {
     return sdkRetryCountForEvent(event);
 }
 export function providerFaultStatusForRetryDollarization(event) {
-    const evidenceEvent = event;
-    const errorClass = evidenceEvent.response?.errorClass?.toLowerCase() ?? "";
-    const statusCode = evidenceEvent.response?.statusCode;
-    if (usesHostSpecificOssFaultShim(evidenceEvent.request.provider)) {
-        const classification = classifyProviderDowntime(event);
-        return classification?.ownership === "provider" && statusCode !== undefined
-            ? {
-                providerFault: true,
-                status: statusCode,
-                reason: classification.reason,
-            }
-            : null;
-    }
-    if (evidenceEvent.request.provider === "gemini") {
-        return geminiProviderFaultStatus(statusCode, errorClass, evidenceEvent);
-    }
-    if (errorClass.startsWith("transport:")) {
-        return timeoutStatusForErrorClass(errorClass);
-    }
-    if (statusCode !== undefined && PROVIDER_FAULT_STATUS_CODES.has(statusCode)) {
+    const statusCode = event.response.statusCode;
+    const classification = classifyProviderDowntime(event);
+    if (classification?.ownership === "provider") {
         return {
             providerFault: true,
-            status: statusCode,
-            reason: `provider_fault_status_${statusCode}`,
-        };
-    }
-    return timeoutStatusForErrorClass(errorClass);
-}
-function usesHostSpecificOssFaultShim(provider) {
-    return provider === "mistral" ||
-        provider === "deepseek_platform" ||
-        provider === "deepinfra" ||
-        provider === "alibaba_dashscope_us_virginia" ||
-        provider === "moonshot_kimi" ||
-        provider === "zai" ||
-        provider === "together" ||
-        provider === "groq" ||
-        provider === "openrouter";
-}
-function geminiProviderFaultStatus(statusCode, errorClass, event) {
-    if (statusCode === 500 || statusCode === 503) {
-        return {
-            providerFault: true,
-            status: statusCode,
-            reason: `provider_fault_status_${statusCode}`,
-        };
-    }
-    if (statusCode === 429) {
-        return geminiHasProviderCapacityEvidence(event)
-            ? {
-                providerFault: true,
-                status: statusCode,
-                reason: "provider_fault_status_429_capacity_evidence",
-            }
-            : null;
-    }
-    if (statusCode === 504) {
-        return geminiHasProviderCapacityEvidence(event)
-            ? {
-                providerFault: true,
-                status: statusCode,
-                reason: "provider_fault_status_504_provider_evidence",
-            }
-            : null;
-    }
-    if (errorClass.startsWith("transport:"))
-        return null;
-    return timeoutStatusForErrorClass(errorClass);
-}
-function geminiHasProviderCapacityEvidence(event) {
-    const evidence = [
-        event.response.errorClass,
-        event.response.rawErrorType,
-        event.response.rawErrorCode,
-        event.response.content,
-    ]
-        .filter((value) => Boolean(value))
-        .join(" ")
-        .toLowerCase();
-    return evidence.includes("overloaded") ||
-        evidence.includes("unavailable") ||
-        evidence.includes("provider_capacity") ||
-        evidence.includes("provider_rate_limit_capacity");
-}
-function timeoutStatusForErrorClass(errorClass) {
-    if (isTimeoutErrorClass(errorClass)) {
-        return {
-            providerFault: true,
-            status: "timeout",
-            reason: errorClass.startsWith("transport:")
-                ? "provider_fault_transport_timeout"
-                : "provider_fault_timeout",
+            status: statusCode ?? "timeout",
+            reason: classification.reason,
         };
     }
     return null;
-}
-function isTimeoutErrorClass(errorClass) {
-    const tokens = errorClass.split(/[^a-z0-9]+/).filter((token) => token.length > 0);
-    if (tokens.some((token) => token === "timeout" || token === "timedout" || token === "etimedout")) {
-        return true;
-    }
-    if (tokens.some((token) => token === "timeouterror" || token.endsWith("timeouterror"))) {
-        return true;
-    }
-    return tokens.some((token, index) => (token === "timed" || token === "time") && tokens[index + 1] === "out");
 }
 function baseRetrySignal(event, input) {
     const standardLoss = input.standardLoss;
@@ -539,7 +446,7 @@ function retryExtraAttemptComputationTrace(event, context, standardLossUsd) {
             ...RETRY_METHOD_SOURCE_REFS,
             methodLimitation: "summed-extra-attempts is Inferock's floor-conservative construction; no external standard body has ratified an LLM retry-cost formula",
         },
-        oneLine: `retry extra-attempt standard loss $${standardLossUsd.toFixed(2)}; provider-recognized $0.00 -> $${standardLossUsd.toFixed(2)} recognition gap`,
+        oneLine: `retry extra-attempt standard loss $${standardLossUsd.toFixed(2)}; estimated recoverable $0.00 -> $${standardLossUsd.toFixed(2)} recognition gap`,
     };
 }
 //# sourceMappingURL=retry-amplification.js.map

@@ -1,9 +1,10 @@
 # Your AI bill can be quietly wrong.
 
 <p align="center">
+  <a href="./.github/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/inferock/inferock-bench/ci.yml?branch=main&label=CI"></a>
   <a href="https://www.npmjs.com/package/inferock-bench"><img alt="npm: inferock-bench" src="https://img.shields.io/npm/v/inferock-bench.svg"></a>
   <a href="https://www.npmjs.com/package/@inferock/measure"><img alt="npm: @inferock/measure" src="https://img.shields.io/npm/v/@inferock/measure.svg"></a>
-  <a href="https://fsl.software"><img alt="License: FSL-1.1-Apache-2.0" src="https://img.shields.io/badge/license-FSL--1.1--Apache--2.0-blue.svg"></a>
+  <a href="https://fsl.software"><img alt="License: FSL-1.1-ALv2" src="https://img.shields.io/badge/license-FSL--1.1--ALv2-blue.svg"></a>
 </p>
 
 <p align="center">
@@ -12,41 +13,54 @@
 </p>
 
 <p align="center">
-  We built <code>inferock-bench</code> because we kept paying for answers that died mid-sentence, and nobody could tell us where the money went.
-</p>
-
-<p align="center">
+  <a href="#receipt-contract">Receipt contract</a> ·
   <a href="#quickstart">Quickstart</a> ·
+  <a href="#integrations">Integrations</a> ·
   <a href="#test-your-loss">Test your loss</a> ·
   <a href="#what-your-provider-doesnt-tell-you">What can go wrong</a> ·
+  <a href="./docs/how-this-compares.md">How this compares</a> ·
   <a href="#how-provider-keys-are-used">Key boundary</a> ·
   <a href="#docs">Docs</a>
 </p>
 
-![Inferock Bench dashboard from a real measured cumulative run, captured after traffic loaded, showing the four-element headline spent, money loss, time loss, and invoice-check exposure, plus the previous-results receipt ledger with provider-recognized, recognition-gap, surfaces-watched, calls, failures, and at-rate translation visible with provider keys masked.](./assets/dashboard-real-traffic.png)
+> Disclosure: Inferock sells a hosted product, and this benchmark grades receipts against The Inferock Standard, which Inferock wrote. Do not take that on authority: check the sanitized run cards, the spec, and the source, and read the [hard questions](./docs/hard-questions.md) and [threat model](./docs/threat-model.md) for limits and adversarial-review invitations.
 
-Use it when you need to audit an AI/LLM bill, measure Claude or GPT token usage locally, or answer "was I billed for a failed API call?" It is a local LLM cost-tracking proxy for four measured provider planes: OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints spanning meta-llama, deepseek, mistral, moonshot/kimi, z-ai/glm, and qwen on observed hosts. Everything else is extensible-by-design, not measured today. It does not declare every mismatch an OpenAI overcharge or Anthropic billing error; it preserves token, cost, retry, and failure evidence so billing-integrity questions can be checked.
+**Illustrative example, not a measured run.** This lead image shows what a `$49,673.82/mo` AI spend could surface for review when a synthetic scenario is passed through the real bench pipeline. Not measured by Inferock, not a guarantee, not a bill audit.
 
-Common cases it can help you inspect: a failed or timed-out request that still has usage, token counts that do not match the visible output, retries that may have amplified cost, and latency or model-version changes that need a trail. It cannot cap provider spend across calls it never sees, and it cannot explain traffic that bypassed the local proxy.
+<picture>
+  <source media="(max-width: 640px)" srcset="./assets/projection-hero-narrow.png">
+  <img src="./assets/projection-hero.png" alt="Illustrative example - synthetic scenario through the real bench pipeline, not measured by Inferock, showing $49,673.82/mo example spend, $2,263.20 bill-bounded money loss, ~11.9 min time lost, $1,332.77 invoice-check exposure, $1,813.17 estimated recoverable, and a $450.03 money recognition gap.">
+</picture>
 
-## Why this exists
+Basis: independent third-party billing-audit inputs plus public latency throughput/SLA thresholds; source links and caveats are one click away.
 
-Your AI bill counts what the model consumed. It has never once counted
-whether you got anything for it.
+[See the basis ->](./docs/projection-basis.md) · [See newest measured run ->](./docs/public-run-2026-07-10.md)
 
-Every other layer of infrastructure has accountability plumbing: SLAs,
-uptime pages, invoices you can audit. Model inference has almost none. A
-refusal costs the same as an answer. A model can get quietly worse under
-the same name. When something goes wrong, the burden of noticing falls
-entirely on you.
+Use it when you need to audit an AI/LLM bill, measure Claude or GPT token usage locally, or answer "was I billed for a failed API call?" It is a local LLM cost-tracking proxy for four measured provider planes: OpenAI, Anthropic, Gemini Developer API, and pinned OpenRouter endpoints spanning meta-llama, deepseek, mistral, moonshot/kimi, z-ai/glm, and qwen on observed hosts. Everything else is extensible-by-design, not measured today.
 
-inferock-bench is a measurement instrument for that gap. It watches real
-traffic against real provider APIs and quantifies what mostly goes
-unquantified today: reliability, latency, and the money that failure
-quietly consumes.
+## Receipt Contract
 
-Two kinds of numbers appear in its receipts, and they are labeled as what
-they are:
+`inferock-bench` is a local diagnostic proxy for metered API traffic. It measures calls routed through localhost with your saved provider API key, writes local event records, and renders receipts through the shipped `@inferock/measure` grading code and [The Inferock Standard](./spec/standard.md).
+
+**What it measures**
+
+- Provider-reported usage, pricing evidence, request/response metadata, status, timing, retry evidence, and detector signals for calls the local proxy actually saw.
+- Delivery failures that can affect a bill or audit trail, such as billed-empty output, refusals, truncation, token-recount mismatches, duplicate request IDs, cache-discount-at-risk evidence, and provider-fault retries.
+- Coverage state for each surface: `watched-clean`, `signal`, or `not-openable`, so unopened checks are visible instead of claimed clean.
+
+**What a receipt proves**
+
+- The bench observed the listed calls locally and computed the receipt from stored event records under a stamped grading version.
+- The headline separates provider spend, bill-bounded money loss, time loss, and invoice-check exposure instead of adding unlike numbers together.
+- Provider keys are not sent to Inferock by the local benchmark; the proxy attaches them only to provider requests, and receipts are local unless you share them.
+
+**What a receipt cannot prove**
+
+- It cannot audit traffic that bypassed the local proxy, cap provider spend across unseen calls, or explain a monthly bill without the matching invoice.
+- It is not a provider ranking, proof of provider intent, or evidence that a failure pattern is widespread beyond the measured run.
+- It does not declare every mismatch an OpenAI overcharge or Anthropic billing error; it preserves token, cost, retry, and failure evidence so billing-integrity questions can be checked.
+
+Two kinds of numbers appear in receipts, and they are labeled as what they are:
 
 - **Observations** — things that happened: status codes, measured latency,
   provider-reported token counts, detector-flagged calls.
@@ -55,9 +69,7 @@ they are:
   They are our arithmetic applied to real events, not a provider's
   admission.
 
-The project's direction of travel is to move as much as possible from the
-second column into the first. The limits that remain are documented, not
-hidden: see [MEASUREMENT-PHILOSOPHY.md](./MEASUREMENT-PHILOSOPHY.md).
+The project's direction of travel is to move as much as possible from the second column into the first. The limits that remain are documented, not hidden: see [MEASUREMENT-PHILOSOPHY.md](./MEASUREMENT-PHILOSOPHY.md).
 
 ## The receipt headline
 
@@ -68,18 +80,26 @@ hidden: see [MEASUREMENT-PHILOSOPHY.md](./MEASUREMENT-PHILOSOPHY.md).
 | `time loss` | real wait or downtime measured as time, never added to dollars. |
 | `invoice-check exposure` | an invoice-check amount, such as cache discount at risk; it is labeled "verify your invoice" and never summed into money loss. |
 
-**Real measured traffic, not fixture rows.** Measured since 2026-07-09, the cumulative public ledger through run15 captured 1,268 measured calls, 565 failures/signals, `$7.15` provider spend observed, `$0.07` bill-bounded money loss (stored exact: `$0.073875`), `~2.9 min` time loss, and `$16.80` invoice-check exposure across 202 cache-discount-at-risk signals. The current-code cumulative receipt watches 12 of 13 surfaces and keeps invoice-check exposure separate from money loss.
+**Real measured traffic, not fixture rows.** Measured since 2026-07-09, the cumulative public ledger through run15 captured 1,268 measured calls, 564 failures/signals, `$7.15` provider spend observed, `$0.03` bill-bounded money loss (stored exact: `$0.026464`; issue-weighted adaptive traffic mix), `~2.9 min` time loss, and `$16.80` invoice-check exposure across 202 cache-discount-at-risk signals. Failures/signals are receipt findings rather than unique calls, and invoice-check exposure is separate from booked money loss. The current-code cumulative receipt watches 12 of 13 surfaces.
 
-Run facts: [sanitized public run card for 2026-07-09](./docs/public-run-2026-07-09.md) and [run15 public run card for 2026-07-10](./docs/public-run-2026-07-10.md).
+Run facts: [sanitized public run card for 2026-07-09](./docs/public-run-2026-07-09.md) and [See newest measured run ->](./docs/public-run-2026-07-10.md).
 
-The 2026-07-06 0.1.7 card remains published as a historical artifact; the current public receipt presentation was introduced in 0.1.10 and remains current for this 0.2.1 release candidate.
+The 2026-07-06 0.1.7 card remains published as a historical artifact; the current public receipt presentation was introduced in 0.1.10 and remains current for this 0.2.3 release candidate.
 
 > [!IMPORTANT]
 > The receipt is spend-anchored. The headline is `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`; bill-bounded money loss and recognition gap never include invoice-check exposure. `CACHE_DISCOUNT_AT_RISK` is still visible below the headline as a separate detail line that says "verify your invoice" rather than as money loss or a refund claim.
 
-| Watch it run | Share the receipt |
-| --- | --- |
-| ![Terminal GIF showing inferock-bench startup, a real provider task, first call measured, and a compact receipt ending on the four-element headline: spent, money loss, time loss, and invoice-check exposure.](./assets/bench-demo.gif) | ![inferock-bench compact receipt from the cumulative public ledger showing the four-element headline spent, money loss, time loss, invoice-check exposure, plus provider-recognized, recognition-gap, and surfaces-watched lines.](./assets/receipt-real-traffic.png) |
+The real measured dashboard and receipt captures remain documented in [asset provenance](./assets/PROVENANCE.md), but they are not the lead visual here. Use the run card above for the current measured evidence.
+
+## Why this exists
+
+We built `inferock-bench` because we kept paying for answers that died mid-sentence, and nobody could tell us where the money went.
+
+Your AI bill counts what the model consumed. It has never once counted whether you got anything for it.
+
+Model inference has dashboards, logs, usage APIs, token estimators, and cost tools, but few tools cross-check the actual provider bill per call against delivery evidence. A refusal can cost the same as an answer. A model can get quietly worse under the same name. When something goes wrong, the burden of noticing still falls mostly on you.
+
+`inferock-bench` is a measurement instrument for that gap. It watches real traffic against real provider APIs and preserves the reliability, latency, spend, and failure-cost evidence needed to inspect a bill. For category-level context, see [How this compares](./docs/how-this-compares.md).
 
 ## Quickstart
 
@@ -149,14 +169,14 @@ Run it locally. We think you should be able to see exactly what a provider failu
 
    No app yet? Use one of these equal local targets after saving the matching provider key in step 3.
 
-   Claude Code:
+   Claude Code ([full guide](./docs/integrations/claude-code.md)):
 
    ```sh
    npm i -g @anthropic-ai/claude-code
    ANTHROPIC_BASE_URL=http://127.0.0.1:4318 ANTHROPIC_API_KEY=ibl_your_local_bench_key claude -p "Draft a five-bullet checklist for reviewing an AI invoice."
    ```
 
-   OpenAI SDK:
+   OpenAI SDK ([full guide](./docs/integrations/openai-sdk.md)):
 
    ```ts
    import OpenAI from "openai";
@@ -172,7 +192,7 @@ Run it locally. We think you should be able to see exactly what a provider failu
    });
    ```
 
-   Gemini:
+   Gemini ([full guide](./docs/integrations/gemini.md)):
 
    ```ts
    await fetch("http://127.0.0.1:4318/v1beta/models/gemini-2.5-flash:generateContent", {
@@ -187,7 +207,7 @@ Run it locally. We think you should be able to see exactly what a provider failu
    });
    ```
 
-   For these commands, the SDK API key is the local `ibl_` bench key from step 4. Your provider key is not passed to Claude Code or your app; it is not sent to Inferock and is attached only to provider requests. If you configured OpenRouter, use the provider-specific SDK snippet in the dashboard's Local app connection panel or in the package README.
+   For these commands, the SDK API key is the local `ibl_` bench key from step 4. Your provider key is not passed to Claude Code or your app; it is not sent to Inferock and is attached only to provider requests. If you configured OpenRouter, use the provider-specific SDK snippet in the dashboard's Local app connection panel, the package README, or the [OpenRouter full guide](./docs/integrations/openrouter.md).
 
    Note: a Claude subscription (OAuth) login is not a supported mechanism for measuring calls. `inferock-bench` measures metered API traffic only — save a provider API key in the bench and point your SDK or agent at it with the local `ibl_` key, as shown above.
 
@@ -204,6 +224,16 @@ Run it locally. We think you should be able to see exactly what a provider failu
    ```
 
    If you installed `inferock-bench` globally, `inferock-bench receipt --compact` works too. This README uses the `npx inferock-bench <cmd>` form so one-time users are not stranded.
+
+### Integrations
+
+| Surface | Full guide |
+| --- | --- |
+| Claude Code | [docs/integrations/claude-code.md](./docs/integrations/claude-code.md) |
+| OpenAI SDK | [docs/integrations/openai-sdk.md](./docs/integrations/openai-sdk.md) |
+| Gemini Developer API | [docs/integrations/gemini.md](./docs/integrations/gemini.md) |
+| OpenRouter pinned endpoints | [docs/integrations/openrouter.md](./docs/integrations/openrouter.md) |
+| CI/headless usage | [docs/integrations/ci.md](./docs/integrations/ci.md) |
 
 ### Already have an app?
 
@@ -243,11 +273,11 @@ You see the estimated tokens, estimated dollars, model, suite, baseline, pricing
 
 In the dashboard, open Advanced options, set Test driver to Agent test, then run the test to use a real coding agent. Agent test currently supports OpenAI and Anthropic runs; use the built-in generator for Gemini and OpenRouter coverage. If the pinned local agent is not installed, the dashboard names the exact npm tarballs, versions, SRI checksums, sizes, source URLs, and local install path before downloading. The agent receives only localhost and an ephemeral local `ibl_` key, never your provider key. CLI equivalent: `npx inferock-bench test --generator agent`.
 
-The receipt is run-scoped. It reports `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`, provider-recognized recovery, bill-bounded recognition gap, the separate invoice-check exposure detail line when applicable, and `surfaces watched N of M surfaces your selected providers can open (M varies by provider)`, with every surface labeled `watched-clean`, `signal`, or `not-openable`. A zero only counts when the surface was watched; unopened surfaces are named as coverage debt, not silently claimed clean. For a priced call that fails the standard and is tied to observed spend or charge evidence, money loss is bill-bounded; provider-recognized can still be `$0`, and the gap is the difference inside that bill-bounded money ledger.
+The receipt is run-scoped. It reports `spent $X · money loss $Y · time loss Z · invoice-check exposure $E`, provider-recognized recovery, bill-bounded recognition gap, the separate invoice-check exposure detail line when applicable, and a coverage line such as `surfaces watched 10/12 | signals 3 | not-openable 2`, with every surface labeled `watched-clean`, `signal`, or `not-openable`. A zero only counts when the surface was watched; unopened surfaces are named as coverage debt, not silently claimed clean. For a priced call that fails the standard and is tied to observed spend or charge evidence, money loss is bill-bounded; provider-recognized can still be `$0`, and the gap is the difference inside that bill-bounded money ledger.
 
 The receipt opens with a one-line plain-English guide to spent dollars, bill-bounded money loss, time loss, and invoice-check exposure. A receipt "failure" is a measurement finding, not necessarily your app crashing. A `signal` is one finding the benchmark saw, such as a token cross-check. `CACHE_DISCOUNT_AT_RISK` is shown as invoice-check exposure with "verify your invoice" guidance; it is not summed into money loss or recognition gap. `Provider-recognized` is the part that appears likely to fit the provider's current credit rules; bill-bounded gaps stay visible instead of being hidden.
 
-If no provider key is configured, pricing is unknown, or the token baseline is ever absent or bootstrap-only, the CLI and dashboard fail closed and make zero provider calls. The baseline-degraded state is reported as ``baseline not measured yet: run `npx inferock-bench test --record-baseline` with explicit consent to produce a real per-task token baseline.`` The method details are in [Coverage test methodology](./docs/coverage-test-methodology.md).
+If no provider key is configured, pricing is unknown, or the token baseline is ever absent or bootstrap-only, the CLI and dashboard fail closed and make zero provider calls. The baseline-degraded state is reported as ``baseline not measured yet: run `inferock-bench test --record-baseline` with explicit consent to produce a real per-task token baseline.`` The method details are in [Coverage test methodology](./docs/coverage-test-methodology.md).
 
 ## What your provider doesn't tell you
 
@@ -322,7 +352,7 @@ That is why we are staking out [The Inferock Standard](./spec/standard.md). We d
 
 This is an evolving benchmark standard, versioned on purpose: every rule change lands in the [standard changelog](./spec/CHANGELOG.md), and feedback backed by real receipts shapes the next version. If a category is wrong, show us and it gets fixed in public.
 
-The real captures above are from the cumulative measured ledger, not fixture rows: 1,268 measured calls across OpenAI, Anthropic, Gemini, and pinned OpenRouter coverage, `$7.15` provider spend observed, `$0.07` bill-bounded money loss, `~2.9 min` time loss, and `$16.80` cache-discount-at-risk exposure that stays out of headline money loss. Provider-specific surfaces that did not apply stayed labeled rather than claimed clean. If your normal traffic is clean, `inferock-bench` should say so. If it is not, the receipt tells you what happened and how strong the claim is. Every run also reports which measure surfaces the traffic actually exercised: `N of M surfaces your selected providers can open (M varies by provider)`. A zero only counts for a watched surface, and anything unexercised is labeled, never silently claimed clean.
+The linked real run cards are from the cumulative measured ledger, not fixture rows: 1,268 measured calls across OpenAI, Anthropic, Gemini, and pinned OpenRouter coverage, `$7.15` provider spend observed, `$0.03` bill-bounded money loss (stored exact `$0.026464`; issue-weighted adaptive traffic mix), `~2.9 min` time loss, and `$16.80` cache-discount-at-risk exposure that stays out of headline money loss. Failures/signals are receipt findings rather than unique calls. Provider-specific surfaces that did not apply stayed labeled rather than claimed clean. If your normal traffic is clean, `inferock-bench` should say so. If it is not, the receipt tells you what happened and how strong the claim is. Every run also reports which measure surfaces the traffic actually exercised, for example `surfaces watched 10/12 | signals 3 | not-openable 2`. A zero only counts for a watched surface, and anything unexercised is labeled, never silently claimed clean.
 
 ## Share your receipt
 
@@ -340,6 +370,13 @@ The receipt leads with spend, bill-bounded money loss, time loss, and invoice-ch
 | --- | --- |
 | [The Inferock Standard](./spec/standard.md) | the public rulebook for what counts as loss, what counts as recoverable, and what stays separate. |
 | [Hard questions](./docs/hard-questions.md) | direct answers to the launch questions skeptics are most likely to ask. |
+| [How this compares](./docs/how-this-compares.md) | category-level comparison with observability, token, cost, latency, and invoice-review tools. |
+| [Projection basis](./docs/projection-basis.md) | the static basis page for the illustrative README hero; spend-as-premise, forward-derived outputs, citations, and caveats. |
+| [Claude Code integration](./docs/integrations/claude-code.md) | route Claude Code metered Anthropic API traffic through the local benchmark. |
+| [OpenAI SDK integration](./docs/integrations/openai-sdk.md) | set the OpenAI SDK `apiKey` and `baseURL` for local measured calls. |
+| [Gemini integration](./docs/integrations/gemini.md) | send Gemini Developer API `generateContent` traffic through the local benchmark. |
+| [OpenRouter integration](./docs/integrations/openrouter.md) | use the pinned OpenRouter OpenAI-compatible endpoint plane. |
+| [CI integration](./docs/integrations/ci.md) | run a headless smoke call or accepted `inferock-bench test` battery in CI. |
 | [Public run card: 2026-07-10](./docs/public-run-2026-07-10.md) | run15 facts, cumulative-store reconciliation, and adaptive issue-weighted denominator disclosure. |
 | [Public run card: 2026-07-09](./docs/public-run-2026-07-09.md) | sanitized aggregate receipt facts for the first 0.1.10 public real-traffic component. |
 | [Historical public run card: 2026-07-06](./docs/public-run-2026-07-06.md) | historical sanitized aggregate receipt facts for the pre-exposure-split public real-traffic run. |
@@ -392,4 +429,4 @@ Status: the public index backend is pre-launch. Opting in today records your con
 - Source-available protection against hosted production substitution.
 - Converts to Apache-2.0 after 2 years.
 
-`inferock-bench` uses FSL-1.1-Apache-2.0 with 2-year Apache-2.0 conversion. `@inferock/measure` is Apache-2.0. The Inferock Standard is CC-BY-4.0.
+`inferock-bench` uses FSL-1.1-ALv2 with 2-year Apache-2.0 conversion. `@inferock/measure` is Apache-2.0. The Inferock Standard is CC-BY-4.0.

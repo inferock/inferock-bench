@@ -9,6 +9,7 @@ import {
   type StreamSseProviderCall,
   type StreamSseProviderCallResult,
   type StreamSseRawFrame,
+  type WallClockDriftEvidence,
 } from "./provider-call.js";
 import { providerErrorReason } from "./provider-error.js";
 import {
@@ -27,6 +28,17 @@ export interface RunStreamSseConformanceInput {
 
 export interface RunStreamSseConformanceResult {
   readonly entries: readonly ConformanceLedgerEntry[];
+}
+
+type CanonicalTimingWithMonotonicEvidence = CanonicalEventV2["timing"] & {
+  readonly monotonicElapsedMs?: number;
+  readonly monotonicClockSource?: string;
+  readonly wallClockDrift?: WallClockDriftEvidence;
+};
+
+interface ResultDurationEvidence {
+  readonly latencyMs: number;
+  readonly wallClockDrift?: WallClockDriftEvidence;
 }
 
 export async function runStreamSseConformance(
@@ -133,6 +145,8 @@ export function streamSseLedgerEntry(input: {
       rawTerminalMarkers: [...frameEvidence.rawTerminalMarkers],
       normalizedTerminalStatus: frameEvidence.normalizedTerminalStatus,
       contentDeltaCount: frameEvidence.contentDeltaCount,
+      ...(input.result.firstByteAt ? { firstByteAt: input.result.firstByteAt } : {}),
+      ...(input.result.timeToFirstByteMs !== undefined ? { timeToFirstByteMs: input.result.timeToFirstByteMs } : {}),
       ...(frameEvidence.firstVisibleDeltaAt ? { firstVisibleDeltaAt: frameEvidence.firstVisibleDeltaAt } : {}),
       providerReceipt: frameEvidence.providerReceipt,
       ...(input.result.providerErrorBody ? { providerErrorBody: input.result.providerErrorBody } : {}),
@@ -307,6 +321,7 @@ function canonicalStreamEvent(input: {
   readonly frameEvidence: StreamFrameEvidence;
 }): CanonicalEventV2 {
   const timing = streamTimingFromFrames(input.result, input.frameEvidence.normalizedTerminalStatus);
+  const timingEvidence = timing as CanonicalTimingWithMonotonicEvidence;
   const providerRequestId = providerRequestIdFromHeaders(input.result.headers);
   const providerReceipt = input.frameEvidence.providerReceipt;
   const providerResponseId = stringRecordField(providerReceipt, "responseId");
@@ -358,6 +373,9 @@ function canonicalStreamEvent(input: {
         ...(timing.providerResponseEndedAt ? { providerResponseEndedAt: timing.providerResponseEndedAt } : {}),
         ...(timing.providerElapsedMs !== undefined ? { providerElapsedMs: timing.providerElapsedMs } : {}),
         ...(timing.gatewayOverheadMs !== undefined ? { gatewayOverheadMs: timing.gatewayOverheadMs } : {}),
+        ...(timingEvidence.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: timingEvidence.monotonicElapsedMs } : {}),
+        ...(timingEvidence.monotonicClockSource ? { monotonicClockSource: timingEvidence.monotonicClockSource } : {}),
+        ...(timingEvidence.wallClockDrift ? { wallClockDrift: timingEvidence.wallClockDrift } : {}),
         ...(timing.firstByteAt ? { firstByteAt: timing.firstByteAt } : {}),
         ...(timing.firstTokenAt ? { firstTokenAt: timing.firstTokenAt } : {}),
         ...(timing.lastChunkAt ? { lastChunkAt: timing.lastChunkAt } : {}),
@@ -376,33 +394,42 @@ function canonicalStreamEvent(input: {
 function streamTimingFromFrames(
   result: StreamSseProviderCallResult,
   terminalStatus: CanonicalEventV2["timing"]["terminalStatus"],
-): CanonicalEventV2["timing"] {
+): CanonicalTimingWithMonotonicEvidence {
   const startedMs = Date.parse(result.startedAt);
   const endedMs = Date.parse(result.endedAt);
-  const frameTimes = result.frames
-    .map((frame) => Date.parse(frame.observedAt))
-    .filter((value) => Number.isFinite(value));
-  const firstEventMs = frameTimes[0];
-  const lastChunkMs = frameTimes[frameTimes.length - 1];
+  const firstEventFrame = result.frames[0];
+  const firstContentDeltaFrame = firstContentDeltaFrameFor(result.frames);
+  const frameTimes = result.frames.map((frame) => frameElapsedMs(frame, startedMs));
+  const firstEventMs = firstEventFrame ? Date.parse(firstEventFrame.observedAt) : undefined;
+  const firstByteMs = result.firstByteAt ? Date.parse(result.firstByteAt) : firstEventMs;
+  const lastChunkMs = result.frames.length > 0 ? Date.parse(result.frames[result.frames.length - 1]?.observedAt ?? "") : undefined;
   const gaps = frameTimes.slice(1).map((value, index) => value - (frameTimes[index] ?? value));
   const maxGap = gaps.length > 0 ? Math.max(...gaps) : undefined;
+  const totalDuration = resultDurationEvidence(result, startedMs, endedMs);
 
   return {
     startedAt: result.startedAt,
     endedAt: result.endedAt,
-    latencyMs: elapsedMs(startedMs, endedMs),
-    ...(firstEventMs !== undefined ? { firstEventAt: new Date(firstEventMs).toISOString() } : {}),
-    ...(firstEventMs !== undefined ? { firstByteAt: new Date(firstEventMs).toISOString() } : {}),
-    ...(firstContentDeltaAt(result.frames) ? { firstContentDeltaAt: firstContentDeltaAt(result.frames) } : {}),
-    ...(firstContentDeltaAt(result.frames) ? { firstTokenAt: firstContentDeltaAt(result.frames) } : {}),
-    ...(lastChunkMs !== undefined ? { lastChunkAt: new Date(lastChunkMs).toISOString() } : {}),
-    ...(firstEventMs !== undefined ? { timeToFirstEventMs: elapsedMs(startedMs, firstEventMs) } : {}),
-    ...(firstEventMs !== undefined ? { timeToFirstByteMs: elapsedMs(startedMs, firstEventMs) } : {}),
-    ...(firstContentDeltaAt(result.frames)
-      ? { timeToFirstContentDeltaMs: elapsedMs(startedMs, Date.parse(firstContentDeltaAt(result.frames) as string)) }
+    latencyMs: totalDuration.latencyMs,
+    ...(result.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: result.monotonicElapsedMs } : {}),
+    ...(result.monotonicClockSource ? { monotonicClockSource: result.monotonicClockSource } : {}),
+    ...(totalDuration.wallClockDrift ? { wallClockDrift: totalDuration.wallClockDrift } : {}),
+    ...(firstEventFrame ? { firstEventAt: firstEventFrame.observedAt } : {}),
+    ...(result.firstByteAt ? { firstByteAt: result.firstByteAt } : firstByteMs !== undefined && Number.isFinite(firstByteMs)
+      ? { firstByteAt: new Date(firstByteMs).toISOString() }
       : {}),
-    ...(firstContentDeltaAt(result.frames)
-      ? { timeToFirstTokenMs: elapsedMs(startedMs, Date.parse(firstContentDeltaAt(result.frames) as string)) }
+    ...(firstContentDeltaFrame ? { firstContentDeltaAt: firstContentDeltaFrame.observedAt } : {}),
+    ...(firstContentDeltaFrame ? { firstTokenAt: firstContentDeltaFrame.observedAt } : {}),
+    ...(lastChunkMs !== undefined && Number.isFinite(lastChunkMs) ? { lastChunkAt: new Date(lastChunkMs).toISOString() } : {}),
+    ...(firstEventFrame ? { timeToFirstEventMs: frameElapsedMs(firstEventFrame, startedMs) } : {}),
+    ...(result.timeToFirstByteMs !== undefined ? { timeToFirstByteMs: result.timeToFirstByteMs } : firstByteMs !== undefined
+      ? { timeToFirstByteMs: elapsedMs(startedMs, firstByteMs) }
+      : {}),
+    ...(firstContentDeltaFrame
+      ? { timeToFirstContentDeltaMs: frameElapsedMs(firstContentDeltaFrame, startedMs) }
+      : {}),
+    ...(firstContentDeltaFrame
+      ? { timeToFirstTokenMs: frameElapsedMs(firstContentDeltaFrame, startedMs) }
       : {}),
     chunkCount: result.frames.length,
     ...(maxGap !== undefined ? { maxInterChunkGapMs: maxGap } : {}),
@@ -456,6 +483,9 @@ export function streamSseRawFrameRows(frames: readonly StreamSseRawFrame[]): Jso
   return frames.map((frame, index) => ({
     index,
     observedAt: frame.observedAt,
+    ...(frame.observedMonotonicElapsedMs !== undefined
+      ? { observedMonotonicElapsedMs: frame.observedMonotonicElapsedMs }
+      : {}),
     eventType: frame.event ?? "message",
     dataHash: stableSha256({ data: frame.data }),
     terminalMarker: frame.data === "[DONE]" ||
@@ -468,6 +498,7 @@ export function streamSseRawFrameRows(frames: readonly StreamSseRawFrame[]): Jso
 }
 
 function canonicalTimingEvidence(timing: CanonicalEventV2["timing"]): JsonRecord {
+  const timingEvidence = timing as CanonicalTimingWithMonotonicEvidence;
   return {
     chunkCount: timing.chunkCount,
     ...(timing.firstEventAt ? { firstEventAt: timing.firstEventAt } : {}),
@@ -476,20 +507,43 @@ function canonicalTimingEvidence(timing: CanonicalEventV2["timing"]): JsonRecord
     ...(timing.firstTokenAt ? { firstTokenAt: timing.firstTokenAt } : {}),
     ...(timing.lastChunkAt ? { lastChunkAt: timing.lastChunkAt } : {}),
     ...(timing.timeToFirstEventMs !== undefined ? { timeToFirstEventMs: timing.timeToFirstEventMs } : {}),
+    ...(timing.timeToFirstByteMs !== undefined ? { timeToFirstByteMs: timing.timeToFirstByteMs } : {}),
+    ...(timing.timeToFirstContentDeltaMs !== undefined
+      ? { timeToFirstContentDeltaMs: timing.timeToFirstContentDeltaMs }
+      : {}),
     ...(timing.timeToFirstTokenMs !== undefined ? { timeToFirstTokenMs: timing.timeToFirstTokenMs } : {}),
+    ...(timingEvidence.monotonicElapsedMs !== undefined ? { monotonicElapsedMs: timingEvidence.monotonicElapsedMs } : {}),
+    ...(timingEvidence.monotonicClockSource ? { monotonicClockSource: timingEvidence.monotonicClockSource } : {}),
+    ...(timingEvidence.wallClockDrift ? { wallClockDrift: wallClockDriftJson(timingEvidence.wallClockDrift) } : {}),
     ...(timing.maxInterChunkGapMs !== undefined ? { maxInterChunkGapMs: timing.maxInterChunkGapMs } : {}),
     ...(timing.maxStreamGapMs !== undefined ? { maxStreamGapMs: timing.maxStreamGapMs } : {}),
     terminalStatus: timing.terminalStatus,
   };
 }
 
-function firstContentDeltaAt(frames: readonly StreamSseRawFrame[]): string | undefined {
+function firstContentDeltaFrameFor(frames: readonly StreamSseRawFrame[]): StreamSseRawFrame | undefined {
   return frames.find((frame) =>
     frame.data !== "[DONE]" &&
     (frame.event === "response.output_text.delta" ||
       frame.event === "content_block_delta" ||
       frame.data.includes("\"delta\""))
-  )?.observedAt;
+  );
+}
+
+function frameElapsedMs(frame: StreamSseRawFrame, startedMs: number): number {
+  if (frame.observedMonotonicElapsedMs !== undefined && Number.isFinite(frame.observedMonotonicElapsedMs)) {
+    return frame.observedMonotonicElapsedMs;
+  }
+  return elapsedMs(startedMs, Date.parse(frame.observedAt));
+}
+
+function wallClockDriftJson(drift: WallClockDriftEvidence): JsonRecord {
+  return {
+    kind: drift.kind,
+    wallClockElapsedMs: drift.wallClockElapsedMs,
+    monotonicElapsedMs: drift.monotonicElapsedMs,
+    driftMs: drift.driftMs,
+  };
 }
 
 function parseFrameData(data: string): unknown {
@@ -533,4 +587,31 @@ function stringRecordField(value: JsonRecord, key: string): string | undefined {
 function elapsedMs(startedMs: number, endedMs: number): number {
   if (!Number.isFinite(startedMs) || !Number.isFinite(endedMs)) return 0;
   return Math.max(0, endedMs - startedMs);
+}
+
+function resultDurationEvidence(
+  result: StreamSseProviderCallResult,
+  startedMs: number,
+  endedMs: number,
+): ResultDurationEvidence {
+  const wallClockElapsedMs = endedMs - startedMs;
+  if (result.monotonicElapsedMs !== undefined) {
+    return {
+      latencyMs: result.monotonicElapsedMs,
+      ...(result.wallClockDrift ? { wallClockDrift: result.wallClockDrift } : {}),
+    };
+  }
+  if (!Number.isFinite(wallClockElapsedMs)) return { latencyMs: 0 };
+  if (wallClockElapsedMs < 0) {
+    return {
+      latencyMs: 0,
+      wallClockDrift: {
+        kind: "negative_wall_clock_elapsed",
+        wallClockElapsedMs,
+        monotonicElapsedMs: 0,
+        driftMs: wallClockElapsedMs,
+      },
+    };
+  }
+  return { latencyMs: wallClockElapsedMs };
 }

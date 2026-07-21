@@ -184,6 +184,46 @@ describe("inferock-bench geminiAdapter", () => {
     }
   });
 
+  it("bench-gemini-stream-boundary-definitions: separates first byte from first parsed event", async () => {
+    // Real timers with a real >=10ms inter-chunk delay: fake-timer stepping
+    // inside pull() races against the adapter's consumption (pull for the next
+    // chunk can advance the clock before the previous chunk is stamped), which
+    // collapsed first-byte and first-event to the same instant under load. A
+    // real delay makes the boundary separation hold strictly in both the
+    // wall-clock stamps and the monotonic fields, with no scheduling coupling.
+    const metadataEvent = geminiSseChunk({
+      modelVersion: "gemini-2.5-flash-lite",
+      responseId: "bench-gemini-boundaries",
+    });
+    const result = await observeStreamChunks(
+      [
+        metadataEvent.slice(0, 8),
+        metadataEvent.slice(8),
+        geminiSseChunk({
+          candidates: [{ index: 0, content: { role: "model", parts: [{ text: "first content" }] } }],
+          modelVersion: "gemini-2.5-flash-lite",
+          responseId: "bench-gemini-boundaries",
+        }),
+      ],
+      10,
+    );
+
+    const timing = result.event.timing;
+    expect(timing).toMatchObject({
+      chunkCount: 2,
+      firstByteAt: expect.any(String),
+      firstEventAt: expect.any(String),
+      firstContentDeltaAt: expect.any(String),
+      firstTokenAt: expect.any(String),
+      timeToFirstByteMs: expect.any(Number),
+      timeToFirstEventMs: expect.any(Number),
+    });
+    expect(Date.parse(timing.firstByteAt as string)).toBeLessThan(Date.parse(timing.firstEventAt as string));
+    expect(timing.timeToFirstByteMs as number).toBeLessThan(timing.timeToFirstEventMs as number);
+    expect(timing.firstContentDeltaAt).toBe(timing.firstTokenAt);
+    expect(timing.timeToFirstContentDeltaMs).toBe(timing.timeToFirstTokenMs);
+  });
+
   it("bench-gemini-stream-post-200-error-frame: classifies mid-stream error chunks as terminal error", async () => {
     vi.useFakeTimers();
     try {
@@ -222,7 +262,7 @@ describe("inferock-bench geminiAdapter", () => {
   });
 });
 
-async function observeStreamChunks(chunks: readonly string[]): Promise<AdapterCanonicalResult> {
+async function observeStreamChunks(chunks: readonly string[], interChunkDelayMs?: number): Promise<AdapterCanonicalResult> {
   let resolveTerminal: (result: AdapterCanonicalResult) => void;
   const terminal = new Promise<AdapterCanonicalResult>((resolve) => {
     resolveTerminal = resolve;
@@ -243,7 +283,7 @@ async function observeStreamChunks(chunks: readonly string[]): Promise<AdapterCa
       "content-type": "text/event-stream",
       "x-goog-request-id": "gemini-stream-req-1",
     }),
-    body: streamFromChunks(chunks),
+    body: streamFromChunks(chunks, interChunkDelayMs),
     startedAt: STARTED_AT,
     attemptIndex: 0,
     baseUrl: GEMINI_BASE_URL,
@@ -253,15 +293,22 @@ async function observeStreamChunks(chunks: readonly string[]): Promise<AdapterCa
   return terminal;
 }
 
-function streamFromChunks(chunks: readonly string[]): ReadableStream<Uint8Array> {
+function streamFromChunks(chunks: readonly string[], interChunkDelayMs?: number): ReadableStream<Uint8Array> {
   let index = 0;
   return new ReadableStream<Uint8Array>({
-    pull(controller): void {
+    async pull(controller): Promise<void> {
       if (index >= chunks.length) {
         controller.close();
         return;
       }
-      vi.setSystemTime(new Date(STARTED_AT.getTime() + index * 300));
+      if (interChunkDelayMs === undefined) {
+        // Fake-timer path (default): step the mocked clock per chunk.
+        vi.setSystemTime(new Date(STARTED_AT.getTime() + index * 300));
+      } else if (index > 0) {
+        // Real-timer path: enforce a genuine minimum gap between chunks so
+        // arrival-order stamps cannot collapse to the same instant.
+        await new Promise((resolve) => setTimeout(resolve, interChunkDelayMs));
+      }
       controller.enqueue(new TextEncoder().encode(chunks[index] ?? ""));
       index += 1;
     },

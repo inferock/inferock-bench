@@ -17,7 +17,7 @@ From the exposure-split presentation forward, the receipt headline is `spent $X 
 
 For the exact formulas, see [Paid-loss arithmetic](loss-arithmetic.md).
 
-The public 2026-07-10 cumulative card shows the current read: `$7.15` spent, `$0.07` headline money loss (stored exact `$0.073875`), `~2.9 min` time loss, and `$16.80` cache-discount invoice-check exposure labeled "verify your invoice." The older 2026-07-06 card remains published as a historical pre-split artifact.
+The public 2026-07-10 cumulative card shows the current 0.2.3 read: `$7.15` spent, `$0.03` headline money loss (stored exact `$0.026464`), `~2.9 min` time loss, and `$16.80` cache-discount invoice-check exposure labeled "verify your invoice." That card is an issue-weighted adaptive traffic mix; failures/signals are receipt findings rather than unique calls, and invoice-check exposure is separate from booked money loss. The older 2026-07-06 card remains published as a historical pre-split artifact.
 
 ## Q2. Why should anyone accept a standard written by the company that built the benchmark?
 
@@ -53,7 +53,7 @@ Gemini is a supported public bench provider for local proxying, receipts, canoni
 
 ## Q9. Is `inferock-bench` open source?
 
-The license stack is mixed. The local CLI app is FSL-1.1-Apache-2.0 with two-year Apache-2.0 conversion, so call it source-available/Fair Source, not OSI open source. `@inferock/measure` is Apache-2.0, and The Inferock Standard/spec are CC-BY-4.0.
+Not OSI open source: the local CLI app is source-available under FSL-1.1-ALv2 with two-year Apache-2.0 conversion. Its source is published, independently runnable, and methodology-challengeable; `@inferock/measure` is Apache-2.0, and The Inferock Standard/spec are CC-BY-4.0.
 
 ## Q10. How are standard changes versioned?
 

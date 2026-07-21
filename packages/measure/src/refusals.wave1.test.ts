@@ -9,6 +9,7 @@ import {
   registerRefusalClassifierVerdict,
   regexRefusalTier,
 } from "./refusals.js";
+import { clearOutputSchemas, registerOutputSchema } from "./output-schemas.js";
 import { runStatelessDetectors } from "./stateless.js";
 
 type ProviderSafety = NonNullable<CanonicalEventV2["response"]["providerSafety"]>;
@@ -22,9 +23,19 @@ const TENANT_ID = "tenant-refusal-wave1";
 const OPENAI_MODEL = "gpt-5.4-mini";
 const ANTHROPIC_MODEL = "claude-3-5-sonnet-latest";
 const GEMINI_MODEL = "gemini-2.5-flash";
+const OUTPUT_SCHEMA_VERSION = "refusal-answer-v1";
+const OUTPUT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["answer"],
+  properties: {
+    answer: { type: "string", minLength: 1 },
+  },
+} as const;
 
 afterEach(() => {
   clearRefusalClassifierVerdicts();
+  clearOutputSchemas();
 });
 
 describe("wave1 refusal signal economics", () => {
@@ -52,7 +63,7 @@ describe("wave1 refusal signal economics", () => {
     expect(signal?.providerRecoverableLossUsd).toBeGreaterThan(0);
   });
 
-  it("dollarizes regex and classifier-only refusal findings without provider recognition", () => {
+  it("keeps regex-only refusals triage-only while classifier evidence remains floor-eligible", () => {
     const regexEvent = buildCanonicalEvent({
       request: {
         tenantId: TENANT_ID,
@@ -100,17 +111,24 @@ describe("wave1 refusal signal economics", () => {
     expect(classifierRefusalTier(classifierEvent)).toMatchObject({ tier: "classifier" });
     expect(detectRefusal(regexEvent)).toMatchObject({
       code: "REFUSAL_BILLED",
-      failureClass: "refusal",
+      failureClass: null,
       status: "triage_only",
       evidenceGrade: "triage_only",
+      severity: "warning",
+      valueKind: "triage",
+      recoverableBasis: null,
       providerRecoverableLossUsd: 0,
       evidence: {
         refusalDetectionSource: "classifier",
         refusalDetectionMechanism: "regex",
+        standardLossEligible: false,
+        standardLossEligibility: "regex_only_triage",
       },
       valueJson: {
         refusalDetectionSource: "classifier",
         refusalDetectionMechanism: "regex",
+        standardLossEligible: false,
+        standardLossEligibility: "regex_only_triage",
       },
     });
     expect(detectRefusal(classifierEvent)).toMatchObject({
@@ -120,24 +138,84 @@ describe("wave1 refusal signal economics", () => {
       evidence: {
         refusalDetectionSource: "classifier",
         refusalDetectionMechanism: "protectai",
+        standardLossEligible: true,
+        standardLossEligibility: "classifier_refusal",
         classifierScore: 0.98,
       },
     });
     expect(detectStatelessRefusal(regexEvent)).toMatchObject({
       code: "REFUSAL_BILLED",
+      failureClass: null,
+      valueKind: "triage",
       providerRecoverableLossUsd: 0,
     });
     const standardized = runStatelessDetectors(regexEvent).find((signal) =>
       signal.code === "REFUSAL_BILLED"
     );
     expect(standardized).toMatchObject({
-      standardLossStatus: "computed",
-      standardLossGrade: "unrecognized_standard_loss",
-      evidenceGrade: "unrecognized_standard_loss",
+      standardLossStatus: "not_applicable",
+      standardLossGrade: "triage_only",
+      evidenceGrade: "triage_only",
+      standardLossUsd: 0,
       providerRecognizedLossUsd: 0,
-      recognitionGapUsd: standardized?.standardLossUsd,
+      recognitionGapUsd: 0,
       computationTrace: {
-        method: "call_cost_floor_v1",
+        method: "not_applicable_v1",
+        basis: "not_standard_loss",
+      },
+    });
+  });
+
+  it("regex-refusal-with-registered-output-contract: allows task-contract evidence to carry the floor", () => {
+    registerOutputSchema({
+      tenantId: TENANT_ID,
+      schemaVersion: OUTPUT_SCHEMA_VERSION,
+      schema: OUTPUT_SCHEMA,
+    });
+    const event = buildCanonicalEvent({
+      request: {
+        tenantId: TENANT_ID,
+        provider: "openai",
+        model: OPENAI_MODEL,
+        requestId: "req-regex-contract",
+        expectCompletion: true,
+      },
+      response: {
+        finishReason: "stop",
+        content: "I'm sorry, I can't assist with that.",
+      },
+      usage: {
+        input: 100,
+        output: 20,
+      },
+      meta: {
+        outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+      },
+    });
+
+    expect(detectRefusal(event)).toMatchObject({
+      code: "REFUSAL_BILLED",
+      failureClass: "refusal",
+      valueKind: "money",
+      recoverableBasis: "whole_call",
+      evidence: {
+        refusalDetectionMechanism: "regex",
+        standardLossEligible: true,
+        standardLossEligibility: "task_contract_refusal",
+        taskContractEvidence: {
+          kind: "registered_output_schema",
+          outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+        },
+      },
+    });
+
+    const refusalSignal = runStatelessDetectors(event).find((signal) =>
+      signal.code === "REFUSAL_BILLED"
+    );
+    expect(refusalSignal).toMatchObject({
+      standardLossStatus: "computed",
+      standardLossMethod: "call_cost_floor_v1",
+      computationTrace: {
         basis: "failed_to_deliver_usable_output",
       },
     });
@@ -250,10 +328,11 @@ describe("wave1 refusal signal economics", () => {
     expect(regexRefusalTier(refusal.response.content)).toBe("regex");
     expect(detectRefusal(refusal)).toMatchObject({
       code: "REFUSAL_BILLED",
-      failureClass: "refusal",
+      failureClass: null,
       evidence: {
         refusalDetectionSource: "classifier",
         refusalDetectionMechanism: "regex",
+        standardLossEligible: false,
       },
     });
     expect(detectRefusal(notExpected)).toBeNull();
@@ -286,9 +365,11 @@ describe("wave1 refusal signal economics", () => {
       expect(regexRefusalTier(event.response.content)).toBe("regex");
       expect(detectRefusal(event)).toMatchObject({
         code: "REFUSAL_BILLED",
+        failureClass: null,
         evidence: {
           refusalDetectionSource: "classifier",
           refusalDetectionMechanism: "regex",
+          standardLossEligible: false,
         },
       });
     }
@@ -331,6 +412,8 @@ describe("wave1 refusal signal economics", () => {
       evidence: {
         refusalDetectionSource: "classifier",
         refusalDetectionMechanism: "protectai",
+        standardLossEligible: true,
+        standardLossEligibility: "classifier_refusal",
         classifierScore: 0.94,
       },
     });
